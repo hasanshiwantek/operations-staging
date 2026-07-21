@@ -1,0 +1,38 @@
+{
+  "name": "order-ops-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@handsontable/react-wrapper": "^18.0.0",
+    "@reduxjs/toolkit": "^2.11.0",
+    "@vitejs/plugin-react": "^5.1.0",
+    "axios": "^1.6.2",
+    "date-fns": "^4.1.0",
+    "handsontable": "^18.0.0",
+    "hyperformula": "^3.3.0",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
+    "lucide-react": "^0.552.0",
+    "react": "^18.2.0",
+    "react-datepicker": "^8.8.0",
+    "react-dom": "^18.2.0",
+    "react-hook-form": "^7.66.1",
+    "react-icons": "^5.5.0",
+    "react-redux": "^9.2.0",
+    "react-router-dom": "^6.22.1",
+    "react-toastify": "^11.0.5",
+    "redux-persist": "^6.0.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.18",
+    "vite": "^7.2.0"
+  }
+}

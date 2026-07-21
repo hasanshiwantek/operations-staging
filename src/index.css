@@ -1,0 +1,112 @@
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  @apply bg-gray-50 text-gray-800;
+  font-family: "Outfit", sans-serif;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* .gain-cell {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.loss-cell {
+  color: #dc2626;
+  font-weight: 600;
+  background-color: #fef2f2;
+} */
+
+/* ORDER LOOKUP SHEET — styling to match the Google Sheets look */
+
+
+/* 2 */
+/* .handsontable td.ols-title {
+  background-color: #a4c2f4;     
+  color: #1a1a1a;
+  font-weight: 700;
+  font-size: 22px;
+  text-align: center;
+  vertical-align: middle;
+  letter-spacing: 0.5px;
+}
+
+.handsontable td.ols-label {
+  background-color: #d9ead3;      
+  color: #1a1a1a;
+  font-weight: 700;
+  text-align: center;
+  vertical-align: middle;
+  border: 1px solid #b7d1a8;
+}
+
+.handsontable td {
+  vertical-align: middle;
+}
+
+.handsontable td.htNumeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.ols-gain { color: #16a34a; font-weight: 600; }
+.ols-loss { color: #dc2626; font-weight: 600; background-color: #fef2f2; } */
+
+
+
+/* 3 */
+
+/* Title band — big blue header, spans A1:H3 */
+.handsontable td.ols-title {
+  background-color: #a4c2f4;
+  /* light blue like the screenshot */
+  color: #1a1a1a;
+  font-weight: 700;
+  font-size: 26px;
+  text-align: center;
+  vertical-align: middle;
+  letter-spacing: 1px;
+}
+
+/* Label bands — green, bold, centered (section header rows) */
+.handsontable td.ols-label {
+  background-color: #d9ead3;
+  /* soft green */
+  color: #1a1a1a;
+  font-weight: 700;
+  text-align: center;
+  vertical-align: middle;
+  border: 1px solid #b7d1a8;
+}
+
+/* Value cells vertically centered */
+.handsontable td {
+  vertical-align: middle;
+}
+
+/* Numeric (computed) cells: right-aligned, tabular figures */
+.handsontable td.htNumeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Keep the Excel column-header / row-number bar looking native */
+.handsontable th {
+  font-weight: 600;
+}
