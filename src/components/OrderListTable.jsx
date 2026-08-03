@@ -4,7 +4,7 @@ import { registerAllModules } from 'handsontable/registry';
 import { useDispatch, useSelector } from 'react-redux';
 import autoTable from 'jspdf-autotable';   // ← Changed import
 import EditOrderDetailModal from './EditOrderDetailModal';
-import { fetchOrdersAdmin, fetchOrders, postOrderFiles, updateOrderFiles } from '../store/usersSlice';
+import { fetchOrdersAdmin, fetchOrders, postOrderFiles, updateOrderFiles, createGenerateId } from '../store/usersSlice';
 import { columnsOfSheet } from '../utils/constant';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -21,6 +21,7 @@ function OrderListTable() {
   const { Orders, orderloading } = useSelector((state) => state.users);
   const { token, storeId, user: authUser } = useSelector((state) => state.auth);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [isCreatePartMode, setIsCreatePartMode] = useState(false);
   const [isAddMode, setIsAddMode] = useState(false);
   const exportToExcel = () => {
     if (!Orders || Orders.length === 0) return alert("No data to export");
@@ -99,6 +100,7 @@ function OrderListTable() {
     const clickedOrder = Orders[actualDataIndex];
 
     if (clickedOrder) {
+      setIsCreatePartMode(false);
       setSelectedOrder(clickedOrder);
     }
   };
@@ -142,16 +144,47 @@ function OrderListTable() {
         <EditOrderDetailModal
           order={selectedOrder}
           onClose={() => setSelectedOrder(null)}
+          // onSave={(updatedOrder) => {
+          //   dispatch(updateOrderFiles({ id: updatedOrder["Order#"], data: updatedOrder }))
+          //     .unwrap()
+          //     .then(() => {
+          //       dispatch(fetchOrders());
+          //       setSelectedOrder(null)
+          //     })
+          //     .catch((err) => {
+          //       console.error("Update failed:", err);
+          //     });
+          // }}
           onSave={(updatedOrder) => {
-            dispatch(updateOrderFiles({ id: updatedOrder["Order#"], data: updatedOrder }))
-              .unwrap()
-              .then(() => {
-                dispatch(fetchOrders());
-                setSelectedOrder(null)
-              })
-              .catch((err) => {
-                console.error("Update failed:", err);
-              });
+            console.log(isCreatePartMode, updatedOrder);
+            if (isCreatePartMode) {
+
+              // ========== CREATE API ==========
+              dispatch(postOrderFiles(updatedOrder))   // ← your create thunk
+                .unwrap()
+                .then(() => {
+                  dispatch(fetchOrders());
+                  setSelectedOrder(null);
+                  setIsCreatePartMode(false);
+                })
+                .catch((err) => {
+                  console.error("Create failed:", err);
+                });
+            } else {
+              // ========== UPDATE API ==========
+              dispatch(updateOrderFiles({
+                id: updatedOrder["Order#"],
+                data: updatedOrder
+              }))
+                .unwrap()
+                .then(() => {
+                  dispatch(fetchOrders());
+                  setSelectedOrder(null);
+                })
+                .catch((err) => {
+                  console.error("Update failed:", err);
+                });
+            }
           }}
         />
       )}
@@ -240,20 +273,91 @@ function OrderListTable() {
                     handleOrderClick(row);          // your existing handler
                   }
                 },
+
+                // create_part: {
+                //   name: 'Create part number',
+                //   callback: async (key, selection) => {
+                //     const row = selection[0].start.row;
+                //     const originalOrder = Orders[row];
+
+                //     if (!originalOrder) return;
+
+                //     const originalOrderId = originalOrder['Order#'];
+
+                //     try {
+                //       // 1. Generate new ID
+                //       const result = await dispatch(
+                //         createGenerateId({ orderId: originalOrderId })
+                //       ).unwrap();
+
+                //       if (result.success && result.generated_id) {
+                //         // 2. Create a copy of original order + change only Order#
+                //         const newOrderData = {
+                //           ...originalOrder,
+                //           'Order#': result.generated_id,   // only this field changes
+                //         };
+
+                //         // 3. Open the same Edit modal with the new data
+                //         setSelectedOrder(newOrderData);
+                //       }
+                //     } catch (err) {
+                //       console.error('Failed to generate part number:', err);
+                //       // optionally show toast
+                //     }
+                //   }
+                // },
                 create_part: {
                   name: 'Create part number',
-                  callback: function (key, selection) {
+                  callback: async (key, selection) => {
                     const row = selection[0].start.row;
-                    // call your create part number function here
-                    // e.g. handleCreatePartNumber(row);
+                    const originalOrder = Orders[row];
+
+                    if (!originalOrder) return;
+
+                    try {
+                      const result = await dispatch(
+                        createGenerateId({ orderId: originalOrder['Order#'] })
+                      ).unwrap();
+
+                      if (result.success && result.generated_id) {
+                        const newOrderData = {
+                          ...originalOrder,
+                          'Order#': result.generated_id,   // only Order# changes
+                        };
+
+                        setIsCreatePartMode(true);         // ← mark as create mode
+                        setSelectedOrder(newOrderData);
+                      }
+                    } catch (err) {
+                      console.error('Failed to generate part number:', err);
+                    }
                   }
                 },
                 raim: {
                   name: 'RAIM',
-                  callback: function (key, selection) {
+                  callback: async (key, selection) => {
                     const row = selection[0].start.row;
-                    // call your RAIM function here
-                    // e.g. handleRAIM(row);
+                    const originalOrder = Orders[row];
+
+                    if (!originalOrder) return;
+
+                    try {
+                      const result = await dispatch(
+                        createGenerateId({ orderId: originalOrder['Order#'] })
+                      ).unwrap();
+
+                      if (result.success && result.generated_id) {
+                        const newOrderData = {
+                          ...originalOrder,
+                          'Order#': result.generated_id,   // only Order# changes
+                        };
+
+                        setIsCreatePartMode(true);         // ← mark as create mode
+                        setSelectedOrder(newOrderData);
+                      }
+                    } catch (err) {
+                      console.error('Failed to generate part number:', err);
+                    }
                   }
                 },
                 // Optional separator

@@ -252,6 +252,27 @@ export const fetchOrderById = createAsyncThunk(
     }
   }
 );
+
+export const createGenerateId = createAsyncThunk(
+  "orders/generate-id",
+  async ({ orderId }, { rejectWithValue }) => {
+    try {
+
+      const response = await axiosInstance.post(
+        "/order-files/generate-id",
+        { "Order#": orderId },
+      );
+
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to create record"
+      );
+    }
+  }
+);
 const usersSlice = createSlice({
   name: 'users',
   initialState,
