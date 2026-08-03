@@ -333,8 +333,8 @@ function OrderListTable() {
                     }
                   }
                 },
-                raim: {
-                  name: 'RAIM',
+                rma: {
+                  name: 'RMA',
                   callback: async (key, selection) => {
                     const row = selection[0].start.row;
                     const originalOrder = Orders[row];
