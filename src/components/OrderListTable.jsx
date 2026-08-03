@@ -225,22 +225,54 @@ function OrderListTable() {
             //   'filter_by_value',
             //   'filter_action_bar'
             // ]}
-            contextMenu={true}
+            // contextMenu={true}
             manualColumnResize={true}
             columnSorting={true}
             fixedColumnsStart={1}
             readOnly={true}
             disableVisualSelection={true}
-            // In HotTable props:
-            afterOnCellMouseDown={(event, coords) => {
-              if (coords.col === 0 && coords.row >= 0) {   // Only when clicking Order# column
-                handleOrderClick(coords.row);
-                // // Optional: Clear selection after click
-                // if (hotRef.current) {
-                //   hotRef.current.hotInstance.deselectCell();
-                // }
+            contextMenu={{
+              items: {
+                edit: {
+                  name: 'Edit',
+                  callback: function (key, selection) {
+                    const row = selection[0].start.row;
+                    handleOrderClick(row);          // your existing handler
+                  }
+                },
+                create_part: {
+                  name: 'Create part number',
+                  callback: function (key, selection) {
+                    const row = selection[0].start.row;
+                    // call your create part number function here
+                    // e.g. handleCreatePartNumber(row);
+                  }
+                },
+                raim: {
+                  name: 'RAIM',
+                  callback: function (key, selection) {
+                    const row = selection[0].start.row;
+                    // call your RAIM function here
+                    // e.g. handleRAIM(row);
+                  }
+                },
+                // Optional separator
+                sp1: '---------',
+                // You can still keep some default items if needed
+                // copy: {},
+                // cut: {},
               }
             }}
+            // In HotTable props:
+            // afterOnCellMouseDown={(event, coords) => {
+            //   if (coords.col === 0 && coords.row >= 0) {   // Only when clicking Order# column
+            //     handleOrderClick(coords.row);
+            //     // // Optional: Clear selection after click
+            //     // if (hotRef.current) {
+            //     //   hotRef.current.hotInstance.deselectCell();
+            //     // }
+            //   }
+            // }}
             emptyDataMessage="No orders found"
           />
         </div>

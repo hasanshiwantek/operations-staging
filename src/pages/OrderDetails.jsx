@@ -31,9 +31,10 @@ const OrderDetails = () => {
 
   const [activeTab, setActiveTab] = useState("order");
   const hasDash = singleOrder?.order_id?.includes("-");
+
   // Format order data
   const formattedOrder = singleOrder?.data ? {
-    orderId: singleOrder.data["Order"],
+    orderId: singleOrder.data["Order#"] || singleOrder.data["Order"],
     chargedDate: singleOrder.data["Charged Date"],
     chargedVendor: singleOrder.data["Charged Vendor"],
     leadSource: singleOrder.data["Lead Source"],
@@ -219,7 +220,8 @@ const OrderDetails = () => {
             <FaArrowLeft className="text-gray-600" />
           </button>
           <h1 className={`text-2xl font-semibold flex items-center gap-2 ${hasDash ? "text-red-600" : "text-gray-700"}`}>
-            Order #{singleOrder?.order_id || 0}
+            {/* Order #{singleOrder?.order_id || 0} */}
+            Order #{singleOrder?.data?.["Order#"] || 0}
             {hasDash && <AlertTriangle size={20} className="text-red-600" />}
           </h1>
         </div>
