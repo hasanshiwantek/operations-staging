@@ -4,6 +4,7 @@ export const toNumber = (price) => {
   const value = parseFloat(price.toString().replace(/[^0-9.]/g, ""));
   return isNegative ? -value : value;
 };
+
 export const columnsOfSheet = [
   { data: "Order#", title: "Order#" },
   { data: "Charged Date", title: "Charged Date" },
