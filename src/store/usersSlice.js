@@ -14,7 +14,8 @@ const initialState = {
   fetchLoading: false,
   deleteLoading: false,
   error: null,
-  pending: false
+  pending: false,
+  syncLoading: false,
 };
 
 // Fetch users async thunk
@@ -49,9 +50,9 @@ export const deleteUser = createAsyncThunk(
 // Order Files
 export const postOrderFiles = createAsyncThunk(
   "orderFiles/postOrderFiles",
-  async (payload, { rejectWithValue }) => {
+  async ({ payload, role_id }, { rejectWithValue }) => {
     try {
-      const response = await axiosInstance.post(`order-files`, payload);
+      const response = await axiosInstance.post(`order-files?role_id=${role_id}`, payload);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || error.message || "Failed to post order files");
@@ -101,7 +102,7 @@ export const updateOrderFiles = createAsyncThunk(
 
 export const fetchOrders = createAsyncThunk(
   'users/fetchOrders',
-  async (_, { rejectWithValue }) => {
+  async (role_id, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.get('/order-files');
       return response.data;
@@ -116,9 +117,10 @@ export const fetchOrders = createAsyncThunk(
 // single order thunk
 export const fetchOrdersAdmin = createAsyncThunk(
   "users/fetchOrdersAdmin",
-  async (storeId, { rejectWithValue }) => {
+  async (role_id, { rejectWithValue }) => {
     try {
-      const response = await axiosInstance.get(`/order-files?sheet_id=${storeId}`);
+      const response = await axiosInstance.get(`/order-files?role_id=${role_id}`);
+      // const response = await axiosInstance.get(`/order-files?sheet_id=${storeId}`);
       return response.data; // single order object
     } catch (error) {
       return rejectWithValue(
@@ -146,10 +148,10 @@ export const fetchSingleOrder = createAsyncThunk(
 // Single order fetch for admin
 export const fetchSingleOrderAdmin = createAsyncThunk(
   "users/fetchSingleOrderAdmin",
-  async ({ orderId, sheetId }, { rejectWithValue }) => {
+  async ({ orderId, role_id }, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.get(
-        `/order-files/${orderId}`
+        `/order-files/${orderId}?role_id=${role_id}`
         // `/my-sheet-order?order_id=${orderId}&sheet_id=${sheetId}`
       );
       return response.data; // single order object
@@ -270,6 +272,18 @@ export const createGenerateId = createAsyncThunk(
         error.message ||
         "Failed to create record"
       );
+    }
+  }
+);
+
+export const postSyncOrder = createAsyncThunk(
+  "orderFiles/postSyncOrder",
+  async (path, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.post(`/${path}/sync-orders`);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || error.message || "Failed to post order files");
     }
   }
 );
@@ -432,7 +446,15 @@ const usersSlice = createSlice({
         state.sheets.data = state.sheets.data.filter(sheet => sheet.id !== deletedId);
         state.error = null; // ✅ error clear karo
       })
-      .addCase(deleteSheet.rejected, (state, action) => { state.deleteLoading = false; state.error = action.payload; });
+      .addCase(deleteSheet.rejected, (state, action) => { state.deleteLoading = false; state.error = action.payload; })
+
+
+      .addCase(postSyncOrder.pending, (state) => { state.syncLoading = true; state.error = null; })
+      .addCase(postSyncOrder.fulfilled, (state, action) => {
+        state.syncLoading = false;
+        state.error = null; // ✅ error clear karo
+      })
+      .addCase(postSyncOrder.rejected, (state, action) => { state.syncLoading = false; state.error = action.payload; });
   },
 });
 

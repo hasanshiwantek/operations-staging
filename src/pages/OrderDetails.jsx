@@ -30,8 +30,8 @@ const OrderDetails = () => {
   const { user } = useSelector((state) => state?.auth);
 
   const [activeTab, setActiveTab] = useState("order");
-  const hasDash = singleOrder?.order_id?.includes("-");
-
+  const hasDash = String(singleOrder?.order_id)?.includes("-");
+  // const hasDash = String(order?.order_id)?.includes("-");
   // Format order data
   const formattedOrder = singleOrder?.data ? {
     orderId: singleOrder.data["Order#"] || singleOrder.data["Order"],
@@ -122,10 +122,12 @@ const OrderDetails = () => {
   // Fetch order on mount
   useEffect(() => {
     if (authUser?.role_id === 1 || authUser?.role_id === 2) {
-      dispatch(fetchSingleOrderAdmin({ orderId: orderId, sheetId: storeId?.sheet_id }));
+      dispatch(fetchSingleOrderAdmin({ orderId: orderId, role_id: authUser?.role_id }));
+      // dispatch(fetchSingleOrderAdmin({ orderId: orderId, sheetId: storeId?.sheet_id }));
     }
     else {
-      dispatch(fetchSingleOrder(orderId))
+      dispatch(fetchSingleOrderAdmin({ orderId: orderId, role_id: authUser?.role_id }));
+      // dispatch(fetchSingleOrder(orderId))
     }
   }, [authUser?.role_id, dispatch, orderId]);
   // useEffect(() => {
@@ -219,10 +221,10 @@ const OrderDetails = () => {
           >
             <FaArrowLeft className="text-gray-600" />
           </button>
-          <h1 className={`text-2xl font-semibold flex items-center gap-2 ${hasDash ? "text-red-600" : "text-gray-700"}`}>
+          <h1 className={`text-2xl font-semibold flex items-center gap-2 ${hasDash ? "text-gray-700" : "text-gray-700"}`}>
             {/* Order #{singleOrder?.order_id || 0} */}
             Order #{singleOrder?.data?.["Order#"] || 0}
-            {hasDash && <AlertTriangle size={20} className="text-red-600" />}
+            {/* {hasDash && <AlertTriangle size={20} className="text-red-600" />} */}
           </h1>
         </div>
 
@@ -245,8 +247,6 @@ const OrderDetails = () => {
           {tabs.map((tab) => {
             if (!hasAccess(tab.label)) return null;
             const tabKey = tab.path === "total-price-profit" ? "total price & profit" : tab.path;
-            console.log(tab);
-
             return (
               <button
                 key={tab.path}

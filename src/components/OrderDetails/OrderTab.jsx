@@ -7,7 +7,9 @@ const OrderTab = ({ orderData, handleUpdateField }) => {
   const [showLeadSource, setShowLeadSource] = useState(false);
   const [showSalesAgent, setShowSalesAgent] = useState(false);
 
-    const hasDash = orderData?.orderId?.includes("-");
+  const hasDash = String(orderData?.orderId)?.includes("-");
+
+  // const hasDash = Number(orderData?.orderId) ? orderData?.orderId : orderData?.orderId?.includes("-");
 
   return (
     <div className="bg-white p-4 rounded-2xl shadow-sm">
@@ -28,10 +30,10 @@ const OrderTab = ({ orderData, handleUpdateField }) => {
 
           <tbody>
             <tr className="text-gray-800 hover:bg-gray-50 transition">
-             <td className={`py-3 px-4 flex items-center gap-1 ${hasDash ? "text-red-600" : "text-gray-900"}`}>
-  {orderData.orderId}
-  {hasDash && <AlertTriangle size={14} className="text-red-600" />}
-</td>
+              <td className={`py-3 px-4 flex items-center gap-1 ${hasDash ? "text-gray-900" : "text-gray-900"}`}>
+                {orderData.orderId}
+                {/* {hasDash && <AlertTriangle size={14} className="text-red-600" />} */}
+              </td>
               <td className="py-3 px-4">{orderData.chargedDate}</td>
               <td className="py-3 px-4">
                 <button

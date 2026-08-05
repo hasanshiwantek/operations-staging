@@ -30,7 +30,6 @@ const UsersSection = ({
   };
 
   const handleEditUser = (user) => {
-    console.log("Editing user:", user);
     setEditingUser(user);
     setOpenMenuId(null);
   };

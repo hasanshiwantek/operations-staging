@@ -196,10 +196,12 @@ const Dashboard = () => {
   // === Fetch Dashboard Data ===
   useEffect(() => {
     if (authUser?.role_id === 1 || authUser?.role_id === 2) {
-      dispatch(fetchOrdersAdmin(storeId?.sheet_id))
+      dispatch(fetchOrdersAdmin(authUser?.role_id))
+      // dispatch(fetchOrdersAdmin(storeId?.sheet_id))
     }
     else {
-      dispatch(fetchOrders())
+      dispatch(fetchOrdersAdmin(authUser?.role_id))
+      // dispatch(fetchOrders())
     }
   }, [authUser?.role_id]);
 
