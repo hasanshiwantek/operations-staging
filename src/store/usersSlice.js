@@ -287,6 +287,27 @@ export const postSyncOrder = createAsyncThunk(
     }
   }
 );
+export const importOrderFiles = createAsyncThunk(
+  "orderFiles/importOrderFiles",
+  async (file, { rejectWithValue }) => {
+    try {
+      const formData = new FormData();
+      formData.append("file", file);   // key must be "file" (same as Postman)
+
+      const response = await axiosInstance.post(`/order-files/import`, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || error.message || "Failed to import Excel"
+      );
+    }
+  }
+);
 const usersSlice = createSlice({
   name: 'users',
   initialState,

@@ -4,7 +4,7 @@ import { registerAllModules } from 'handsontable/registry';
 import { useDispatch, useSelector } from 'react-redux';
 import autoTable from 'jspdf-autotable';   // ← Changed import
 import EditOrderDetailModal from './EditOrderDetailModal';
-import { fetchOrdersAdmin, fetchOrders, postOrderFiles, updateOrderFiles, createGenerateId, postSyncOrder } from '../store/usersSlice';
+import { fetchOrdersAdmin, fetchOrders, postOrderFiles, updateOrderFiles, createGenerateId, postSyncOrder, importOrderFiles } from '../store/usersSlice';
 import { columnsOfSheet } from '../utils/constant';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -113,7 +113,29 @@ function OrderListTable() {
       setSelectedOrder(clickedOrder);
     }
   };
+  const importExcel = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".xlsx, .xls";
 
+    input.onchange = async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      try {
+        const result = await dispatch(importOrderFiles(file)).unwrap();
+
+        alert(result.message || "Excel imported successfully!");
+
+        // Refresh the table
+        dispatch(fetchOrdersAdmin(authUser?.role_id));
+      } catch (err) {
+        alert(err || "Import failed");
+      }
+    };
+
+    input.click();
+  };
   if (orderloading) {
     return (
       <div style={{ padding: '40px', textAlign: 'center' }}>
@@ -264,7 +286,19 @@ function OrderListTable() {
             >
               Download PDF
             </button> */}
-
+            <button
+              onClick={importExcel}
+              style={{
+                padding: "8px 16px",
+                background: "#1b51ef",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+              }}
+            >
+              Import Excel
+            </button>
             <ExportOrdersPdf orders={Orders || []} />
 
             <button
