@@ -118,7 +118,11 @@ const staticDashboardData = {
 const Dashboard = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("dashboard");
+  // const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState(() => {
+    // Get saved tab from localStorage, fallback to "dashboard"
+    return localStorage.getItem("activeTab") || "dashboard";
+  });
   const { users, Orders, userloading, orderloading, error: usersError, pending } = useSelector((state) => state.users);
   const { token, user: authUser } = useSelector((state) => state.auth);
   const [data, setData] = useState([]);
@@ -275,7 +279,9 @@ const Dashboard = () => {
   const deliveredCount = filteredOrders.filter(
     o => o.status?.toLowerCase() === "delivered"
   ).length;
-
+  useEffect(() => {
+    localStorage.setItem("activeTab", activeTab);
+  }, [activeTab]);
   return (
     <>
 
