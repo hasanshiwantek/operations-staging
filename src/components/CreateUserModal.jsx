@@ -353,7 +353,6 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
               <select
                 value={formData.role}
                 onChange={(e) => {
-                  console.log("selected:", e.target.value);
                   setFormData({ ...formData, role: e.target.value });
                 }}
                 className={`w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${errors.role ? "border-red-400" : "border-gray-200"

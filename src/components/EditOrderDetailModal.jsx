@@ -113,8 +113,18 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
                         </div>
                     )}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
-                        {Object.entries(formData).map(([key, value]) => (
-                            <div key={key} className="space-y-1">
+                        {Object.entries(formData).map(([key, value]) => {
+                            const disabledFields = [
+                                "Total Price",
+                                "Total Cost",
+                                "Total Cost+4%",
+                                "Gross Profit",
+                                "Gross Profit-4%",
+                                "Profit %",
+                            ];
+
+                            const isDisabled = disabledFields.includes(key);
+                            return <div key={key} className="space-y-1">
                                 <label className="block text-sm font-medium text-gray-600">
                                     {key.replace(/([A-Z])/g, ' $1').trim()}
                                 </label>
@@ -123,11 +133,17 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
                                     name={key}
                                     value={formData[key] ?? ''}
                                     onChange={handleChange}
+                                    disabled={isDisabled}
+                                    //                     className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all
+                                    //    border-indigo-300 bg-white`}
                                     className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all
-                   border-indigo-300 bg-white`}
+          ${isDisabled
+                                            ? "border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed"
+                                            : "border-indigo-300 bg-white"
+                                        }`}
                                 />
                             </div>
-                        ))}
+                        })}
                     </div>
                 </div>
 

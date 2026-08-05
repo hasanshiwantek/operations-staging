@@ -12,6 +12,7 @@ import 'handsontable/styles/handsontable.min.css';
 import 'handsontable/styles/ht-theme-main.min.css';
 import OrderDetailModal from './OrderDetailModal';
 import ExportOrdersPdf from './ExportOrdersPdf';
+import Handsontable from 'handsontable';
 
 registerAllModules();
 
@@ -21,6 +22,7 @@ function OrderListTable() {
   const { Orders, orderloading, syncLoading } = useSelector((state) => state.users);
   const { token, storeId, user: authUser } = useSelector((state) => state.auth);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [isRMAMode, setIsRMAMode] = useState(false);
   const [isCreatePartMode, setIsCreatePartMode] = useState(false);
   const [isAddMode, setIsAddMode] = useState(false);
   const exportToExcel = () => {
@@ -107,6 +109,7 @@ function OrderListTable() {
 
     if (clickedOrder) {
       setIsCreatePartMode(false);
+      setIsRMAMode(false);
       setSelectedOrder(clickedOrder);
     }
   };
@@ -167,7 +170,7 @@ function OrderListTable() {
               // ========== CREATE API ==========
               dispatch(
                 postOrderFiles({
-                  payload: updatedOrder,
+                  payload: { ...updatedOrder, order_type: "po" },
                   role_id: authUser?.role_id,
                 })
               ).unwrap()
@@ -175,6 +178,21 @@ function OrderListTable() {
                   dispatch(fetchOrdersAdmin(authUser?.role_id));
                   setSelectedOrder(null);
                   setIsCreatePartMode(false);
+                })
+                .catch((err) => {
+                  console.error("Create failed:", err);
+                });
+            } else if (isRMAMode) {
+              dispatch(
+                postOrderFiles({
+                  payload: { ...updatedOrder, order_type: "rma" },
+                  role_id: authUser?.role_id,
+                })
+              ).unwrap()
+                .then(() => {
+                  dispatch(fetchOrdersAdmin(authUser?.role_id));
+                  setSelectedOrder(null);
+                  setIsRMAMode(false);
                 })
                 .catch((err) => {
                   console.error("Create failed:", err);
@@ -374,7 +392,7 @@ function OrderListTable() {
                           'Order#': result.generated_id,   // only Order# changes
                         };
 
-                        setIsCreatePartMode(true);         // ← mark as create mode
+                        setIsRMAMode(true);         // ← mark as create mode
                         setSelectedOrder(newOrderData);
                       }
                     } catch (err) {
@@ -389,6 +407,20 @@ function OrderListTable() {
                 // cut: {},
               }
             }}
+            cells={(row) => {
+              const order = Orders?.[row];
+              const cellProperties = {};
+
+              if (order && String(order.order_type || '').toLowerCase() === 'po') {
+                cellProperties.className = 'po-row';
+              }
+              if (order && String(order.order_type || '').toLowerCase() === 'rma') {
+                cellProperties.className = 'rma-row';
+              }
+
+              return cellProperties;
+            }}
+
             // In HotTable props:
             // afterOnCellMouseDown={(event, coords) => {
             //   if (coords.col === 0 && coords.row >= 0) {   // Only when clicking Order# column
