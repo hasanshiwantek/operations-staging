@@ -380,8 +380,13 @@ const usersSlice = createSlice({
         state.error = null;
       })
       .addCase(fetchOrders.fulfilled, (state, action) => {
+        const Orders = action.payload?.data || action.payload || [];
+
+        // Remove order_type from every order
+        const cleanedOrders = Orders.map(({ order_type, ...rest }) => rest);
+
         state.orderloading = false;
-        state.Orders = action.payload.data || action.payload || [];
+        state.Orders = cleanedOrders;
         state.error = null;
       })
       .addCase(fetchOrders.rejected, (state, action) => {
