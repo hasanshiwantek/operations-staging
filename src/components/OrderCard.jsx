@@ -35,11 +35,11 @@ const OrderCard = ({ order }) => {
             </div>
             <div>
               <p
-                className={`text-sm font-semibold flex items-center gap-1 ${hasDash ? "text-red-600" : "text-gray-900"
+                className={`text-sm font-semibold flex items-center gap-1 ${hasDash ? "text-gray-900" : "text-gray-900"
                   }`}
               >
                 #{order.order_id}
-                {hasDash && <AlertTriangle size={14} className="text-red-600" />}
+                {/* {hasDash && <AlertTriangle size={14} className="text-red-600" />} */}
               </p>
               <p className="text-xs text-gray-500 uppercase tracking-wide">Order</p>
             </div>

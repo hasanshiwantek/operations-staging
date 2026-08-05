@@ -4,7 +4,7 @@ import { registerAllModules } from 'handsontable/registry';
 import { useDispatch, useSelector } from 'react-redux';
 import autoTable from 'jspdf-autotable';   // ← Changed import
 import EditOrderDetailModal from './EditOrderDetailModal';
-import { fetchOrdersAdmin, fetchOrders, postOrderFiles, updateOrderFiles, createGenerateId } from '../store/usersSlice';
+import { fetchOrdersAdmin, fetchOrders, postOrderFiles, updateOrderFiles, createGenerateId, postSyncOrder } from '../store/usersSlice';
 import { columnsOfSheet } from '../utils/constant';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -18,7 +18,7 @@ registerAllModules();
 function OrderListTable() {
   const hotRef = useRef(null);
   const dispatch = useDispatch();
-  const { Orders, orderloading } = useSelector((state) => state.users);
+  const { Orders, orderloading, syncLoading } = useSelector((state) => state.users);
   const { token, storeId, user: authUser } = useSelector((state) => state.auth);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isCreatePartMode, setIsCreatePartMode] = useState(false);
@@ -29,7 +29,13 @@ function OrderListTable() {
     const ws = XLSX.utils.json_to_sheet(Orders);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Orders");
-    XLSX.writeFile(wb, `CTS_Orders_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.writeFile(wb, `Orders_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  };
+  const handleSyncOrders = async () => {
+
+    await dispatch(postSyncOrder(storeId?.name?.toLowerCase())).unwrap().then(() => {
+      dispatch(fetchOrdersAdmin(authUser?.role_id));
+    })
   };
 
   const exportToPDF = () => {
@@ -90,7 +96,7 @@ function OrderListTable() {
       }
     });
 
-    doc.save(`CTS_Orders_${new Date().toISOString().slice(0, 10)}.pdf`);
+    doc.save(`Orders_${new Date().toISOString().slice(0, 10)}.pdf`);
   };
   // Add this handler
   const handleOrderClick = (rowIndex) => {
@@ -148,7 +154,7 @@ function OrderListTable() {
           //   dispatch(updateOrderFiles({ id: updatedOrder["Order#"], data: updatedOrder }))
           //     .unwrap()
           //     .then(() => {
-          //       dispatch(fetchOrders());
+          //       dispatch(fetchOrdersAdmin(authUser?.role_id));
           //       setSelectedOrder(null)
           //     })
           //     .catch((err) => {
@@ -156,14 +162,17 @@ function OrderListTable() {
           //     });
           // }}
           onSave={(updatedOrder) => {
-            console.log(isCreatePartMode, updatedOrder);
             if (isCreatePartMode) {
 
               // ========== CREATE API ==========
-              dispatch(postOrderFiles(updatedOrder))   // ← your create thunk
-                .unwrap()
+              dispatch(
+                postOrderFiles({
+                  payload: updatedOrder,
+                  role_id: authUser?.role_id,
+                })
+              ).unwrap()
                 .then(() => {
-                  dispatch(fetchOrders());
+                  dispatch(fetchOrdersAdmin(authUser?.role_id));
                   setSelectedOrder(null);
                   setIsCreatePartMode(false);
                 })
@@ -178,7 +187,7 @@ function OrderListTable() {
               }))
                 .unwrap()
                 .then(() => {
-                  dispatch(fetchOrders());
+                  dispatch(fetchOrdersAdmin(authUser?.role_id));
                   setSelectedOrder(null);
                 })
                 .catch((err) => {
@@ -196,9 +205,16 @@ function OrderListTable() {
           }}
           onSave={(data, isNew) => {
             if (isNew) {
-              dispatch(postOrderFiles(data)).unwrap()
+
+              dispatch(
+                postOrderFiles({
+                  payload: data,
+                  role_id: authUser?.role_id,
+                })
+              ).unwrap()
                 .then(() => {
-                  dispatch(fetchOrders());
+                  // dispatch(fetchOrdersAdmin(authUser?.role_id));
+                  dispatch(fetchOrdersAdmin(authUser?.role_id))
                   setSelectedOrder(null)
                 }).catch((err) => {
                   console.error("Update failed:", err);
@@ -212,6 +228,12 @@ function OrderListTable() {
           <h2>Dashboard - Order Sheet</h2>
 
           <div style={{ display: 'flex', gap: '12px' }}>
+            <button
+              onClick={handleSyncOrders}
+              style={{ padding: '8px 16px', background: 'gray', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+            >
+              {syncLoading ? "Sync..." : "Sync Orders"}
+            </button>
             <button
               onClick={exportToExcel}
               style={{ padding: '8px 16px', background: '#4CAF50', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
@@ -316,7 +338,7 @@ function OrderListTable() {
 
                     try {
                       const result = await dispatch(
-                        createGenerateId({ orderId: originalOrder['Order#'] })
+                        createGenerateId({ orderId: String(originalOrder['Order#']) })
                       ).unwrap();
 
                       if (result.success && result.generated_id) {
@@ -343,7 +365,7 @@ function OrderListTable() {
 
                     try {
                       const result = await dispatch(
-                        createGenerateId({ orderId: originalOrder['Order#'] })
+                        createGenerateId({ orderId: String(originalOrder['Order#']) })
                       ).unwrap();
 
                       if (result.success && result.generated_id) {
