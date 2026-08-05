@@ -241,9 +241,9 @@ export const updateSheet = createAsyncThunk(
 );
 export const fetchOrderById = createAsyncThunk(
   "users/fetchOrderById",
-  async (orderId, { rejectWithValue }) => {
+  async ({ orderId, role_id }, { rejectWithValue }) => {
     try {
-      const res = await axiosInstance.get(`/order-files/${orderId}`);
+      const res = await axiosInstance.get(`/order-files/${orderId}?role_id=${role_id}`);
       const result = res.data;
       const fetchedOrder = result?.data || result?.order || result;
       return fetchedOrder;

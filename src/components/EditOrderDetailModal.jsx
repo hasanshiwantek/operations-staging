@@ -10,6 +10,7 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
     const [fetching, setFetching] = useState(false);
+    const { user: authUser } = useSelector((state) => state.auth);
     const { pending } = useSelector((state) => state.users);
     // Baseline order (jisse changes compare hote hain) - fetch hone par yeh update hota hai
     const [baseOrder, setBaseOrder] = useState(null);
@@ -46,7 +47,7 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
     const fetchOrderByIdFun = async (orderId) => {
         try {
             setFetching(true);
-            const result = await dispatch(fetchOrderById(orderId)).unwrap();
+            const result = await dispatch(fetchOrderById({ orderId, role_id: authUser?.role_id })).unwrap();
 
             // API response shape ke hisaab se adjust karo (data / order / seedha object)
             const fetchedOrder = result
