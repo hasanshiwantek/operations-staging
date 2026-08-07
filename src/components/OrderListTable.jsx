@@ -36,7 +36,7 @@ function OrderListTable() {
   const handleSyncOrders = async () => {
 
     await dispatch(postSyncOrder(storeId?.name?.toLowerCase())).unwrap().then(() => {
-      dispatch(fetchOrdersAdmin(authUser?.role_id));
+      dispatch(fetchOrdersAdmin(storeId?.id));
     })
   };
 
@@ -128,7 +128,7 @@ function OrderListTable() {
         alert(result.message || "Excel imported successfully!");
 
         // Refresh the table
-        dispatch(fetchOrdersAdmin(authUser?.role_id));
+        dispatch(fetchOrdersAdmin(storeId?.id));
       } catch (err) {
         alert(err || "Import failed");
       }
@@ -138,10 +138,10 @@ function OrderListTable() {
   };
   // Fetch options when modal opens
   useEffect(() => {
-    if (authUser?.role_id) {
+    if (storeId?.id) {
       dispatch(fetchOrderOptions(authUser.role_id));
     }
-  }, [authUser?.role_id]);
+  }, [storeId?.id]);
   if (orderloading) {
     return (
       <div style={{ padding: '40px', textAlign: 'center' }}>
@@ -188,11 +188,11 @@ function OrderListTable() {
               dispatch(
                 postOrderFiles({
                   payload: { ...updatedOrder, order_type: "po" },
-                  role_id: authUser?.role_id,
+                  role_id: storeId?.id,
                 })
               ).unwrap()
                 .then(() => {
-                  dispatch(fetchOrdersAdmin(authUser?.role_id));
+                  dispatch(fetchOrdersAdmin(storeId?.id));
                   setSelectedOrder(null);
                   setIsCreatePartMode(false);
                 })
@@ -203,11 +203,11 @@ function OrderListTable() {
               dispatch(
                 postOrderFiles({
                   payload: { ...updatedOrder, order_type: "rma" },
-                  role_id: authUser?.role_id,
+                  role_id: storeId?.id,
                 })
               ).unwrap()
                 .then(() => {
-                  dispatch(fetchOrdersAdmin(authUser?.role_id));
+                  dispatch(fetchOrdersAdmin(storeId?.id));
                   setSelectedOrder(null);
                   setIsRMAMode(false);
                 })
@@ -222,7 +222,7 @@ function OrderListTable() {
               }))
                 .unwrap()
                 .then(() => {
-                  dispatch(fetchOrdersAdmin(authUser?.role_id));
+                  dispatch(fetchOrdersAdmin(storeId?.id));
                   setSelectedOrder(null);
                 })
                 .catch((err) => {
@@ -244,11 +244,11 @@ function OrderListTable() {
               dispatch(
                 postOrderFiles({
                   payload: data,
-                  role_id: authUser?.role_id,
+                  role_id: storeId?.id,
                 })
               ).unwrap()
                 .then(() => {
-                  dispatch(fetchOrdersAdmin(authUser?.role_id))
+                  dispatch(fetchOrdersAdmin(storeId?.id))
                   setSelectedOrder(null)
                 }).catch((err) => {
                   console.error("Update failed:", err);
