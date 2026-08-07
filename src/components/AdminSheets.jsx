@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { toast } from "react-toastify";
 import { X, Plus, Edit, Trash2 } from "lucide-react";
 import { useForm } from "react-hook-form";
+import { useNavigate } from "react-router-dom";
 import {
   createSheetStore,
   deleteSheet,
@@ -12,6 +13,7 @@ import {
 
 const AdminSheets = () => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const { 
   sheets, 
   createLoading, 
@@ -97,12 +99,19 @@ const handleDelete = async (id) => {
   {/* Buttons + File Selector */}
   <div className="flex flex-col md:flex-row gap-2 items-start md:items-center">
     {/* Add Sheet Button */}
+      <button
+      onClick={() => navigate("/storeroles/attribute")}
+      className="flex items-center gap-1 bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700"
+    >
+      <Plus size={16} /> Add Option
+    </button>
     <button
       onClick={openCreateModal}
       className="flex items-center gap-1 bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700"
     >
       <Plus size={16} /> Add Sheet
     </button>
+  
 
     {/* Download Button */}
 
