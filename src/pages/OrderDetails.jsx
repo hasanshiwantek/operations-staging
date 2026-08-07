@@ -122,11 +122,11 @@ const OrderDetails = () => {
   // Fetch order on mount
   useEffect(() => {
     if (authUser?.role_id === 1 || authUser?.role_id === 2) {
-      dispatch(fetchSingleOrderAdmin({ orderId: orderId, role_id: authUser?.role_id }));
+      dispatch(fetchSingleOrderAdmin({ orderId: orderId, role_id: storeId?.id }));
       // dispatch(fetchSingleOrderAdmin({ orderId: orderId, sheetId: storeId?.sheet_id }));
     }
     else {
-      dispatch(fetchSingleOrderAdmin({ orderId: orderId, role_id: authUser?.role_id }));
+      dispatch(fetchSingleOrderAdmin({ orderId: orderId, role_id: storeId?.id }));
       // dispatch(fetchSingleOrder(orderId))
     }
   }, [authUser?.role_id, dispatch, orderId]);
