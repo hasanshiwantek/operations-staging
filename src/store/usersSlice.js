@@ -290,9 +290,9 @@ export const createGenerateId = createAsyncThunk(
 
 export const postSyncOrder = createAsyncThunk(
   "orderFiles/postSyncOrder",
-  async (path, { rejectWithValue }) => {
+  async ({ storeName, storeId }, { rejectWithValue }) => {
     try {
-      const response = await axiosInstance.post(`/${path}/sync-orders`);
+      const response = await axiosInstance.post(`/${storeName}/sync-orders`, { role_id: storeId });
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || error.message || "Failed to post order files");

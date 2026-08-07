@@ -35,7 +35,7 @@ function OrderListTable() {
   };
   const handleSyncOrders = async () => {
 
-    await dispatch(postSyncOrder(storeId?.name?.toLowerCase())).unwrap().then(() => {
+    await dispatch(postSyncOrder({ storeId: storeId?.id, storeName: storeId?.name?.toLowerCase() })).unwrap().then(() => {
       dispatch(fetchOrdersAdmin(storeId?.id));
     })
   };
