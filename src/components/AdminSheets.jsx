@@ -103,7 +103,7 @@ const handleDelete = async (id) => {
       onClick={() => navigate("/storeroles/attribute")}
       className="flex items-center gap-1 bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700"
     >
-      <Plus size={16} /> Add option
+      <Plus size={16} /> Add Option
     </button>
     <button
       onClick={openCreateModal}
