@@ -21,6 +21,9 @@ import AdminSheets from "./components/AdminSheets";
 import PtotectecAdmin from "./components/PtotectecAdmin";
 import OrderListTable from "./components/OrderListTable";
 
+import Attributes from "./pages/Attributes";
+import AttributeDetails from "./pages/AttributeDetails";
+
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <Provider store={store}>
@@ -71,6 +74,26 @@ ReactDOM.createRoot(document.getElementById("root")).render(
               }
             />
             <Route
+              path="/storeroles/attribute"
+              element={
+                <Layout>
+                  <PtotectecAdmin>
+                    <Attributes />
+                  </PtotectecAdmin>
+                </Layout>
+              }
+            />
+            <Route
+  path="/storeroles/attribute/:id"
+  element={
+    <Layout>
+      <PtotectecAdmin>
+        <AttributeDetails />
+      </PtotectecAdmin>
+    </Layout>
+  }
+/>
+            <Route
               path="/users"
               element={
                 <Layout>
@@ -106,7 +129,9 @@ ReactDOM.createRoot(document.getElementById("root")).render(
               element={
                 <div className="min-h-screen flex items-center justify-center">
                   <div className="text-center">
-                    <h1 className="text-4xl font-bold text-gray-800 mb-4">404</h1>
+                    <h1 className="text-4xl font-bold text-gray-800 mb-4">
+                      404
+                    </h1>
                     <p className="text-gray-600 mb-4">Page not found</p>
                   </div>
                 </div>
@@ -128,5 +153,5 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         </BrowserRouter>
       </PersistGate>
     </Provider>
-  </React.StrictMode>
+  </React.StrictMode>,
 );
