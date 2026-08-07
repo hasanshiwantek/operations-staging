@@ -44,6 +44,7 @@ export const columnsOfSheet = [
   { data: "Customer Company", title: "Customer Company" },
   { data: "Email", title: "Email" },
   { data: "Phone", title: "Phone" },
+  { data: "Customer PO#", title: "Customer PO#" },
   { data: "Price", title: "Price" },
   { data: "Shipping", title: "Shipping" },
   { data: "Tax", title: "Tax" },
@@ -84,8 +85,10 @@ export const defaultOrder = {
   "Order Date": "",
   "Refund Date": "",
   "Sales Agent": "",
+
   "Invoice#": "",
   "Invoice Link": "",
+
   "Order Source": "",
   "Payment Status": "",
   "Brands": "",

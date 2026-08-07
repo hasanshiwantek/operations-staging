@@ -4,6 +4,7 @@ import { registerAllModules } from 'handsontable/registry';
 import { useDispatch, useSelector } from 'react-redux';
 import autoTable from 'jspdf-autotable';   // ← Changed import
 import EditOrderDetailModal from './EditOrderDetailModal';
+import Handsontable from 'handsontable';
 import { fetchOrdersAdmin, fetchOrders, postOrderFiles, updateOrderFiles, createGenerateId, postSyncOrder, importOrderFiles, fetchOrderOptions } from '../store/usersSlice';
 import { columnsOfSheet } from '../utils/constant';
 import * as XLSX from 'xlsx';
@@ -12,7 +13,6 @@ import 'handsontable/styles/handsontable.min.css';
 import 'handsontable/styles/ht-theme-main.min.css';
 import OrderDetailModal from './OrderDetailModal';
 import ExportOrdersPdf from './ExportOrdersPdf';
-import Handsontable from 'handsontable';
 
 registerAllModules();
 
@@ -248,7 +248,6 @@ function OrderListTable() {
                 })
               ).unwrap()
                 .then(() => {
-                  // dispatch(fetchOrdersAdmin(authUser?.role_id));
                   dispatch(fetchOrdersAdmin(authUser?.role_id))
                   setSelectedOrder(null)
                 }).catch((err) => {
@@ -323,7 +322,7 @@ function OrderListTable() {
             // ]}
             // contextMenu={true}
             manualColumnResize={true}
-            columnSorting={true}
+            columnSorting={false}
             fixedColumnsStart={1}
             readOnly={true}
             disableVisualSelection={true}
