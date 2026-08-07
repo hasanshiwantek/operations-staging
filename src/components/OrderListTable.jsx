@@ -139,7 +139,7 @@ function OrderListTable() {
   // Fetch options when modal opens
   useEffect(() => {
     if (storeId?.id) {
-      dispatch(fetchOrderOptions(authUser.role_id));
+      dispatch(fetchOrderOptions(storeId?.id));
     }
   }, [storeId?.id]);
   if (orderloading) {
