@@ -4,7 +4,8 @@ import { registerAllModules } from 'handsontable/registry';
 import { useDispatch, useSelector } from 'react-redux';
 import autoTable from 'jspdf-autotable';   // ← Changed import
 import EditOrderDetailModal from './EditOrderDetailModal';
-import { fetchOrdersAdmin, fetchOrders, postOrderFiles, updateOrderFiles, createGenerateId, postSyncOrder, importOrderFiles } from '../store/usersSlice';
+import Handsontable from 'handsontable';
+import { fetchOrdersAdmin, fetchOrders, postOrderFiles, updateOrderFiles, createGenerateId, postSyncOrder, importOrderFiles, fetchOrderOptions } from '../store/usersSlice';
 import { columnsOfSheet } from '../utils/constant';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -12,7 +13,6 @@ import 'handsontable/styles/handsontable.min.css';
 import 'handsontable/styles/ht-theme-main.min.css';
 import OrderDetailModal from './OrderDetailModal';
 import ExportOrdersPdf from './ExportOrdersPdf';
-import Handsontable from 'handsontable';
 
 registerAllModules();
 
@@ -35,8 +35,8 @@ function OrderListTable() {
   };
   const handleSyncOrders = async () => {
 
-    await dispatch(postSyncOrder(storeId?.name?.toLowerCase())).unwrap().then(() => {
-      dispatch(fetchOrdersAdmin(authUser?.role_id));
+    await dispatch(postSyncOrder({ storeId: storeId?.id, storeName: storeId?.name?.toLowerCase() })).unwrap().then(() => {
+      dispatch(fetchOrdersAdmin(storeId?.id));
     })
   };
 
@@ -105,7 +105,7 @@ function OrderListTable() {
     // rowIndex from Handsontable is 0-based (header is row 0)
     const actualDataIndex = rowIndex;
 
-    const clickedOrder = Orders[actualDataIndex];
+    const { order_type, ...clickedOrder } = Orders[actualDataIndex];
 
     if (clickedOrder) {
       setIsCreatePartMode(false);
@@ -128,7 +128,7 @@ function OrderListTable() {
         alert(result.message || "Excel imported successfully!");
 
         // Refresh the table
-        dispatch(fetchOrdersAdmin(authUser?.role_id));
+        dispatch(fetchOrdersAdmin(storeId?.id));
       } catch (err) {
         alert(err || "Import failed");
       }
@@ -136,6 +136,12 @@ function OrderListTable() {
 
     input.click();
   };
+  // Fetch options when modal opens
+  useEffect(() => {
+    if (storeId?.id) {
+      dispatch(fetchOrderOptions(authUser.role_id));
+    }
+  }, [storeId?.id]);
   if (orderloading) {
     return (
       <div style={{ padding: '40px', textAlign: 'center' }}>
@@ -175,17 +181,6 @@ function OrderListTable() {
         <EditOrderDetailModal
           order={selectedOrder}
           onClose={() => setSelectedOrder(null)}
-          // onSave={(updatedOrder) => {
-          //   dispatch(updateOrderFiles({ id: updatedOrder["Order#"], data: updatedOrder }))
-          //     .unwrap()
-          //     .then(() => {
-          //       dispatch(fetchOrdersAdmin(authUser?.role_id));
-          //       setSelectedOrder(null)
-          //     })
-          //     .catch((err) => {
-          //       console.error("Update failed:", err);
-          //     });
-          // }}
           onSave={(updatedOrder) => {
             if (isCreatePartMode) {
 
@@ -193,11 +188,11 @@ function OrderListTable() {
               dispatch(
                 postOrderFiles({
                   payload: { ...updatedOrder, order_type: "po" },
-                  role_id: authUser?.role_id,
+                  role_id: storeId?.id,
                 })
               ).unwrap()
                 .then(() => {
-                  dispatch(fetchOrdersAdmin(authUser?.role_id));
+                  dispatch(fetchOrdersAdmin(storeId?.id));
                   setSelectedOrder(null);
                   setIsCreatePartMode(false);
                 })
@@ -208,11 +203,11 @@ function OrderListTable() {
               dispatch(
                 postOrderFiles({
                   payload: { ...updatedOrder, order_type: "rma" },
-                  role_id: authUser?.role_id,
+                  role_id: storeId?.id,
                 })
               ).unwrap()
                 .then(() => {
-                  dispatch(fetchOrdersAdmin(authUser?.role_id));
+                  dispatch(fetchOrdersAdmin(storeId?.id));
                   setSelectedOrder(null);
                   setIsRMAMode(false);
                 })
@@ -227,7 +222,7 @@ function OrderListTable() {
               }))
                 .unwrap()
                 .then(() => {
-                  dispatch(fetchOrdersAdmin(authUser?.role_id));
+                  dispatch(fetchOrdersAdmin(storeId?.id));
                   setSelectedOrder(null);
                 })
                 .catch((err) => {
@@ -249,12 +244,11 @@ function OrderListTable() {
               dispatch(
                 postOrderFiles({
                   payload: data,
-                  role_id: authUser?.role_id,
+                  role_id: storeId?.id,
                 })
               ).unwrap()
                 .then(() => {
-                  // dispatch(fetchOrdersAdmin(authUser?.role_id));
-                  dispatch(fetchOrdersAdmin(authUser?.role_id))
+                  dispatch(fetchOrdersAdmin(storeId?.id))
                   setSelectedOrder(null)
                 }).catch((err) => {
                   console.error("Update failed:", err);
@@ -280,12 +274,6 @@ function OrderListTable() {
             >
               Download Excel
             </button>
-            {/* <button
-              onClick={exportToPDF}
-              style={{ padding: '8px 16px', background: '#e11d48', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
-            >
-              Download PDF
-            </button> */}
             <button
               onClick={importExcel}
               style={{
@@ -334,7 +322,7 @@ function OrderListTable() {
             // ]}
             // contextMenu={true}
             manualColumnResize={true}
-            columnSorting={true}
+            columnSorting={false}
             fixedColumnsStart={1}
             readOnly={true}
             disableVisualSelection={true}
@@ -347,44 +335,11 @@ function OrderListTable() {
                     handleOrderClick(row);          // your existing handler
                   }
                 },
-
-                // create_part: {
-                //   name: 'Create part number',
-                //   callback: async (key, selection) => {
-                //     const row = selection[0].start.row;
-                //     const originalOrder = Orders[row];
-
-                //     if (!originalOrder) return;
-
-                //     const originalOrderId = originalOrder['Order#'];
-
-                //     try {
-                //       // 1. Generate new ID
-                //       const result = await dispatch(
-                //         createGenerateId({ orderId: originalOrderId })
-                //       ).unwrap();
-
-                //       if (result.success && result.generated_id) {
-                //         // 2. Create a copy of original order + change only Order#
-                //         const newOrderData = {
-                //           ...originalOrder,
-                //           'Order#': result.generated_id,   // only this field changes
-                //         };
-
-                //         // 3. Open the same Edit modal with the new data
-                //         setSelectedOrder(newOrderData);
-                //       }
-                //     } catch (err) {
-                //       console.error('Failed to generate part number:', err);
-                //       // optionally show toast
-                //     }
-                //   }
-                // },
                 create_part: {
                   name: 'Create part number',
                   callback: async (key, selection) => {
                     const row = selection[0].start.row;
-                    const originalOrder = Orders[row];
+                    let { order_type, ...originalOrder } = Orders[row];
 
                     if (!originalOrder) return;
 
@@ -411,7 +366,7 @@ function OrderListTable() {
                   name: 'RMA',
                   callback: async (key, selection) => {
                     const row = selection[0].start.row;
-                    const originalOrder = Orders[row];
+                    let { order_type, ...originalOrder } = Orders[row];
 
                     if (!originalOrder) return;
 
@@ -444,27 +399,19 @@ function OrderListTable() {
             cells={(row) => {
               const order = Orders?.[row];
               const cellProperties = {};
-
-              if (order && String(order.order_type || '').toLowerCase() === 'po') {
-                cellProperties.className = 'po-row';
+              if (order && String(order.Status || '').toLowerCase() === 'cancelled') {
+                cellProperties.className = 'cancelled-row';
+              } else {
+                if (order && String(order.order_type || '').toLowerCase() === 'po') {
+                  cellProperties.className = 'po-row';
+                }
+                if (order && String(order.order_type || '').toLowerCase() === 'rma') {
+                  cellProperties.className = 'rma-row';
+                }
               }
-              if (order && String(order.order_type || '').toLowerCase() === 'rma') {
-                cellProperties.className = 'rma-row';
-              }
-
               return cellProperties;
             }}
 
-            // In HotTable props:
-            // afterOnCellMouseDown={(event, coords) => {
-            //   if (coords.col === 0 && coords.row >= 0) {   // Only when clicking Order# column
-            //     handleOrderClick(coords.row);
-            //     // // Optional: Clear selection after click
-            //     // if (hotRef.current) {
-            //     //   hotRef.current.hotInstance.deselectCell();
-            //     // }
-            //   }
-            // }}
             emptyDataMessage="No orders found"
           />
         </div>

@@ -16,6 +16,18 @@ const initialState = {
   error: null,
   pending: false,
   syncLoading: false,
+
+  // ===== ADD THESE =====
+  orderOptions: {
+    lead_source: [],
+    procured_by: [],
+    sales_agent: [],
+    order_source: [],
+    payment_status: [],
+    condition: [],
+    status: [],
+  },
+  optionsLoading: false,
 };
 
 // Fetch users async thunk
@@ -278,9 +290,9 @@ export const createGenerateId = createAsyncThunk(
 
 export const postSyncOrder = createAsyncThunk(
   "orderFiles/postSyncOrder",
-  async (path, { rejectWithValue }) => {
+  async ({ storeName, storeId }, { rejectWithValue }) => {
     try {
-      const response = await axiosInstance.post(`/${path}/sync-orders`);
+      const response = await axiosInstance.post(`/${storeName}/sync-orders`, { role_id: storeId });
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || error.message || "Failed to post order files");
@@ -304,6 +316,21 @@ export const importOrderFiles = createAsyncThunk(
     } catch (error) {
       return rejectWithValue(
         error.response?.data?.message || error.message || "Failed to import Excel"
+      );
+    }
+  }
+);
+
+// Fetch Order Options (for dropdowns)
+export const fetchOrderOptions = createAsyncThunk(
+  "users/fetchOrderOptions",
+  async (role_id, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.get(`/order-options?role_id=${role_id}`);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || error.message || "Failed to fetch order options"
       );
     }
   }
@@ -480,7 +507,38 @@ const usersSlice = createSlice({
         state.syncLoading = false;
         state.error = null; // ✅ error clear karo
       })
-      .addCase(postSyncOrder.rejected, (state, action) => { state.syncLoading = false; state.error = action.payload; });
+      .addCase(postSyncOrder.rejected, (state, action) => { state.syncLoading = false; state.error = action.payload; })
+
+
+
+      // ===== Order Options =====
+      .addCase(fetchOrderOptions.pending, (state) => {
+        state.optionsLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchOrderOptions.fulfilled, (state, action) => {
+        state.optionsLoading = false;
+        const data = action.payload?.data?.[0] || action.payload?.data || action.payload;
+
+        if (data) {
+          state.orderOptions = {
+            lead_source: data.lead_source || [],
+            procured_by: data.procured_by || [],
+            sales_agent: data.sales_agent || [],
+            order_source: data.order_source || [],
+            payment_status: data.payment_status || [],
+            condition: data.condition || [],
+            status: data.status || [],
+          };
+        }
+      })
+      .addCase(fetchOrderOptions.rejected, (state, action) => {
+        state.optionsLoading = false;
+        state.error = action.payload;
+      })
+
+
+
   },
 });
 

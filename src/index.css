@@ -110,9 +110,15 @@ body {
 .handsontable th {
   font-weight: 600;
 }
+
 .handsontable td.po-row {
   background-color: #86bd93 !important;
 }
+
 .handsontable td.rma-row {
   background-color: yellow !important;
+}
+
+.handsontable td.cancelled-row {
+  background-color: #fee2e2 !important;
 }

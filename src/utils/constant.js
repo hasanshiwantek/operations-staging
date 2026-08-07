@@ -4,7 +4,15 @@ export const toNumber = (price) => {
   const value = parseFloat(price.toString().replace(/[^0-9.]/g, ""));
   return isNegative ? -value : value;
 };
-
+export const dropdownFields = {
+  "Lead Source": "lead_source",
+  "Procured By": "procured_by",
+  "Sales Agent": "sales_agent",
+  "Order Source": "order_source",
+  "Payment Status": "payment_status",
+  "Condition": "condition",
+  "Status": "status",
+};
 export const columnsOfSheet = [
   { data: "Order#", title: "Order#" },
   { data: "Charged Date", title: "Charged Date" },
@@ -36,6 +44,7 @@ export const columnsOfSheet = [
   { data: "Customer Company", title: "Customer Company" },
   { data: "Email", title: "Email" },
   { data: "Phone", title: "Phone" },
+  { data: "Customer PO#", title: "Customer PO#" },
   { data: "Price", title: "Price" },
   { data: "Shipping", title: "Shipping" },
   { data: "Tax", title: "Tax" },
@@ -48,12 +57,20 @@ export const columnsOfSheet = [
   { data: "Cost", title: "Cost" },
   { data: "Vendor Shipping", title: "Vendor Shipping" },
   { data: "Vendor Tax", title: "Vendor Tax" },
+ // new filds added on 2024-06-05 total cost
+  { data: "Courier Charges", title: "Courier Charges" },
+  { data: "Sales Tax", title: "Sales Tax" },
+  { data: "Warehouse Charges", title: "Warehouse Charges" },
+  { data: "Custom Duties", title: "Custom Duties" },
+  { data: "Card Payment", title: "Card Payment" },
+  // 
   { data: "Total Price", title: "Total Price", disabled: true },
   { data: "Total Cost", title: "Total Cost", disabled: true },
   { data: "Total Cost+4%", title: "Total Cost+4%", disabled: true },
   { data: "Gross Profit", title: "Gross Profit", disabled: true },
   { data: "Gross Profit-4%", title: "Gross Profit-4%", disabled: true },
   { data: "Profit %", title: "Profit %", disabled: true },
+ 
   { data: "Check/Invoice", title: "Check/Invoice" },
   { data: "Entry Check", title: "Entry Check" },
   { data: "Attached To Order", title: "Attached To Order" },
@@ -69,8 +86,10 @@ export const defaultOrder = {
   "Order Date": "",
   "Refund Date": "",
   "Sales Agent": "",
+
   "Invoice#": "",
   "Invoice Link": "",
+
   "Order Source": "",
   "Payment Status": "",
   "Brands": "",
@@ -111,6 +130,13 @@ export const defaultOrder = {
   // "Gross Profit": "",
   // "Gross Profit-4%": "",
   // "Profit %": "",
+  // new filds added on 2024-06-05 total cost
+  "Courier Charges": "",
+  "Sales Tax": "",
+  "Warehouse Charges": "",
+  "Custom Duties": "",
+  // "Card Payment": "",
+  //
   "Check/Invoice": "",
   "Entry Check": "",
   "Attached To Order": "",
