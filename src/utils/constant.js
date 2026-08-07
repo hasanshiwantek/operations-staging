@@ -4,7 +4,15 @@ export const toNumber = (price) => {
   const value = parseFloat(price.toString().replace(/[^0-9.]/g, ""));
   return isNegative ? -value : value;
 };
-
+export const dropdownFields = {
+  "Lead Source": "lead_source",
+  "Procured By": "procured_by",
+  "Sales Agent": "sales_agent",
+  "Order Source": "order_source",
+  "Payment Status": "payment_status",
+  "Condition": "condition",
+  "Status": "status",
+};
 export const columnsOfSheet = [
   { data: "Order#", title: "Order#" },
   { data: "Charged Date", title: "Charged Date" },
@@ -54,6 +62,13 @@ export const columnsOfSheet = [
   { data: "Gross Profit", title: "Gross Profit", disabled: true },
   { data: "Gross Profit-4%", title: "Gross Profit-4%", disabled: true },
   { data: "Profit %", title: "Profit %", disabled: true },
+  // new filds added on 2024-06-05 total cost
+  { data: "Courier Charges", title: "Courier Charges" },
+  { data: "Sales Tax", title: "Sales Tax" },
+  { data: "Warehouse Charges", title: "Warehouse Charges" },
+  { data: "Custom Duties", title: "Custom Duties" },
+  { data: "Card Payment", title: "Card Payment" },
+  //
   { data: "Check/Invoice", title: "Check/Invoice" },
   { data: "Entry Check", title: "Entry Check" },
   { data: "Attached To Order", title: "Attached To Order" },
@@ -111,6 +126,13 @@ export const defaultOrder = {
   // "Gross Profit": "",
   // "Gross Profit-4%": "",
   // "Profit %": "",
+  // new filds added on 2024-06-05 total cost
+  "Courier Charges": "",
+  "Sales Tax": "",
+  "Warehouse Charges": "",
+  "Custom Duties": "",
+  // "Card Payment": "",
+  //
   "Check/Invoice": "",
   "Entry Check": "",
   "Attached To Order": "",
