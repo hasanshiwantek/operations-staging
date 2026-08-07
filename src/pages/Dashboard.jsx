@@ -199,15 +199,18 @@ const Dashboard = () => {
   }, [dispatch, token, hasFetchedUsers]);
   // === Fetch Dashboard Data ===
   useEffect(() => {
-    if (authUser?.role_id === 1 || authUser?.role_id === 2) {
-      dispatch(fetchOrdersAdmin(authUser?.role_id))
-      // dispatch(fetchOrdersAdmin(storeId?.sheet_id))
-    }
-    else {
-      dispatch(fetchOrdersAdmin(authUser?.role_id))
-      // dispatch(fetchOrders())
-    }
-  }, [authUser?.role_id]);
+    dispatch(fetchOrdersAdmin(storeId?.id))
+  }, [storeId?.id]);
+  // useEffect(() => {
+  //   if (authUser?.role_id === 1 || authUser?.role_id === 2) {
+  //     dispatch(fetchOrdersAdmin(authUser?.role_id))
+  //     // dispatch(fetchOrdersAdmin(storeId?.sheet_id))
+  //   }
+  //   else {
+  //     dispatch(fetchOrdersAdmin(authUser?.role_id))
+  //     // dispatch(fetchOrders())
+  //   }
+  // }, [authUser?.role_id]);
 
   if (loading)
     return <p className="text-center mt-10 text-gray-500">Loading dashboard...</p>;

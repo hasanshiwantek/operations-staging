@@ -14,8 +14,7 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
     const [unlockedFields, setUnlockedFields] = useState(new Set());
     const [fetching, setFetching] = useState(false);
     const [baseOrder, setBaseOrder] = useState(null);
-
-    const { user: authUser } = useSelector((state) => state.auth);
+    const { user: authUser, storeId } = useSelector((state) => state.auth);
     const { pending, orderOptions, optionsLoading } = useSelector((state) => state.users);
 
     const debounceRef = useRef(null);
@@ -51,7 +50,7 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
         try {
             setFetching(true);
             const result = await dispatch(
-                fetchOrderById({ orderId, role_id: authUser?.role_id })
+                fetchOrderById({ orderId, role_id: storeId?.id })
             ).unwrap();
 
             const fetchedOrder = result;
