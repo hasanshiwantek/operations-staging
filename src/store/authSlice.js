@@ -66,6 +66,7 @@ const authSlice = createSlice({
       state.loading = false;
       state.error = null;
       localStorage.removeItem('persist:auth');
+      localStorage.removeItem('activeTab');
     },
   },
   extraReducers: (builder) => {
