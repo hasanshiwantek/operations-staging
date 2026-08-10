@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2 ,ArrowLeft} from "lucide-react";
 import { useParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchAttributeDetails,  createAttributeValue,updateAttributeValue,  deleteAttributeValue, updateAttribute, } from "../store/attributeSlice";
 import EditValueModal from "../components/EditValueModal";
 import ValueModal from "../components/ValueModal";
+import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 const AttributeDetails = () => {
   const { id } = useParams();
@@ -12,6 +13,7 @@ const AttributeDetails = () => {
   const [showValueModal, setShowValueModal] = useState(false);
   const [attributeName, setAttributeName] = useState("");
   const [showEditModal, setShowEditModal] = useState(false);
+    const navigate = useNavigate();
 const [selectedValue, setSelectedValue] = useState(null);
 
   const { storeId } = useSelector((state) => state.auth);
@@ -152,6 +154,16 @@ useEffect(() => {
 }, [attributeDetail]);
   return (
     <div className="p-6">
+      <div className="mb-6">
+  <button
+    type="button"
+    onClick={() => navigate(-1)}
+    className="flex items-center gap-2 text-gray-600 hover:text-indigo-600 font-medium transition-colors"
+  >
+    <ArrowLeft size={18} />
+    Back
+  </button>
+</div>
 
       {/* Heading */}
       <h1 className="text-3xl font-bold text-gray-800 mb-8">
