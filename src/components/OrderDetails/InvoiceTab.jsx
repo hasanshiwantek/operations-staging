@@ -31,18 +31,18 @@ const InvoiceTab = ({ orderData, handleUpdateField }) => {
               <td className="py-3 px-4">{orderData.invoiceNo}</td>
               <td className="py-3 px-4">
                 <button
-                  onClick={() => setShowOrderSource(true)}
-                  className="text-indigo-600 font-medium hover:underline"
+                  // onClick={() => setShowOrderSource(true)}
+                  className="text-indigo-600 font-medium  "
                 >
-                  {orderData.orderSource || "Select"}
+                  {orderData.orderSource || "N/A"}
                 </button>
               </td>
               <td className="py-3 px-4">
                 <button
-                  onClick={() => setShowPayment(true)}
-                  className="text-indigo-600 font-medium hover:underline"
+                  // onClick={() => setShowPayment(true)}
+                  className="text-indigo-600 font-medium  "
                 >
-                  {orderData.paymentStatus || "Select"}
+                  {orderData.paymentStatus || "N/A"}
                 </button>
               </td>
               <td className="py-3 px-4">{orderData.brand}</td>
@@ -75,29 +75,29 @@ const InvoiceTab = ({ orderData, handleUpdateField }) => {
               <td className="py-3 px-4">{orderData.shippingAccount}</td>
               <td className="py-3 px-4">
                 <button
-                  onClick={() => setShowCountry(true)}
-                  className="text-indigo-600 font-medium hover:underline"
+                  // onClick={() => setShowCountry(true)}
+                  className="text-indigo-600 font-medium  "
                 >
-                  {orderData.country || "Select"}
+                  {orderData.country || "N/A"}
                 </button>
               </td>
               <td className="py-3 px-4">{orderData.city}</td>
               <td className="py-3 px-4">{orderData.state}</td>
               <td className="py-3 px-4">
                 <button
-                  onClick={() => setShowCarrier(true)}
-                  className="text-indigo-600 font-medium hover:underline"
+                  // onClick={() => setShowCarrier(true)}
+                  className="text-indigo-600 font-medium  "
                 >
-                  {orderData.carrier || "Select"}
+                  {orderData.carrier || "N/A"}
                 </button>
               </td>
               <td className="py-3 px-4">{orderData.tracking}</td>
               <td className="py-3 px-4">
                 <button
-                  onClick={() => setShowStatus(true)}
-                  className="text-indigo-600 font-medium hover:underline"
+                  // onClick={() => setShowStatus(true)}
+                  className="text-indigo-600 font-medium  "
                 >
-                  {orderData.status || "Select"}
+                  {orderData.status || "N/A"}
                 </button>
               </td>
             </tr>

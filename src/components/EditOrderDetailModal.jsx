@@ -3,8 +3,8 @@ import { X } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchOrderById, fetchOrderOptions } from '../store/usersSlice';
 import DatePicker from 'react-datepicker';
+import { dropdownFields, normalizeOrderOptions } from '../utils/constant';
 import 'react-datepicker/dist/react-datepicker.css';
-import { dropdownFields } from '../utils/constant';
 
 const EditOrderDetailModal = ({ order, onClose, onSave }) => {
     const dispatch = useDispatch();
@@ -17,6 +17,7 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
     const { user: authUser, storeId } = useSelector((state) => state.auth);
     const { pending, orderOptions, optionsLoading } = useSelector((state) => state.users);
 
+    const normalizedOptions = normalizeOrderOptions(orderOptions);
     const debounceRef = useRef(null);
     const lastFetchedId = useRef(null);
 
@@ -173,8 +174,9 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
                             const dateFields = ['Charged Date', 'Order Date', 'Refund Date'];
                             const isDateField = dateFields.includes(key);
 
-                            const dropdownKey = dropdownFields[key];
-                            const isDropdown = Boolean(dropdownKey);
+                            const isDropdown = Boolean(normalizedOptions[key]); // ← fully dynamic
+                            const options = normalizedOptions[key] || [];
+
 
                             const parseDate = (dateStr) => {
                                 if (!dateStr) return null;
@@ -245,7 +247,7 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
                                             onChange={handleChange}
                                             disabled={isDisabled || optionsLoading}
                                             className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all
-                        ${isDisabled || optionsLoading
+            ${isDisabled || optionsLoading
                                                     ? 'border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed'
                                                     : 'border-indigo-300 bg-white'
                                                 }`}
@@ -253,7 +255,8 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
                                             <option value="">
                                                 {optionsLoading ? 'Loading...' : `Select ${key}`}
                                             </option>
-                                            {(orderOptions?.[dropdownKey] || []).map((opt) => (
+
+                                            {options.map((opt) => (
                                                 <option key={opt} value={opt}>
                                                     {opt}
                                                 </option>

@@ -34,7 +34,7 @@ const OrderDetails = () => {
   // const hasDash = String(order?.order_id)?.includes("-");
   // Format order data
   const formattedOrder = singleOrder?.data ? {
-    orderId: singleOrder.data["Order#"] || singleOrder.data["Order"],
+    orderId: singleOrder.data["Order#"] ,
     chargedDate: singleOrder.data["Charged Date"],
     chargedVendor: singleOrder.data["Charged Vendor"],
     leadSource: singleOrder.data["Lead Source"],
