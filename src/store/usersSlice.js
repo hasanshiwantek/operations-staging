@@ -521,15 +521,7 @@ const usersSlice = createSlice({
         const data = action.payload?.data?.[0] || action.payload?.data || action.payload;
 
         if (data) {
-          state.orderOptions = {
-            lead_source: data.lead_source || [],
-            procured_by: data.procured_by || [],
-            sales_agent: data.sales_agent || [],
-            order_source: data.order_source || [],
-            payment_status: data.payment_status || [],
-            condition: data.condition || [],
-            status: data.status || [],
-          };
+          state.orderOptions = data
         }
       })
       .addCase(fetchOrderOptions.rejected, (state, action) => {

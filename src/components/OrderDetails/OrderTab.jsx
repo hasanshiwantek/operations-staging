@@ -37,28 +37,28 @@ const OrderTab = ({ orderData, handleUpdateField }) => {
               <td className="py-3 px-4">{orderData.chargedDate}</td>
               <td className="py-3 px-4">
                 <button
-                  onClick={() => setShowLeadSource(true)}
-                  className="text-indigo-600 font-medium hover:underline"
+                  // onClick={() => setShowLeadSource(true)}
+                  className="text-indigo-600 font-medium "
                 >
-                  {orderData.leadSource || "Select"}
+                  {orderData.leadSource || "N/A"}
                 </button>
               </td>
               <td className="py-3 px-4">
                 <button
-                  onClick={() => setShowProcuredBy(true)}
-                  className="text-indigo-600 font-medium hover:underline"
+                  // onClick={() => setShowProcuredBy(true)}
+                  className="text-indigo-600 font-medium "
                 >
-                  {orderData.procuredBy || "Select"}
+                  {orderData.procuredBy || "N/A"}
                 </button>
               </td>
               <td className="py-3 px-4">{orderData.orderDate}</td>
               <td className="py-3 px-4">{orderData.refundDate}</td>
               <td className="py-3 px-4">
                 <button
-                  onClick={() => setShowSalesAgent(true)}
-                  className="text-indigo-600 font-medium hover:underline"
+                  // onClick={() => setShowSalesAgent(true)}
+                  className="text-indigo-600 font-medium "
                 >
-                  {orderData.salesAgent || "Select"}
+                  {orderData.salesAgent || "N/A"}
                 </button>
               </td>
             </tr>

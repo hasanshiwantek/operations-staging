@@ -4,6 +4,20 @@ export const toNumber = (price) => {
   const value = parseFloat(price.toString().replace(/[^0-9.]/g, ""));
   return isNegative ? -value : value;
 };
+export const normalizeOrderOptions = (apiData) => {
+  if (!apiData || typeof apiData !== 'object') return {};
+
+  const map = {};
+
+  Object.entries(apiData).forEach(([key, value]) => {
+    // Only keep keys that have an array of options
+    if (Array.isArray(value)) {
+      map[key] = value;
+    }
+  });
+
+  return map;
+};
 export const dropdownFields = {
   "Lead Source": "lead_source",
   "Procured By": "procured_by",
@@ -57,7 +71,7 @@ export const columnsOfSheet = [
   { data: "Cost", title: "Cost" },
   { data: "Vendor Shipping", title: "Vendor Shipping" },
   { data: "Vendor Tax", title: "Vendor Tax" },
- // new filds added on 2024-06-05 total cost
+  // new filds added on 2024-06-05 total cost
   { data: "Courier Charges", title: "Courier Charges" },
   { data: "Sales Tax", title: "Sales Tax" },
   { data: "Warehouse Charges", title: "Warehouse Charges" },
@@ -70,7 +84,7 @@ export const columnsOfSheet = [
   { data: "Gross Profit", title: "Gross Profit", disabled: true },
   { data: "Gross Profit-4%", title: "Gross Profit-4%", disabled: true },
   { data: "Profit %", title: "Profit %", disabled: true },
- 
+
   { data: "Check/Invoice", title: "Check/Invoice" },
   { data: "Entry Check", title: "Entry Check" },
   { data: "Attached To Order", title: "Attached To Order" },
