@@ -258,7 +258,19 @@ function OrderListTable() {
         />
       )}
       <div style={{ padding: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+   <div
+    style={{
+      position: 'sticky',
+      top: '0px',
+      zIndex: 30,
+      background: '#fff',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '16px',
+      padding: '12px 0',
+    }}
+  >
           <h2>Dashboard - Order Sheet</h2>
 
           <div style={{ display: 'flex', gap: '12px' }}>
@@ -310,7 +322,7 @@ function OrderListTable() {
             colHeaders={true}
             rowHeaders={true}
             stretchH="all"
-            height="auto"
+            height="calc(100vh - 180px)"
             width="100%"
             licenseKey="non-commercial-and-evaluation"
             filters={true}
@@ -413,7 +425,9 @@ function OrderListTable() {
             }}
 
             emptyDataMessage="No orders found"
+            
           />
+          
         </div>
       </div>
     </React.Fragment>

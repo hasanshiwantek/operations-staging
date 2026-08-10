@@ -68,11 +68,30 @@ body {
 .ols-gain { color: #16a34a; font-weight: 600; }
 .ols-loss { color: #dc2626; font-weight: 600; background-color: #fef2f2; } */
 
+.order-sheet-bottom-scrollbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 16px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  z-index: 9999;
+  background: #fff;
+}
 
+.order-sheet-bottom-scrollbar-inner {
+  height: 1px;
+}
 
 /* 3 */
 
 /* Title band — big blue header, spans A1:H3 */
+.handsontable .wtHolder {
+  position: sticky !important;
+  bottom: 0 !important;
+  z-index: 50 !important;
+}
 .handsontable td.ols-title {
   background-color: #a4c2f4;
   /* light blue like the screenshot */
