@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2,ArrowLeft  } from "lucide-react";
 import { useState } from "react";
 import AttributeModal from "../components/AttributeModal";
 import { useDispatch, useSelector } from "react-redux";
@@ -75,6 +75,16 @@ const AddAttributes = () => {
 
   return (
     <div className="p-6">
+      <div className="mb-6">
+  <button
+    type="button"
+    onClick={() => navigate(-1)}
+    className="flex items-center gap-2 text-gray-600 hover:text-indigo-600 font-medium transition-colors"
+  >
+    <ArrowLeft size={18} />
+    Back
+  </button>
+</div>
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold text-gray-800">Attributes</h1>
