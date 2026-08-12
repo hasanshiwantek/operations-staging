@@ -348,7 +348,7 @@ function OrderListTable() {
                   }
                 },
                 create_part: {
-                  name: 'Create part number',
+                  name: 'Create part order',
                   callback: async (key, selection) => {
                     const row = selection[0].start.row;
                     let { order_type, ...originalOrder } = Orders[row];
