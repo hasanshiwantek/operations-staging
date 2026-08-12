@@ -216,9 +216,10 @@ function OrderListTable() {
                 });
             } else {
               // ========== UPDATE API ==========
-              dispatch(updateOrderFiles({
+               dispatch(updateOrderFiles({
                 id: updatedOrder["Order#"],
-                data: updatedOrder
+                data: updatedOrder,
+                role_id: storeId?.id,
               }))
                 .unwrap()
                 .then(() => {
