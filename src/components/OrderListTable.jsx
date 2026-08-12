@@ -472,7 +472,7 @@ function OrderListTable({ Orders }) {
                   }
                 },
                 create_part: {
-                  name: 'Create part number',
+                  name: 'Create part order',
                   hidden: function () {
                     const selected = this.getSelectedLast();
                     if (!selected) return true;
