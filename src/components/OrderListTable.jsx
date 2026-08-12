@@ -350,6 +350,16 @@ function OrderListTable() {
                 },
                 create_part: {
                   name: 'Create part order',
+                   hidden: function () {
+                    const selected = this.getSelectedLast();
+                    if (!selected) return true;
+
+                    const row = selected[0];
+                    const order = Orders?.[row];
+                    const type = String(order?.order_type || '').toLowerCase();
+
+                    return type === 'po' || type === 'rma';
+                  },
                   callback: async (key, selection) => {
                     const row = selection[0].start.row;
                     let { order_type, ...originalOrder } = Orders[row];
@@ -377,6 +387,16 @@ function OrderListTable() {
                 },
                 rma: {
                   name: 'RMA',
+                   hidden: function () {
+                    const selected = this.getSelectedLast();
+                    if (!selected) return true;
+
+                    const row = selected[0];
+                    const order = Orders?.[row];
+                    const type = String(order?.order_type || '').toLowerCase();
+
+                    return type === 'po' || type === 'rma';
+                  },
                   callback: async (key, selection) => {
                     const row = selection[0].start.row;
                     let { order_type, ...originalOrder } = Orders[row];
