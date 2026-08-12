@@ -357,7 +357,7 @@ function OrderListTable() {
 
                     try {
                       const result = await dispatch(
-                        createGenerateId({ orderId: String(originalOrder['Order#']) })
+                                        createGenerateId({ orderId: String(originalOrder['Order#']), role_id: storeId?.id })
                       ).unwrap();
 
                       if (result.success && result.generated_id) {
@@ -384,7 +384,7 @@ function OrderListTable() {
 
                     try {
                       const result = await dispatch(
-                        createGenerateId({ orderId: String(originalOrder['Order#']) })
+                       createGenerateId({ orderId: String(originalOrder['Order#']), role_id: storeId?.id })
                       ).unwrap();
 
                       if (result.success && result.generated_id) {
