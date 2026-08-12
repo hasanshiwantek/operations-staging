@@ -275,7 +275,10 @@ const Dashboard = () => {
   //   o => o.status?.toLowerCase() === "completed" // match backend delivered
   // ).length;
 
-
+  const selectedOrderIds = filteredOrders?.map((item) => String(item?.order_id));
+  const matchedOrders = Orders?.filter((order) =>
+    selectedOrderIds?.includes(String(order?.["Order#"]))
+  );
   const totalOrders = filteredOrders.length;
   const orderValue = filteredOrders.reduce((sum, order) => sum + (order?.totalPrice || 0), 0);
   const grossProfit = filteredOrders.reduce((sum, order) => sum + (order?.grossProfit || 0), 0);
@@ -287,7 +290,79 @@ const Dashboard = () => {
   }, [activeTab]);
   return (
     <>
+      {/* Filters */}
+      <div className="flex justify-end gap-2 mb-4 w-full">
+        {["All", "Delivered", "Intransit"].map(
+          (filter) => (
+            <button
+              key={filter}
+              className={`px-4 py-2 rounded-full text-sm font-medium ${selectedFilter === filter
+                ? "bg-indigo-600 text-white"
+                : "bg-white text-gray-700 border hover:bg-gray-100"
+                }`}
+              onClick={() => {
+                setSelectedFilter(filter);
+                setCurrentPage(1);
+              }}
+            >
+              {filter}
+            </button>
+          )
+        )}
+        {/* Sales Agent Dropdown */}
+        <select
+          value={selectedAgent}
+          onChange={(e) => {
+            setSelectedAgent(e.target.value);
+            setCurrentPage(1);
+            setSelectedProcuredBy("All");
+          }}
+          className="px-4 py-2 rounded-full text-sm font-medium bg-white text-gray-700 border shadow-sm hover:bg-gray-100 outline-none cursor-pointer"
+        >
+          <option value="All">All Agents</option>
+          {salesAgents.map((agent) => (
+            <option key={agent} value={agent}>{agent}</option>
+          ))}
+        </select>
 
+        {/* Procured By Dropdown */}
+        <select
+          value={selectedProcuredBy}
+          onChange={(e) => {
+            setSelectedProcuredBy(e.target.value);
+            setSelectedAgent("All");
+            setCurrentPage(1);
+          }}
+          className="px-4 py-2 rounded-full text-sm font-medium bg-white text-gray-700 border shadow-sm hover:bg-gray-100 outline-none cursor-pointer"
+        >
+          <option value="All">All Procured By</option>
+          {procuredByList.map((name) => (
+            <option key={name} value={name}>{name}</option>
+          ))}
+        </select>
+
+        <button
+          onClick={() => setShowDateFilter(true)}
+          className="flex items-center gap-2 bg-white border px-4 py-2 rounded-full text-sm text-gray-700 shadow-sm hover:bg-gray-100"
+        >
+          <Filter size={16} /> Filter by date
+        </button>
+        <button
+          onClick={() => {
+            setShowDateFilter(false);
+            setStartDate(null);
+            setEndDate(null);
+            setSearchQuery("");
+            setSelectedFilter("All");
+            setSelectedAgent("All");
+            setSelectedProcuredBy("All");
+            setCurrentPage(1);
+          }}
+          className="flex items-center gap-2 bg-white border px-4 py-2 rounded-full text-sm text-gray-700 shadow-sm hover:bg-gray-100"
+        >
+          Reset
+        </button>
+      </div>
       {/* ==== Stats Cards ==== */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
         {[
@@ -332,79 +407,7 @@ const Dashboard = () => {
               <h2 className="font-semibold text-gray-800 text-lg">Orders</h2>
             </div>
 
-            {/* Filters */}
-            <div className="flex flex-wrap gap-2 mb-4 w-full">
-              {["All", "Delivered", "Intransit"].map(
-                (filter) => (
-                  <button
-                    key={filter}
-                    className={`px-4 py-2 rounded-full text-sm font-medium ${selectedFilter === filter
-                      ? "bg-indigo-600 text-white"
-                      : "bg-white text-gray-700 border hover:bg-gray-100"
-                      }`}
-                    onClick={() => {
-                      setSelectedFilter(filter);
-                      setCurrentPage(1);
-                    }}
-                  >
-                    {filter}
-                  </button>
-                )
-              )}
-              {/* Sales Agent Dropdown */}
-              <select
-                value={selectedAgent}
-                onChange={(e) => {
-                  setSelectedAgent(e.target.value);
-                  setCurrentPage(1);
-                  setSelectedProcuredBy("All");
-                }}
-                className="px-4 py-2 rounded-full text-sm font-medium bg-white text-gray-700 border shadow-sm hover:bg-gray-100 outline-none cursor-pointer"
-              >
-                <option value="All">All Agents</option>
-                {salesAgents.map((agent) => (
-                  <option key={agent} value={agent}>{agent}</option>
-                ))}
-              </select>
 
-              {/* Procured By Dropdown */}
-              <select
-                value={selectedProcuredBy}
-                onChange={(e) => {
-                  setSelectedProcuredBy(e.target.value);
-                  setSelectedAgent("All");
-                  setCurrentPage(1);
-                }}
-                className="px-4 py-2 rounded-full text-sm font-medium bg-white text-gray-700 border shadow-sm hover:bg-gray-100 outline-none cursor-pointer"
-              >
-                <option value="All">All Procured By</option>
-                {procuredByList.map((name) => (
-                  <option key={name} value={name}>{name}</option>
-                ))}
-              </select>
-
-              <button
-                onClick={() => setShowDateFilter(true)}
-                className="flex items-center gap-2 bg-white border px-4 py-2 rounded-full text-sm text-gray-700 shadow-sm hover:bg-gray-100"
-              >
-                <Filter size={16} /> Filter by date
-              </button>
-              <button
-                onClick={() => {
-                  setShowDateFilter(false);
-                  setStartDate(null);
-                  setEndDate(null);
-                  setSearchQuery("");
-                  setSelectedFilter("All");
-                  setSelectedAgent("All");
-                  setSelectedProcuredBy("All");
-                  setCurrentPage(1);
-                }}
-                className="flex items-center gap-2 bg-white border px-4 py-2 rounded-full text-sm text-gray-700 shadow-sm hover:bg-gray-100"
-              >
-                Reset
-              </button>
-            </div>
 
             <div className="mb-6">
               <div className="flex items-center gap-2 border rounded-full px-4 py-2 bg-white shadow-sm w-full">
@@ -465,79 +468,79 @@ const Dashboard = () => {
           }
         </div>
 
-        {
-          showDateFilter && (
-            <div className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex justify-center items-center z-50">
-              <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-lg relative">
-                <button
-                  onClick={() => setShowDateFilter(false)}
-                  className="absolute right-4 top-4 text-gray-400 hover:text-gray-600"
-                >
-                  <X size={20} />
-                </button>
+      </> : <OrderListTable Orders={matchedOrders} />}
 
-                <h2 className="text-lg font-semibold text-gray-800 mb-3">
-                  Select Date Range
-                </h2>
-                <div className="flex flex-col gap-4">
-                  <div>
-                    <label className="text-sm text-gray-600 font-medium">
-                      Start Date
-                    </label>
-                    <DatePicker
-                      selected={startDate}
-                      onChange={(date) => setStartDate(date)}
-                      selectsStart
-                      startDate={startDate}
-                      endDate={endDate}
-                      dateFormat="MM/dd/yyyy"
-                      className="w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                      placeholderText="Select start date"
-                    />
-                  </div>
+      {
+        showDateFilter && (
+          <div className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex justify-center items-center z-50">
+            <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-lg relative">
+              <button
+                onClick={() => setShowDateFilter(false)}
+                className="absolute right-4 top-4 text-gray-400 hover:text-gray-600"
+              >
+                <X size={20} />
+              </button>
 
-                  <div>
-                    <label className="text-sm text-gray-600 font-medium">
-                      End Date
-                    </label>
-                    <DatePicker
-                      selected={endDate}
-                      onChange={(date) => setEndDate(date)}
-                      selectsEnd
-                      startDate={startDate}
-                      endDate={endDate}
-                      minDate={startDate}
-                      dateFormat="MM/dd/yyyy"
-                      className="w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                      placeholderText="Select end date"
-                    />
-                  </div>
+              <h2 className="text-lg font-semibold text-gray-800 mb-3">
+                Select Date Range
+              </h2>
+              <div className="flex flex-col gap-4">
+                <div>
+                  <label className="text-sm text-gray-600 font-medium">
+                    Start Date
+                  </label>
+                  <DatePicker
+                    selected={startDate}
+                    onChange={(date) => setStartDate(date)}
+                    selectsStart
+                    startDate={startDate}
+                    endDate={endDate}
+                    dateFormat="MM/dd/yyyy"
+                    className="w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholderText="Select start date"
+                  />
+                </div>
 
-                  <div className="flex justify-between gap-3 mt-4">
-                    <button
-                      onClick={() => {
-                        setStartDate(null);
-                        setEndDate(null);
-                        setShowDateFilter(false);
-                      }}
-                      className="w-1/2 border py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100"
-                    >
-                      Close
-                    </button>
-                    <button
-                      onClick={() => setShowDateFilter(false)}
-                      className="w-1/2 bg-indigo-600 text-white py-2 rounded-lg text-sm hover:bg-indigo-700"
-                    >
-                      Continue
-                    </button>
-                  </div>
+                <div>
+                  <label className="text-sm text-gray-600 font-medium">
+                    End Date
+                  </label>
+                  <DatePicker
+                    selected={endDate}
+                    onChange={(date) => setEndDate(date)}
+                    selectsEnd
+                    startDate={startDate}
+                    endDate={endDate}
+                    minDate={startDate}
+                    dateFormat="MM/dd/yyyy"
+                    className="w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholderText="Select end date"
+                  />
+                </div>
+
+                <div className="flex justify-between gap-3 mt-4">
+                  <button
+                    onClick={() => {
+                      setStartDate(null);
+                      setEndDate(null);
+                      setShowDateFilter(false);
+                    }}
+                    className="w-1/2 border py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100"
+                  >
+                    Close
+                  </button>
+                  <button
+                    onClick={() => setShowDateFilter(false)}
+                    className="w-1/2 bg-indigo-600 text-white py-2 rounded-lg text-sm hover:bg-indigo-700"
+                  >
+                    Continue
+                  </button>
                 </div>
               </div>
             </div>
-          )
-        }
-      </> : <OrderListTable />}
-      {/* {showUserModal && <CreateUserModal onClose={() => setShowUserModal(false)} />} */}
+          </div>
+        )
+      }
     </>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { HotTable } from '@handsontable/react-wrapper';
 import { registerAllModules } from 'handsontable/registry';
 import { useDispatch, useSelector } from 'react-redux';
@@ -16,15 +16,57 @@ import ExportOrdersPdf from './ExportOrdersPdf';
 
 registerAllModules();
 
-function OrderListTable() {
+function OrderListTable({ Orders }) {
   const hotRef = useRef(null);
   const dispatch = useDispatch();
-  const { Orders, orderloading, syncLoading } = useSelector((state) => state.users);
+  const { orderloading, syncLoading } = useSelector((state) => state.users);
   const { token, storeId, user: authUser } = useSelector((state) => state.auth);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isRMAMode, setIsRMAMode] = useState(false);
   const [isCreatePartMode, setIsCreatePartMode] = useState(false);
   const [isAddMode, setIsAddMode] = useState(false);
+
+  // Add these calculations inside the component (before the return)
+  const summary = useMemo(() => {
+    if (!Orders || Orders.length === 0) {
+      return {
+        totalPrice: 0,
+        totalCost: 0,
+        totalCostPlus4: 0,
+        grossProfit: 0,
+        grossProfitMinus4: 0,
+        count: 0,
+      };
+    }
+
+    return Orders.reduce(
+      (acc, order) => {
+        acc.totalPrice += Number(order["Total Price"] || 0);
+        acc.totalCost += Number(order["Total Cost"] || 0);
+        acc.totalCostPlus4 += Number(order["Total Cost+4%"] || 0);
+        acc.grossProfit += Number(order["Gross Profit"] || 0);
+        acc.grossProfitMinus4 += Number(order["Gross Profit-4%"] || 0);
+        acc.count += 1;
+        return acc;
+      },
+      {
+        totalPrice: 0,
+        totalCost: 0,
+        totalCostPlus4: 0,
+        grossProfit: 0,
+        grossProfitMinus4: 0,
+        count: 0,
+      }
+    );
+  }, [Orders]);
+
+  const formatCurrency = (value) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+    }).format(value);
+  };
   const exportToExcel = () => {
     if (!Orders || Orders.length === 0) return alert("No data to export");
 
@@ -142,6 +184,8 @@ function OrderListTable() {
       dispatch(fetchOrderOptions(storeId?.id));
     }
   }, [storeId?.id]);
+
+
   if (orderloading) {
     return (
       <div style={{ padding: '40px', textAlign: 'center' }}>
@@ -258,19 +302,19 @@ function OrderListTable() {
         />
       )}
       <div style={{ padding: '20px' }}>
-   <div
-    style={{
-      position: 'sticky',
-      top: '0px',
-      zIndex: 30,
-      background: '#fff',
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: '16px',
-      padding: '12px 0',
-    }}
-  >
+        <div
+          style={{
+            position: 'sticky',
+            top: '0px',
+            zIndex: 30,
+            background: '#fff',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '16px',
+            padding: '12px 0',
+          }}
+        >
           <h2>Dashboard - Order Sheet</h2>
 
           <div style={{ display: 'flex', gap: '12px' }}>
@@ -310,6 +354,7 @@ function OrderListTable() {
             </button>
           </div>
         </div>
+        {/* Summary Bar */}
 
         {/* ← Add this div with higher z-index control */}
         <div style={{ position: 'relative', zIndex: 10 }}>
@@ -338,6 +383,85 @@ function OrderListTable() {
             fixedColumnsStart={1}
             readOnly={true}
             disableVisualSelection={true}
+            afterGetColHeader={(col, TH, headerLevel) => {
+              // Only style the first header row (totals)
+              if (headerLevel !== 0) return;
+
+              const column = columnsOfSheet[col];
+              if (!column) return;
+
+              // Remove old classes
+              TH.classList.remove(
+                "htOrderCount",
+                "htTotalPrice",
+                "htTotalCost",
+                "htTotalCost4",
+                "htGrossProfit",
+                "htGrossProfit4"
+              );
+
+              if (column.data === "Order#") {
+                TH.classList.add("htOrderCount");
+              } else if (column.data === "Total Price") {
+                TH.classList.add("htTotalPrice");
+              } else if (column.data === "Total Cost") {
+                TH.classList.add("htTotalCost");
+              } else if (column.data === "Total Cost+4%") {
+                TH.classList.add("htTotalCost4");
+              } else if (column.data === "Gross Profit") {
+                TH.classList.add("htGrossProfit");
+              } else if (column.data === "Gross Profit-4%") {
+                TH.classList.add("htGrossProfit4");
+              }
+            }}
+            nestedHeaders={[
+              // First row = Totals (above the column names)
+              columnsOfSheet.map((col) => {
+                const key = col.data;
+                if (key === "Order#") {
+                  return {
+                    label: String(summary.count),          // ← Order count
+                    colspan: 1,
+                  };
+                }
+                if (key === "Total Price") {
+                  return {
+                    label: formatCurrency(summary.totalPrice),
+                    colspan: 1,
+                  };
+                }
+                if (key === "Total Cost") {
+                  return {
+                    label: formatCurrency(summary.totalCost),
+                    colspan: 1,
+                  };
+                }
+                if (key === "Total Cost+4%") {
+                  return {
+                    label: formatCurrency(summary.totalCostPlus4),
+                    colspan: 1,
+                  };
+                }
+                if (key === "Gross Profit") {
+                  return {
+                    label: formatCurrency(summary.grossProfit),
+                    colspan: 1,
+                  };
+                }
+                if (key === "Gross Profit-4%") {
+                  return {
+                    label: formatCurrency(summary.grossProfitMinus4),
+                    colspan: 1,
+                  };
+                }
+
+                // For all other columns → empty cell
+                return "";
+              }),
+
+              // Second row = Normal column titles
+              columnsOfSheet.map((col) => col.title),
+            ]}
             contextMenu={{
               items: {
                 edit: {
@@ -349,6 +473,16 @@ function OrderListTable() {
                 },
                 create_part: {
                   name: 'Create part number',
+                  hidden: function () {
+                    const selected = this.getSelectedLast();
+                    if (!selected) return true;
+
+                    const row = selected[0];
+                    const order = Orders?.[row];
+                    const type = String(order?.order_type || '').toLowerCase();
+
+                    return type === 'po' || type === 'rma';
+                  },
                   callback: async (key, selection) => {
                     const row = selection[0].start.row;
                     let { order_type, ...originalOrder } = Orders[row];
@@ -376,6 +510,16 @@ function OrderListTable() {
                 },
                 rma: {
                   name: 'RMA',
+                  hidden: function () {
+                    const selected = this.getSelectedLast();
+                    if (!selected) return true;
+
+                    const row = selected[0];
+                    const order = Orders?.[row];
+                    const type = String(order?.order_type || '').toLowerCase();
+
+                    return type === 'po' || type === 'rma';
+                  },
                   callback: async (key, selection) => {
                     const row = selection[0].start.row;
                     let { order_type, ...originalOrder } = Orders[row];
@@ -425,9 +569,9 @@ function OrderListTable() {
             }}
 
             emptyDataMessage="No orders found"
-            
+
           />
-          
+
         </div>
       </div>
     </React.Fragment>

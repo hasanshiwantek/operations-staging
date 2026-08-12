@@ -92,6 +92,7 @@ body {
   bottom: 0 !important;
   z-index: 50 !important;
 }
+
 .handsontable td.ols-title {
   background-color: #a4c2f4;
   /* light blue like the screenshot */
@@ -140,4 +141,34 @@ body {
 
 .handsontable td.cancelled-row {
   background-color: #fee2e2 !important;
+}
+
+/* Top summary row */
+.handsontable thead tr:first-child th {
+  text-align: end !important;
+  color: white !important;
+}
+
+.handsontable thead tr:first-child th.htOrderCount {
+  background-color: #9c0720 !important;
+}
+
+.handsontable thead tr:first-child th.htTotalPrice {
+  background-color: #9c0720 !important;
+}
+
+.handsontable thead tr:first-child th.htTotalCost {
+  background-color: #9c0720 !important;
+}
+
+.handsontable thead tr:first-child th.htTotalCost4 {
+  background-color: #1a3a6e !important;
+}
+
+.handsontable thead tr:first-child th.htGrossProfit {
+  background-color: #1a3a6e !important;
+}
+
+.handsontable thead tr:first-child th.htGrossProfit4 {
+  background-color: #9c0720 !important;
 }
