@@ -94,10 +94,10 @@ export const updateUser = createAsyncThunk(
 );
 export const updateOrderFiles = createAsyncThunk(
   "users/updateOrderFiles",
-  async ({ id, data }, { rejectWithValue }) => {
+  async ({ id, data, role_id }, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.put(
-        `order-files/${id}`,
+        `order-files/${id}?role_id=${role_id}`,
         data
       );
       return response.data; // updated user return karo
@@ -110,6 +110,7 @@ export const updateOrderFiles = createAsyncThunk(
     }
   }
 );
+
 
 
 export const fetchOrders = createAsyncThunk(

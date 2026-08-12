@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { MoreVertical, X, Eye, EyeOff, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  MoreVertical,
+  X,
+  Eye,
+  EyeOff,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 import addUserIcon from "../assets/adduser-icon.svg";
 import { useDispatch, useSelector } from "react-redux";
 import { deleteUser, updateUser } from "../store/usersSlice";
@@ -9,11 +16,19 @@ import { toast } from "react-toastify";
 const pageAccessOptions = [
   {
     page: "Home",
-    tabs: ["All", "Delivered", "Intransit", "Delayed", "Cancel", "Partial", "Refunded"]
+    tabs: [
+      "All",
+      "Delivered",
+      "Intransit",
+      "Delayed",
+      "Cancel",
+      "Partial",
+      "Refunded",
+    ],
   },
   {
     page: "Order",
-    tabs: ["Order", "Invoice", "Customer", "Vendor", "Total price & Profit"]
+    tabs: ["Order", "Invoice", "Customer", "Vendor", "Total price & Profit"],
   },
 ];
 
@@ -23,9 +38,9 @@ const convertPageNamesToPageAccess = (pageNames) => {
 
   const pageAccess = {};
 
-  pageAccessOptions.forEach(option => {
-    const matchingTabs = option.tabs.filter(tab =>
-      pageNames.some(name => name.toLowerCase() === tab.toLowerCase())
+  pageAccessOptions.forEach((option) => {
+    const matchingTabs = option.tabs.filter((tab) =>
+      pageNames.some((name) => name.toLowerCase() === tab.toLowerCase()),
     );
 
     if (matchingTabs.length > 0) {
@@ -42,7 +57,7 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [expandedPages, setExpandedPages] = useState({});
   const dispatch = useDispatch();
-  const { user } = useSelector((state) => state.auth);
+  const { user, storeId } = useSelector((state) => state.auth);
   const { updateLoading } = useSelector((state) => state.users);
   const roles = user?.roles;
 
@@ -72,7 +87,6 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
   const [errors, setErrors] = useState({});
 
   // Debug: Log the converted page access
-  
 
   const validateForm = () => {
     const newErrors = {};
@@ -106,7 +120,7 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
       }
     }
 
-    if (!formData.role) newErrors.role = "Role is required";
+    // if (!formData.role) newErrors.role = "Role is required";
     if (Object.keys(formData.pageAccess).length === 0) {
       newErrors.pageAccess = "Select at least one page access";
     }
@@ -135,7 +149,7 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
       const payload = {
         name: formData.name,
         email: formData.email,
-        role_id: Number(formData.role),
+        role_id: Number(storeId?.id),
         page_name: pageAccessArray,
       };
 
@@ -145,7 +159,9 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
         payload.password_confirmation = formData.confirmPassword;
       }
 
-      const result = await dispatch(updateUser({ id: editUser.id, data: payload }));
+      const result = await dispatch(
+        updateUser({ id: editUser.id, data: payload }),
+      );
 
       if (updateUser.fulfilled.match(result)) {
         onClose();
@@ -159,7 +175,7 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
         email: formData.email,
         password: formData.password,
         password_confirmation: formData.confirmPassword,
-        role_id: Number(formData.role),
+        role_id: Number(storeId?.id),
         page_name: pageAccessArray,
       };
 
@@ -174,16 +190,16 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
   };
 
   const togglePageExpansion = (page) => {
-    setExpandedPages(prev => ({
+    setExpandedPages((prev) => ({
       ...prev,
-      [page]: !prev[page]
+      [page]: !prev[page],
     }));
   };
 
   const toggleTab = (page, tab) => {
     const currentTabs = formData.pageAccess[page] || [];
     const newTabs = currentTabs.includes(tab)
-      ? currentTabs.filter(t => t !== tab)
+      ? currentTabs.filter((t) => t !== tab)
       : [...currentTabs, tab];
 
     const newPageAccess = { ...formData.pageAccess };
@@ -198,7 +214,7 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
 
   const selectAllTabs = (page, tabs) => {
     const currentTabs = formData.pageAccess[page] || [];
-    const allSelected = tabs.every(tab => currentTabs.includes(tab));
+    const allSelected = tabs.every((tab) => currentTabs.includes(tab));
 
     const newPageAccess = { ...formData.pageAccess };
     if (allSelected) {
@@ -216,10 +232,8 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
 
   const areAllTabsSelected = (page, tabs) => {
     const currentTabs = formData.pageAccess[page] || [];
-    return tabs.every(tab => currentTabs.includes(tab));
+    return tabs.every((tab) => currentTabs.includes(tab));
   };
-
-
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex justify-center items-center z-50 p-4">
@@ -248,9 +262,12 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
                 type="text"
                 placeholder="e.g. John Doe"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className={`w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${errors.name ? "border-red-400" : "border-gray-200"
-                  }`}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
+                className={`w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${
+                  errors.name ? "border-red-400" : "border-gray-200"
+                }`}
               />
               <p className="text-xs text-red-500 min-h-[16px] mt-1">
                 {errors.name || " "}
@@ -263,9 +280,12 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
                 type="email"
                 placeholder="e.g. example@gmail.com"
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className={`w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${errors.email ? "border-red-400" : "border-gray-200"
-                  }`}
+                onChange={(e) =>
+                  setFormData({ ...formData, email: e.target.value })
+                }
+                className={`w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${
+                  errors.email ? "border-red-400" : "border-gray-200"
+                }`}
               />
               <p className="text-xs text-red-500 min-h-[16px] mt-1">
                 {errors.email || " "}
@@ -276,16 +296,26 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-sm text-gray-600 font-medium">
-                Password {isEditMode && <span className="text-gray-400">(optional)</span>}
+                Password{" "}
+                {isEditMode && (
+                  <span className="text-gray-400">(optional)</span>
+                )}
               </label>
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
-                  placeholder={isEditMode ? "Leave blank to keep current" : "Enter secure password"}
+                  placeholder={
+                    isEditMode
+                      ? "Leave blank to keep current"
+                      : "Enter secure password"
+                  }
                   value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className={`w-full mt-1 p-2 pr-10 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${errors.password ? "border-red-400" : "border-gray-200"
-                    }`}
+                  onChange={(e) =>
+                    setFormData({ ...formData, password: e.target.value })
+                  }
+                  className={`w-full mt-1 p-2 pr-10 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${
+                    errors.password ? "border-red-400" : "border-gray-200"
+                  }`}
                 />
                 <button
                   type="button"
@@ -302,23 +332,38 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
 
             <div>
               <label className="text-sm text-gray-600 font-medium">
-                Confirm password {isEditMode && <span className="text-gray-400">(optional)</span>}
+                Confirm password{" "}
+                {isEditMode && (
+                  <span className="text-gray-400">(optional)</span>
+                )}
               </label>
               <div className="relative">
                 <input
                   type={showConfirmPassword ? "text" : "password"}
                   placeholder="Re-enter password"
                   value={formData.confirmPassword}
-                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                  className={`w-full mt-1 p-2 pr-10 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${errors.confirmPassword ? "border-red-400" : "border-gray-200"
-                    }`}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      confirmPassword: e.target.value,
+                    })
+                  }
+                  className={`w-full mt-1 p-2 pr-10 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${
+                    errors.confirmPassword
+                      ? "border-red-400"
+                      : "border-gray-200"
+                  }`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword((prev) => !prev)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
                 >
-                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  {showConfirmPassword ? (
+                    <EyeOff size={18} />
+                  ) : (
+                    <Eye size={18} />
+                  )}
                 </button>
               </div>
               <p className="text-xs text-red-500 min-h-[16px] mt-1">
@@ -327,36 +372,19 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4">
+          {/* <div className="grid grid-cols-1 gap-4">
             <div>
               <label className="text-sm text-gray-600 font-medium">
                 Select role
               </label>
-              {/* <select
-                value={formData.role}
-                // onChange={(e) => console.log(e.target)
-                // }
-                onChange={(e) => {
-                  console.log("selected:", e.target.value);
-                  setFormData({ ...formData, role: e.target.value });
-                }}
-                className={`w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${errors.role ? "border-red-400" : "border-gray-200"
-                  }`}
-              >
-                {roles?.map((role) => (
-                  <option key={role.id} value={role.id.toString()}>
-                    {role.name}
-                  </option>
-                ))}
-              </select> */
-              }
               <select
                 value={formData.role}
                 onChange={(e) => {
                   setFormData({ ...formData, role: e.target.value });
                 }}
-                className={`w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${errors.role ? "border-red-400" : "border-gray-200"
-                  }`}
+                className={`w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${
+                  errors.role ? "border-red-400" : "border-gray-200"
+                }`}
               >
                 <option value="">Select a role</option>
                 {roles?.map((role) => (
@@ -369,7 +397,7 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
                 {errors.role || " "}
               </p>
             </div>
-          </div>
+          </div> */}
 
           <div>
             <label className="text-sm text-gray-600 font-medium mb-2 block">
@@ -388,8 +416,9 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
                     className={`${index !== 0 ? "border-t border-gray-200" : ""}`}
                   >
                     <div
-                      className={`flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50 ${selected ? "bg-indigo-50" : ""
-                        }`}
+                      className={`flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50 ${
+                        selected ? "bg-indigo-50" : ""
+                      }`}
                       onClick={() => togglePageExpansion(item.page)}
                     >
                       <div className="flex items-center gap-2">
@@ -398,7 +427,8 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
                         </span>
                         {selected && (
                           <span className="text-xs bg-indigo-600 text-white px-2 py-0.5 rounded-full">
-                            {formData.pageAccess[item.page]?.length || 0} selected
+                            {formData.pageAccess[item.page]?.length || 0}{" "}
+                            selected
                           </span>
                         )}
                       </div>
@@ -422,14 +452,16 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {item.tabs.map((tab) => {
-                            const isTabSelected = formData.pageAccess[item.page]?.includes(tab);
+                            const isTabSelected =
+                              formData.pageAccess[item.page]?.includes(tab);
                             return (
                               <label
                                 key={tab}
-                                className={`text-xs px-3 py-1.5 rounded-lg border cursor-pointer transition ${isTabSelected
-                                  ? "bg-indigo-600 text-white border-indigo-600"
-                                  : "text-gray-700 border-gray-300 hover:bg-white"
-                                  }`}
+                                className={`text-xs px-3 py-1.5 rounded-lg border cursor-pointer transition ${
+                                  isTabSelected
+                                    ? "bg-indigo-600 text-white border-indigo-600"
+                                    : "text-gray-700 border-gray-300 hover:bg-white"
+                                }`}
                               >
                                 <input
                                   type="checkbox"
@@ -459,7 +491,11 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
             disabled={updateLoading}
             className="w-full mt-4 bg-indigo-600 text-white py-2 rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {updateLoading ? "Updating..." : isEditMode ? "Update user" : "Create user"}
+            {updateLoading
+              ? "Updating..."
+              : isEditMode
+                ? "Update user"
+                : "Create user"}
           </button>
         </div>
       </div>
