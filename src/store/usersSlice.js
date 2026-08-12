@@ -269,11 +269,11 @@ export const fetchOrderById = createAsyncThunk(
 
 export const createGenerateId = createAsyncThunk(
   "orders/generate-id",
-  async ({ orderId }, { rejectWithValue }) => {
+  async ({ orderId, role_id }, { rejectWithValue }) => {
     try {
 
       const response = await axiosInstance.post(
-        "/order-files/generate-id",
+        `/order-files/generate-id?role_id=${role_id}`,
         { "Order#": orderId },
       );
 
