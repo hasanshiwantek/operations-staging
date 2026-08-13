@@ -15,9 +15,17 @@ import OrderDetailModal from './OrderDetailModal';
 import ExportOrdersPdf from './ExportOrdersPdf';
 
 registerAllModules();
-
+const formatCurrency = (value) => {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+  }).format(value);
+};
 function OrderListTable({ Orders }) {
   const hotRef = useRef(null);
+  const isRightClickRef = useRef(false);
+  const isContextMenuOpen = useRef(false);
   const dispatch = useDispatch();
   const { orderloading, syncLoading } = useSelector((state) => state.users);
   const { token, storeId, user: authUser } = useSelector((state) => state.auth);
@@ -25,7 +33,11 @@ function OrderListTable({ Orders }) {
   const [isRMAMode, setIsRMAMode] = useState(false);
   const [isCreatePartMode, setIsCreatePartMode] = useState(false);
   const [isAddMode, setIsAddMode] = useState(false);
-
+  const [selectionSummary, setSelectionSummary] = useState({
+    sum: 0,
+    count: 0,
+    visible: false,
+  });
   // Add these calculations inside the component (before the return)
   const summary = useMemo(() => {
     if (!Orders || Orders.length === 0) {
@@ -59,13 +71,128 @@ function OrderListTable({ Orders }) {
       }
     );
   }, [Orders]);
+  const handleAfterSelectionEnd = (row, column, row2, column2) => {
+    const hot = hotRef.current?.hotInstance;
+    if (!hot) return;
 
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: 2,
-    }).format(value);
+    // Get selected range
+    const selected = hot.getSelected();
+    if (!selected || selected.length === 0) {
+      setSelectionSummary({ sum: 0, count: 0, visible: false });
+      return;
+    }
+
+    let sum = 0;
+    let count = 0;
+
+    selected.forEach(([startRow, startCol, endRow, endCol]) => {
+      const minRow = Math.min(startRow, endRow);
+      const maxRow = Math.max(startRow, endRow);
+      const minCol = Math.min(startCol, endCol);
+      const maxCol = Math.max(startCol, endCol);
+
+      for (let r = minRow; r <= maxRow; r++) {
+        for (let c = minCol; c <= maxCol; c++) {
+          const value = hot.getDataAtCell(r, c);
+          const num = Number(value);
+
+          if (!isNaN(num) && value !== null && value !== "") {
+            sum += num;
+            count++;
+          }
+        }
+      }
+    });
+
+    setSelectionSummary({
+      sum,
+      count,
+      visible: count > 1, // only show when more than 1 cell selected
+    });
+  };
+  // const updateSelectionSummary = () => {
+  //   const hot = hotRef.current?.hotInstance;
+  //   if (!hot) return;
+
+  //   const selected = hot.getSelected();
+  //   if (!selected || selected.length === 0) {
+  //     setSelectionSummary({ sum: 0, count: 0, visible: false });
+  //     return;
+  //   }
+
+  //   let sum = 0;
+  //   let count = 0;
+
+  //   selected.forEach(([rowStart, colStart, rowEnd, colEnd]) => {
+  //     const startRow = Math.min(rowStart, rowEnd);
+  //     const endRow = Math.max(rowStart, rowEnd);
+  //     const startCol = Math.min(colStart, colEnd);
+  //     const endCol = Math.max(colStart, colEnd);
+
+  //     for (let row = startRow; row <= endRow; row++) {
+  //       for (let col = startCol; col <= endCol; col++) {
+  //         const value = hot.getDataAtCell(row, col);
+  //         const num = parseFloat(value);
+
+  //         if (!isNaN(num)) {
+  //           sum += num;
+  //           count++;
+  //         }
+  //       }
+  //     }
+  //   });
+
+  //   setSelectionSummary({
+  //     sum,
+  //     count,
+  //     visible: count >= 1, // show even for single cell
+  //   });
+  // };
+  const handleBeforeOnCellMouseDown = (event, coords, TD) => {
+    // Right click (button === 2) → prevent selection
+    if (event.button === 2) {
+      event.stopImmediatePropagation();   // stops Handsontable from selecting the cell
+      return false;
+    }
+  };
+
+  const handleBeforeOnCellContextMenu = (event) => {
+    event.stopImmediatePropagation();
+    // Also hide the sum badge
+    setSelectionSummary({ sum: 0, count: 0, visible: false });
+  };
+
+  const updateSelectionSummary = () => {
+    if (isRightClickRef.current) return;
+
+    const hot = hotRef.current?.hotInstance;
+    if (!hot) return;
+
+    const selected = hot.getSelected();
+    if (!selected || selected.length === 0) {
+      setSelectionSummary({ sum: 0, count: 0, visible: false });
+      return;
+    }
+
+    let sum = 0;
+    let count = 0;
+    const [r1, c1, r2, c2] = selected[0];
+
+    for (let r = Math.min(r1, r2); r <= Math.max(r1, r2); r++) {
+      for (let c = Math.min(c1, c2); c <= Math.max(c1, c2); c++) {
+        const val = parseFloat(hot.getDataAtCell(r, c));
+        if (!isNaN(val)) {
+          sum += val;
+          count++;
+        }
+      }
+    }
+
+    setSelectionSummary({
+      sum,
+      count,
+      visible: count > 1,
+    });
   };
   const exportToExcel = () => {
     if (!Orders || Orders.length === 0) return alert("No data to export");
@@ -260,7 +387,7 @@ function OrderListTable({ Orders }) {
                 });
             } else {
               // ========== UPDATE API ==========
-               dispatch(updateOrderFiles({
+              dispatch(updateOrderFiles({
                 id: updatedOrder["Order#"],
                 data: updatedOrder,
                 role_id: storeId?.id,
@@ -366,7 +493,41 @@ function OrderListTable({ Orders }) {
             columns={columnsOfSheet}
             style={{ zIndex: 10 }}
             colHeaders={true}
-            rowHeaders={true}
+            rowHeaders={false}
+            fragmentSelection={false}
+            afterOnCellMouseDown={(event, coords) => {
+              // coords.row === -1 means header was clicked
+              if (coords.row === -1) {
+                event.stopImmediatePropagation();
+              }
+            }}
+            beforeOnCellMouseDown={(event) => {
+              isRightClickRef.current = event.button === 2;
+            }}
+
+            beforeOnCellContextMenu={(event) => {
+              event.preventDefault(); // only this is needed
+              isRightClickRef.current = true; // reset right-click flag
+            }}
+
+            afterSelectionEnd={() => {
+              // Delay slightly so context menu can open first
+              setTimeout(() => {
+                if (isRightClickRef.current) {
+                  isRightClickRef.current = false;
+                  return;
+                }
+                updateSelectionSummary();
+              }, 100);
+            }}
+
+            afterDeselect={() => {
+              setSelectionSummary({ sum: 0, count: 0, visible: false });
+            }}
+
+            afterContextMenuHide={() => {
+              isRightClickRef.current = false;
+            }}
             stretchH="all"
             height="calc(100vh - 180px)"
             width="100%"
@@ -381,17 +542,20 @@ function OrderListTable({ Orders }) {
             // contextMenu={true}
             manualColumnResize={true}
             columnSorting={false}
-            fixedColumnsStart={1}
+            fixedColumnsStart={2}
+            // Important settings
             readOnly={true}
-            disableVisualSelection={true}
+            disableVisualSelection={false}
+            outsideClickDeselects={false}
+
             afterGetColHeader={(col, TH, headerLevel) => {
-              // Only style the first header row (totals)
               if (headerLevel !== 0) return;
 
+              // col index starts from 0 for the first data column (Sno)
               const column = columnsOfSheet[col];
               if (!column) return;
 
-              // Remove old classes
+              // Clean previous classes
               TH.classList.remove(
                 "htOrderCount",
                 "htTotalPrice",
@@ -416,51 +580,33 @@ function OrderListTable({ Orders }) {
               }
             }}
             nestedHeaders={[
-              // First row = Totals (above the column names)
+              // Top row (summary)
               columnsOfSheet.map((col) => {
-                const key = col.data;
-                if (key === "Order#") {
+                if (col.data === "Order#") {
                   return {
-                    label: String(summary.count),          // ← Order count
+                    label: String(summary.count),
                     colspan: 1,
                   };
                 }
-                if (key === "Total Price") {
-                  return {
-                    label: formatCurrency(summary.totalPrice),
-                    colspan: 1,
-                  };
+                if (col.data === "Total Price") {
+                  return { label: formatCurrency(summary.totalPrice), colspan: 1 };
                 }
-                if (key === "Total Cost") {
-                  return {
-                    label: formatCurrency(summary.totalCost),
-                    colspan: 1,
-                  };
+                if (col.data === "Total Cost") {
+                  return { label: formatCurrency(summary.totalCost), colspan: 1 };
                 }
-                if (key === "Total Cost+4%") {
-                  return {
-                    label: formatCurrency(summary.totalCostPlus4),
-                    colspan: 1,
-                  };
+                if (col.data === "Total Cost+4%") {
+                  return { label: formatCurrency(summary.totalCostPlus4), colspan: 1 };
                 }
-                if (key === "Gross Profit") {
-                  return {
-                    label: formatCurrency(summary.grossProfit),
-                    colspan: 1,
-                  };
+                if (col.data === "Gross Profit") {
+                  return { label: formatCurrency(summary.grossProfit), colspan: 1 };
                 }
-                if (key === "Gross Profit-4%") {
-                  return {
-                    label: formatCurrency(summary.grossProfitMinus4),
-                    colspan: 1,
-                  };
+                if (col.data === "Gross Profit-4%") {
+                  return { label: formatCurrency(summary.grossProfitMinus4), colspan: 1 };
                 }
-
-                // For all other columns → empty cell
                 return "";
               }),
 
-              // Second row = Normal column titles
+              // Second row (titles)
               columnsOfSheet.map((col) => col.title),
             ]}
             contextMenu={{
@@ -486,13 +632,15 @@ function OrderListTable({ Orders }) {
                   },
                   callback: async (key, selection) => {
                     const row = selection[0].start.row;
+
+
                     let { order_type, ...originalOrder } = Orders[row];
 
                     if (!originalOrder) return;
 
                     try {
                       const result = await dispatch(
-                                        createGenerateId({ orderId: String(originalOrder['Order#']), role_id: storeId?.id })
+                        createGenerateId({ orderId: String(originalOrder['Order#']), role_id: storeId?.id })
                       ).unwrap();
 
                       if (result.success && result.generated_id) {
@@ -529,7 +677,7 @@ function OrderListTable({ Orders }) {
 
                     try {
                       const result = await dispatch(
-                       createGenerateId({ orderId: String(originalOrder['Order#']), role_id: storeId?.id })
+                        createGenerateId({ orderId: String(originalOrder['Order#']), role_id: storeId?.id })
                       ).unwrap();
 
                       if (result.success && result.generated_id) {
@@ -570,9 +718,39 @@ function OrderListTable({ Orders }) {
             }}
 
             emptyDataMessage="No orders found"
-
           />
-
+          {/* Selection Summary Badge */}
+          {selectionSummary.visible && (
+            <div
+              style={{
+                position: "fixed",
+                bottom: "24px",
+                right: "30px",
+                background: "#e8f5e9",
+                border: "1px solid #81c784",
+                borderRadius: "6px",
+                padding: "8px 14px",
+                fontSize: "13px",
+                fontWeight: "600",
+                color: "#2e7d32",
+                boxShadow: "0 3px 10px rgba(0,0,0,0.12)",
+                zIndex: 9999,
+                display: "flex",
+                gap: "10px",
+                alignItems: "center",
+              }}
+            >
+              <span>
+                Sum:{" "}
+                {selectionSummary.sum.toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </span>
+              <span style={{ opacity: 0.5 }}>|</span>
+              <span>Count: {selectionSummary.count}</span>
+            </div>
+          )}
         </div>
       </div>
     </React.Fragment>

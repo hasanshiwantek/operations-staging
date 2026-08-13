@@ -28,6 +28,17 @@ export const dropdownFields = {
   "Status": "status",
 };
 export const columnsOfSheet = [
+  {
+    data: "Sno",
+    title: "Sno",
+    width: 60,
+    readOnly: true,
+    renderer: function (instance, td, row) {
+      td.innerHTML = row + 1; // Serial number starting from 1
+      td.style.textAlign = "center";
+      return td;
+    },
+  },
   { data: "Order#", title: "Order#" },
   { data: "Charged Date", title: "Charged Date" },
   { data: "Lead Source", title: "Lead Source" },
