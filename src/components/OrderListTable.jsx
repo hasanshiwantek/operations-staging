@@ -43,9 +43,22 @@ function OrderListTable({ Orders }) {
     count: 0,
     visible: false,
   });
+  const filteredOrders = useMemo(() => {
+    if (!Orders) return [];
+
+    if (orderTypeFilter === "all") return Orders;
+
+    return Orders.filter((order) => {
+      const type = String(order.order_type || "").toLowerCase();
+      const status = String(order.Status || "").toLowerCase();
+      if (orderTypeFilter === "cancelled") return status === "cancelled";
+      if (orderTypeFilter === "delivered") return status === "delivered";
+      return type === orderTypeFilter;
+    });
+  }, [Orders, orderTypeFilter]);
   // Add these calculations inside the component (before the return)
   const summary = useMemo(() => {
-    if (!Orders || Orders.length === 0) {
+    if (!filteredOrders || filteredOrders.length === 0) {
       return {
         totalPrice: 0,
         totalCost: 0,
@@ -56,7 +69,7 @@ function OrderListTable({ Orders }) {
       };
     }
 
-    return Orders.reduce(
+    return filteredOrders.reduce(
       (acc, order) => {
         acc.totalPrice += Number(order["Total Price"] || 0);
         acc.totalCost += Number(order["Total Cost"] || 0);
@@ -75,7 +88,7 @@ function OrderListTable({ Orders }) {
         count: 0,
       }
     );
-  }, [Orders]);
+  }, [filteredOrders]);
 
   const handleBeforeOnCellMouseDown = (event, coords, TD) => {
     // Right click (button === 2) → prevent selection
@@ -90,53 +103,55 @@ function OrderListTable({ Orders }) {
     setSelectionSummary({ sum: 0, count: 0, visible: false });
   };
 
-  // const updateSelectionSummary = () => {
-  //   if (isRightClickRef.current) return;
 
-  //   const hot = hotRef.current?.hotInstance;
-  //   if (!hot) return;
 
-  //   const selected = hot.getSelected();
-  //   if (!selected || selected.length === 0) {
-  //     setSelectionSummary({ sum: 0, count: 0, visible: false });
-  //     return;
-  //   }
+  const handleAfterGetColHeader = (col, TH, headerLevel) => {
+    // Only for the first data columns or any column you want
+    const filterButton = TH.querySelector(".changeType"); // Handsontable filter icon
 
-  //   let sum = 0;
-  //   let count = 0;
-  //   const [r1, c1, r2, c2] = selected[0];
+    if (filterButton) {
+      filterButton.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
 
-  //   for (let r = Math.min(r1, r2); r <= Math.max(r1, r2); r++) {
-  //     for (let c = Math.min(c1, c2); c <= Math.max(c1, c2); c++) {
-  //       const val = parseFloat(hot.getDataAtCell(r, c));
-  //       if (!isNaN(val)) {
-  //         sum += val;
-  //         count++;
-  //       }
-  //     }
-  //   }
+        const rect = filterButton.getBoundingClientRect();
+        setFilterPosition({
+          top: rect.bottom + window.scrollY + 4,
+          left: rect.left + window.scrollX,
+        });
+        setShowColorFilter(true);
+      };
+    }
 
-  //   setSelectionSummary({
-  //     sum,
-  //     count,
-  //     visible: count > 1,
-  //   });
-  // };
-  const filteredOrders = useMemo(() => {
-    if (!Orders) return [];
+    if (headerLevel !== 0) return;
 
-    if (orderTypeFilter === "all") return Orders;
+    // col index starts from 0 for the first data column (Sno)
+    const column = columnsOfSheet[col];
+    if (!column) return;
 
-    return Orders.filter((order) => {
-      const type = String(order.order_type || "").toLowerCase();
-      const status = String(order.Status || "").toLowerCase();
-
-      if (orderTypeFilter === "cancelled") return status === "cancelled";
-      if (orderTypeFilter === "delivered") return status === "delivered";
-      return type === orderTypeFilter;
-    });
-  }, [Orders, orderTypeFilter]);
-
+    // Clean previous classes
+    TH.classList.remove(
+      "htOrderCount",
+      "htTotalPrice",
+      "htTotalCost",
+      "htTotalCost4",
+      "htGrossProfit",
+      "htGrossProfit4"
+    );
+    if (column.data === "Order#") {
+      TH.classList.add("htOrderCount");
+    } else if (column.data === "Total Price") {
+      TH.classList.add("htTotalPrice");
+    } else if (column.data === "Total Cost") {
+      TH.classList.add("htTotalCost");
+    } else if (column.data === "Total Cost+4%") {
+      TH.classList.add("htTotalCost4");
+    } else if (column.data === "Gross Profit") {
+      TH.classList.add("htGrossProfit");
+    } else if (column.data === "Gross Profit-4%") {
+      TH.classList.add("htGrossProfit4");
+    }
+  };
   const updateSelectionSummary = useCallback(() => {
     if (isRightClickRef.current) return;
 
@@ -178,9 +193,9 @@ function OrderListTable({ Orders }) {
     });
   }, []);
   const exportToExcel = () => {
-    if (!Orders || Orders.length === 0) return alert("No data to export");
+    if (!filteredOrders || filteredOrders.length === 0) return alert("No data to export");
 
-    const ws = XLSX.utils.json_to_sheet(Orders);
+    const ws = XLSX.utils.json_to_sheet(filteredOrders);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Orders");
     XLSX.writeFile(wb, `Orders_${new Date().toISOString().slice(0, 10)}.xlsx`);
@@ -193,7 +208,7 @@ function OrderListTable({ Orders }) {
   };
 
   const exportToPDF = () => {
-    if (!Orders || Orders.length === 0) {
+    if (!filteredOrders || filteredOrders.length === 0) {
       return alert("No data to export");
     }
 
@@ -207,7 +222,7 @@ function OrderListTable({ Orders }) {
     doc.text("CTS Dashboard - Order Sheet", 14, 20);
 
     const tableColumn = columnsOfSheet.map(col => col.title);
-    const tableRows = Orders.map(order =>
+    const tableRows = filteredOrders.map(order =>
       columnsOfSheet.map(col => {
         let value = order[col.data];
         if (value === null || value === undefined) return "";
@@ -257,7 +272,7 @@ function OrderListTable({ Orders }) {
     // rowIndex from Handsontable is 0-based (header is row 0)
     const actualDataIndex = rowIndex;
 
-    const { order_type, ...clickedOrder } = Orders[actualDataIndex];
+    const { order_type, ...clickedOrder } = filteredOrders[actualDataIndex];
 
     if (clickedOrder) {
       setIsCreatePartMode(false);
@@ -297,7 +312,7 @@ function OrderListTable({ Orders }) {
     }
   }, [storeId?.id]);
   const cells = useCallback((row) => {
-    const order = Orders?.[row];
+    const order = filteredOrders?.[row];
     const cellProperties = {};
 
     if (!order) return cellProperties;
@@ -315,7 +330,7 @@ function OrderListTable({ Orders }) {
     }
 
     return cellProperties;
-  }, [Orders]);
+  }, [filteredOrders]);
 
   const nestedHeaders = useMemo(() => {
     return [
@@ -409,6 +424,82 @@ function OrderListTable({ Orders }) {
 
   return (
     <React.Fragment>
+      {/* ========== Custom Color Filter Menu ========== */}
+      {showColorFilter && (
+        <>
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 9998,
+            }}
+            onClick={() => setShowColorFilter(false)}
+          />
+
+          <div
+            style={{
+              position: "absolute",
+              top: filterPosition.top,
+              left: filterPosition.left,
+              background: "white",
+              border: "1px solid #d1d5db",
+              borderRadius: "8px",
+              boxShadow: "0 10px 25px rgba(0,0,0,0.15)",
+              zIndex: 9999,
+              minWidth: "180px",
+              overflow: "hidden",
+            }}
+          >
+            <div style={{ padding: "8px 12px", fontSize: "12px", fontWeight: 600, color: "#6b7280", borderBottom: "1px solid #f3f4f6" }}>
+              Filter by Color
+            </div>
+
+            {[
+              { key: "all", label: "All", color: "#e5e7eb" },
+              { key: "po", label: "PO", color: orderTypesMap?.po || "#86efac" },
+              { key: "rma", label: "RMA", color: orderTypesMap?.rma || "#e5c13e" },
+              { key: "cancelled", label: "Cancelled", color: orderTypesMap?.cancelled || "#ea8b81" },
+              { key: "delivered", label: "Delivered", color: "#86bd93" },
+            ].map((item) => (
+              <div
+                key={item.key}
+                onClick={() => {
+                  setOrderTypeFilter(item.key);
+                  setShowColorFilter(false);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  padding: "9px 14px",
+                  cursor: "pointer",
+                  background: orderTypeFilter === item.key ? "#f3f4f6" : "white",
+                  fontSize: "13px",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#f9fafb")}
+                onMouseLeave={(e) =>
+                (e.currentTarget.style.background =
+                  orderTypeFilter === item.key ? "#f3f4f6" : "white")
+                }
+              >
+                <div
+                  style={{
+                    width: 14,
+                    height: 14,
+                    borderRadius: 3,
+                    background: item.color,
+                    border: "1px solid #d1d5db",
+                  }}
+                />
+                <span>{item.label}</span>
+                {orderTypeFilter === item.key && (
+                  <span style={{ marginLeft: "auto", color: "#4f46e5" }}>✓</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
       {selectedOrder && (
         <EditOrderDetailModal
           order={selectedOrder}
@@ -542,7 +633,7 @@ function OrderListTable({ Orders }) {
             >
               Import Excel
             </button>
-            <ExportOrdersPdf orders={Orders || []} />
+            <ExportOrdersPdf orders={filteredOrders || []} />
 
             <button
               onClick={() => setIsAddMode(true)}
@@ -560,12 +651,13 @@ function OrderListTable({ Orders }) {
 
           <HotTable
             ref={hotRef}
-            data={Orders || []}
+            // data={Orders || []}
+            data={filteredOrders}                 // ← important
             columns={columnsOfSheet}
             style={{ zIndex: 10 }}
             colHeaders={true}
             rowHeaders={false}
-
+            columnSorting={true}
             fragmentSelection={false}
             afterOnCellMouseDown={(event, coords) => {
               // coords.row === -1 means header was clicked
@@ -615,7 +707,6 @@ function OrderListTable({ Orders }) {
             ]}
             // contextMenu={true}
             manualColumnResize={true}
-            columnSorting={false}
             fixedColumnsStart={2}
             renderAllRows={false}
             // Important settings
@@ -623,68 +714,39 @@ function OrderListTable({ Orders }) {
             disableVisualSelection={false}
             outsideClickDeselects={false}
 
-            afterGetColHeader={(col, TH, headerLevel) => {
-              if (headerLevel !== 0) return;
+            afterGetColHeader={handleAfterGetColHeader}
+            // afterGetColHeader={(col, TH, headerLevel) => {
+            //   if (headerLevel !== 0) return;
 
-              // col index starts from 0 for the first data column (Sno)
-              const column = columnsOfSheet[col];
-              if (!column) return;
+            //   // col index starts from 0 for the first data column (Sno)
+            //   const column = columnsOfSheet[col];
+            //   if (!column) return;
 
-              // Clean previous classes
-              TH.classList.remove(
-                "htOrderCount",
-                "htTotalPrice",
-                "htTotalCost",
-                "htTotalCost4",
-                "htGrossProfit",
-                "htGrossProfit4"
-              );
+            //   // Clean previous classes
+            //   TH.classList.remove(
+            //     "htOrderCount",
+            //     "htTotalPrice",
+            //     "htTotalCost",
+            //     "htTotalCost4",
+            //     "htGrossProfit",
+            //     "htGrossProfit4"
+            //   );
 
-              if (column.data === "Order#") {
-                TH.classList.add("htOrderCount");
-              } else if (column.data === "Total Price") {
-                TH.classList.add("htTotalPrice");
-              } else if (column.data === "Total Cost") {
-                TH.classList.add("htTotalCost");
-              } else if (column.data === "Total Cost+4%") {
-                TH.classList.add("htTotalCost4");
-              } else if (column.data === "Gross Profit") {
-                TH.classList.add("htGrossProfit");
-              } else if (column.data === "Gross Profit-4%") {
-                TH.classList.add("htGrossProfit4");
-              }
-            }}
+            //   if (column.data === "Order#") {
+            //     TH.classList.add("htOrderCount");
+            //   } else if (column.data === "Total Price") {
+            //     TH.classList.add("htTotalPrice");
+            //   } else if (column.data === "Total Cost") {
+            //     TH.classList.add("htTotalCost");
+            //   } else if (column.data === "Total Cost+4%") {
+            //     TH.classList.add("htTotalCost4");
+            //   } else if (column.data === "Gross Profit") {
+            //     TH.classList.add("htGrossProfit");
+            //   } else if (column.data === "Gross Profit-4%") {
+            //     TH.classList.add("htGrossProfit4");
+            //   }
+            // }}
             nestedHeaders={nestedHeaders}
-            // nestedHeaders={[
-            //   // Top row (summary)
-            //   columnsOfSheet.map((col) => {
-            //     if (col.data === "Order#") {
-            //       return {
-            //         label: String(summary.count),
-            //         colspan: 1,
-            //       };
-            //     }
-            //     if (col.data === "Total Price") {
-            //       return { label: formatCurrency(summary.totalPrice), colspan: 1 };
-            //     }
-            //     if (col.data === "Total Cost") {
-            //       return { label: formatCurrency(summary.totalCost), colspan: 1 };
-            //     }
-            //     if (col.data === "Total Cost+4%") {
-            //       return { label: formatCurrency(summary.totalCostPlus4), colspan: 1 };
-            //     }
-            //     if (col.data === "Gross Profit") {
-            //       return { label: formatCurrency(summary.grossProfit), colspan: 1 };
-            //     }
-            //     if (col.data === "Gross Profit-4%") {
-            //       return { label: formatCurrency(summary.grossProfitMinus4), colspan: 1 };
-            //     }
-            //     return "";
-            //   }),
-
-            //   // Second row (titles)
-            //   columnsOfSheet.map((col) => col.title),
-            // ]}
             contextMenu={{
               items: {
                 edit: {
@@ -701,7 +763,7 @@ function OrderListTable({ Orders }) {
                     if (!selected) return true;
 
                     const row = selected[0];
-                    const order = Orders?.[row];
+                    const order = filteredOrders?.[row];
                     const type = String(order?.order_type || '').toLowerCase();
 
                     return type === 'po' || type === 'rma';
@@ -710,7 +772,7 @@ function OrderListTable({ Orders }) {
                     const row = selection[0].start.row;
 
 
-                    let { order_type, ...originalOrder } = Orders[row];
+                    let { order_type, ...originalOrder } = filteredOrders[row];
 
                     if (!originalOrder) return;
 
@@ -740,14 +802,14 @@ function OrderListTable({ Orders }) {
                     if (!selected) return true;
 
                     const row = selected[0];
-                    const order = Orders?.[row];
+                    const order = filteredOrders?.[row];
                     const type = String(order?.order_type || '').toLowerCase();
 
                     return type === 'rma';
                   },
                   callback: async (key, selection) => {
                     const row = selection[0].start.row;
-                    let { order_type, ...originalOrder } = Orders[row];
+                    let { order_type, ...originalOrder } = filteredOrders[row];
 
                     if (!originalOrder) return;
 
