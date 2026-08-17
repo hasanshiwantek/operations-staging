@@ -3,7 +3,7 @@ import { X } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchOrderById, fetchOrderOptions } from '../store/usersSlice';
 import DatePicker from 'react-datepicker';
-import { dropdownFields, normalizeOrderOptions } from '../utils/constant';
+import { normalizeOrderOptions } from '../utils/constant';
 import 'react-datepicker/dist/react-datepicker.css';
 
 const EditOrderDetailModal = ({ order, onClose, onSave }) => {
@@ -21,20 +21,79 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
     const debounceRef = useRef(null);
     const lastFetchedId = useRef(null);
 
+    // ========== CALCULATION FUNCTION ==========
+    const calculateFields = (data) => {
+        const num = (val) => Number(val) || 0;
 
+        const price = num(data['Price']);
+        const shipping = num(data['Shipping']);
+        const tax = num(data['Tax']);
+        const cost = num(data['Cost']);
+        const vendorShipping = num(data['Vendor Shipping']);
+        const vendorTax = num(data['Vendor Tax']);
+        const courierCharges = num(data['Courier Charges']);
+        const salesTax = num(data['Sales Tax']);
+        const warehouseCharges = num(data['Warehouse Charges']);
+        const customDuties = num(data['Custom Duties']);
+        const ccPaypal4 = num(data['CC/Paypal 4%']);
+
+        // Card Payment = Cost + Vendor Shipping + Vendor Tax
+        const cardPayment = cost + vendorShipping + vendorTax;
+
+        // Total Price = Shipping + Price + Tax
+        const totalPrice = shipping + price + tax;
+
+        // Total Cost = Courier Charges + Sales Tax + Warehouse Charges + Custom Duties + Card Payment
+        const totalCost = courierCharges + salesTax + warehouseCharges + customDuties + cardPayment;
+
+        // Total Cost+4% = Total Cost + CC/Paypal 4%
+        const totalCostPlus4 = totalCost + ccPaypal4;
+
+        // Gross Profit = Total Price - Total Cost
+        const grossProfit = totalPrice - totalCost;
+
+        // Gross Profit-4% = Gross Profit - CC/Paypal 4%
+        const grossProfitMinus4 = grossProfit - ccPaypal4;
+
+        // Profit % = (Gross Profit-4% / Total Price) * 100
+        const profitPercent = totalPrice > 0 ? ((grossProfitMinus4 / totalPrice) * 100).toFixed(2) : '0.00';
+
+        return {
+            ...data,
+            'Card Payment': cardPayment.toFixed(2),
+            'Total Price': totalPrice.toFixed(2),
+            'Total Cost': totalCost.toFixed(2),
+            'Total Cost+4%': totalCostPlus4.toFixed(2),
+            'Gross Profit': grossProfit.toFixed(2),
+            'Gross Profit-4%': grossProfitMinus4.toFixed(2),
+            'Profit %': profitPercent,
+        };
+    };
+    // // Set form data when order changes
+    // useEffect(() => {
+    //     if (order) {
+    //         setFormData({ ...order });
+    //         setBaseOrder({ ...order });
+    //         lastFetchedId.current = order['Order#'];
+    //     }
+    // }, [order]);
     // Set form data when order changes
     useEffect(() => {
         if (order) {
-            setFormData({ ...order });
-            setBaseOrder({ ...order });
+            const calculated = calculateFields({ ...order });
+            setFormData(calculated);
+            setBaseOrder(calculated);
             lastFetchedId.current = order['Order#'];
         }
     }, [order]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-        setFormData((prev) => ({ ...prev, [name]: value }));
-
+        // setFormData((prev) => ({ ...prev, [name]: value }));
+        setFormData((prev) => {
+            const updated = { ...prev, [name]: value };
+            return calculateFields(updated); // ← auto calculate
+        });
         if (name === 'Order#') {
             if (debounceRef.current) clearTimeout(debounceRef.current);
 
@@ -56,8 +115,12 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
 
             const fetchedOrder = result;
             if (fetchedOrder && typeof fetchedOrder === 'object') {
-                setFormData({ ...fetchedOrder });
-                setBaseOrder({ ...fetchedOrder });
+                // setFormData({ ...fetchedOrder });
+                // setBaseOrder({ ...fetchedOrder });
+                // lastFetchedId.current = String(orderId);
+                const calculated = calculateFields(fetchedOrder);
+                setFormData(calculated);
+                setBaseOrder(calculated);
                 lastFetchedId.current = String(orderId);
             }
         } catch (err) {
@@ -267,10 +330,13 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
                                         <DatePicker
                                             selected={parseDate(formData[key])}
                                             onChange={(date) => {
-                                                setFormData((prev) => ({
-                                                    ...prev,
-                                                    [key]: formatDate(date),
-                                                }));
+                                                setFormData((prev) => {
+                                                    const updated = {
+                                                        ...prev,
+                                                        [key]: formatDate(date),
+                                                    };
+                                                    return calculateFields(updated);
+                                                });
                                             }}
                                             dateFormat="dd/MM/yyyy"
                                             placeholderText="DD/MM/YYYY"
@@ -357,4 +423,4 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
     );
 };
 
-export default EditOrderDetailModal;
+export default React.memo(EditOrderDetailModal);

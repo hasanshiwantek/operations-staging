@@ -18,15 +18,7 @@ export const normalizeOrderOptions = (apiData) => {
 
   return map;
 };
-export const dropdownFields = {
-  "Lead Source": "lead_source",
-  "Procured By": "procured_by",
-  "Sales Agent": "sales_agent",
-  "Order Source": "order_source",
-  "Payment Status": "payment_status",
-  "Condition": "condition",
-  "Status": "status",
-};
+
 export const columnsOfSheet = [
   {
     data: "Sno",

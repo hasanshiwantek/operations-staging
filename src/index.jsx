@@ -23,6 +23,7 @@ import OrderListTable from "./components/OrderListTable";
 
 import Attributes from "./pages/Attributes";
 import AttributeDetails from "./pages/AttributeDetails";
+import OrderType from "./pages/OrderType";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
@@ -84,15 +85,25 @@ ReactDOM.createRoot(document.getElementById("root")).render(
               }
             />
             <Route
-  path="/storeroles/attribute/:id"
-  element={
-    <Layout>
-      <PtotectecAdmin>
-        <AttributeDetails />
-      </PtotectecAdmin>
-    </Layout>
-  }
-/>
+              path="/storeroles/order-type"
+              element={
+                <Layout>
+                  <PtotectecAdmin>
+                    <OrderType />
+                  </PtotectecAdmin>
+                </Layout>
+              }
+            />
+            <Route
+              path="/storeroles/attribute/:id"
+              element={
+                <Layout>
+                  <PtotectecAdmin>
+                    <AttributeDetails />
+                  </PtotectecAdmin>
+                </Layout>
+              }
+            />
             <Route
               path="/users"
               element={

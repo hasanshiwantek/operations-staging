@@ -4,6 +4,7 @@ import storage from 'redux-persist/lib/storage';
 import authReducer from './authSlice';
 import usersReducer from './usersSlice';
 import attributeReducer from "./attributeSlice";
+import orderTypeReducer from "./orderTypeSlice";
 
 // Persist configuration for auth
 const authPersistConfig = {
@@ -21,7 +22,8 @@ export const store = configureStore({
   reducer: {
     auth: persistedAuthReducer,
     users: usersReducer,
-  attributes: attributeReducer,
+    attributes: attributeReducer,
+    orderTypes: orderTypeReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

@@ -61,16 +61,6 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
         return `${day}/${month}/${year}`;
     };
 
-    // Dropdown mapping
-    const dropdownFields = {
-        'Lead Source': 'lead_source',
-        'Procured By': 'procured_by',
-        'Sales Agent': 'sales_agent',
-        'Order Source': 'order_source',
-        'Payment Status': 'payment_status',
-        'Condition': 'condition',
-        'Status': 'status',
-    };
 
     const dateFields = ['Charged Date', 'Order Date', 'Refund Date'];
 
@@ -92,8 +82,6 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
                         {Object.keys(formData).map((key) => {
                             const isDateField = dateFields.includes(key);
-                            // const dropdownKey = dropdownFields[key];
-                            // const isDropdown = Boolean(dropdownKey);
                             const isDropdown = Boolean(normalizedOptions[key]); // ← fully dynamic
                             const options = normalizedOptions[key] || [];
 

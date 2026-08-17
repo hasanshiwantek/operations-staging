@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { HotTable } from '@handsontable/react-wrapper';
 import { registerAllModules } from 'handsontable/registry';
 import { useDispatch, useSelector } from 'react-redux';
@@ -13,6 +13,7 @@ import 'handsontable/styles/handsontable.min.css';
 import 'handsontable/styles/ht-theme-main.min.css';
 import OrderDetailModal from './OrderDetailModal';
 import ExportOrdersPdf from './ExportOrdersPdf';
+import { fetchOrderTypesMap } from '../store/orderTypeSlice';
 
 registerAllModules();
 const formatCurrency = (value) => {
@@ -29,10 +30,14 @@ function OrderListTable({ Orders }) {
   const dispatch = useDispatch();
   const { orderloading, syncLoading } = useSelector((state) => state.users);
   const { token, storeId, user: authUser } = useSelector((state) => state.auth);
+  const { orderTypesMap } = useSelector((state) => state.orderTypes);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isRMAMode, setIsRMAMode] = useState(false);
   const [isCreatePartMode, setIsCreatePartMode] = useState(false);
   const [isAddMode, setIsAddMode] = useState(false);
+  const [showColorFilter, setShowColorFilter] = useState(false);
+  const [filterPosition, setFilterPosition] = useState({ top: 0, left: 0 });
+  const [orderTypeFilter, setOrderTypeFilter] = useState("all");
   const [selectionSummary, setSelectionSummary] = useState({
     sum: 0,
     count: 0,
@@ -71,46 +76,23 @@ function OrderListTable({ Orders }) {
       }
     );
   }, [Orders]);
-  const handleAfterSelectionEnd = (row, column, row2, column2) => {
-    const hot = hotRef.current?.hotInstance;
-    if (!hot) return;
 
-    // Get selected range
-    const selected = hot.getSelected();
-    if (!selected || selected.length === 0) {
-      setSelectionSummary({ sum: 0, count: 0, visible: false });
-      return;
+  const handleBeforeOnCellMouseDown = (event, coords, TD) => {
+    // Right click (button === 2) → prevent selection
+    if (event.button === 2) {
+      event.stopImmediatePropagation();   // stops Handsontable from selecting the cell
+      return false;
     }
-
-    let sum = 0;
-    let count = 0;
-
-    selected.forEach(([startRow, startCol, endRow, endCol]) => {
-      const minRow = Math.min(startRow, endRow);
-      const maxRow = Math.max(startRow, endRow);
-      const minCol = Math.min(startCol, endCol);
-      const maxCol = Math.max(startCol, endCol);
-
-      for (let r = minRow; r <= maxRow; r++) {
-        for (let c = minCol; c <= maxCol; c++) {
-          const value = hot.getDataAtCell(r, c);
-          const num = Number(value);
-
-          if (!isNaN(num) && value !== null && value !== "") {
-            sum += num;
-            count++;
-          }
-        }
-      }
-    });
-
-    setSelectionSummary({
-      sum,
-      count,
-      visible: count > 1, // only show when more than 1 cell selected
-    });
   };
+  const handleBeforeOnCellContextMenu = (event) => {
+    event.stopImmediatePropagation();
+    // Also hide the sum badge
+    setSelectionSummary({ sum: 0, count: 0, visible: false });
+  };
+
   // const updateSelectionSummary = () => {
+  //   if (isRightClickRef.current) return;
+
   //   const hot = hotRef.current?.hotInstance;
   //   if (!hot) return;
 
@@ -122,47 +104,40 @@ function OrderListTable({ Orders }) {
 
   //   let sum = 0;
   //   let count = 0;
+  //   const [r1, c1, r2, c2] = selected[0];
 
-  //   selected.forEach(([rowStart, colStart, rowEnd, colEnd]) => {
-  //     const startRow = Math.min(rowStart, rowEnd);
-  //     const endRow = Math.max(rowStart, rowEnd);
-  //     const startCol = Math.min(colStart, colEnd);
-  //     const endCol = Math.max(colStart, colEnd);
-
-  //     for (let row = startRow; row <= endRow; row++) {
-  //       for (let col = startCol; col <= endCol; col++) {
-  //         const value = hot.getDataAtCell(row, col);
-  //         const num = parseFloat(value);
-
-  //         if (!isNaN(num)) {
-  //           sum += num;
-  //           count++;
-  //         }
+  //   for (let r = Math.min(r1, r2); r <= Math.max(r1, r2); r++) {
+  //     for (let c = Math.min(c1, c2); c <= Math.max(c1, c2); c++) {
+  //       const val = parseFloat(hot.getDataAtCell(r, c));
+  //       if (!isNaN(val)) {
+  //         sum += val;
+  //         count++;
   //       }
   //     }
-  //   });
+  //   }
 
   //   setSelectionSummary({
   //     sum,
   //     count,
-  //     visible: count >= 1, // show even for single cell
+  //     visible: count > 1,
   //   });
   // };
-  const handleBeforeOnCellMouseDown = (event, coords, TD) => {
-    // Right click (button === 2) → prevent selection
-    if (event.button === 2) {
-      event.stopImmediatePropagation();   // stops Handsontable from selecting the cell
-      return false;
-    }
-  };
+  const filteredOrders = useMemo(() => {
+    if (!Orders) return [];
 
-  const handleBeforeOnCellContextMenu = (event) => {
-    event.stopImmediatePropagation();
-    // Also hide the sum badge
-    setSelectionSummary({ sum: 0, count: 0, visible: false });
-  };
+    if (orderTypeFilter === "all") return Orders;
 
-  const updateSelectionSummary = () => {
+    return Orders.filter((order) => {
+      const type = String(order.order_type || "").toLowerCase();
+      const status = String(order.Status || "").toLowerCase();
+
+      if (orderTypeFilter === "cancelled") return status === "cancelled";
+      if (orderTypeFilter === "delivered") return status === "delivered";
+      return type === orderTypeFilter;
+    });
+  }, [Orders, orderTypeFilter]);
+
+  const updateSelectionSummary = useCallback(() => {
     if (isRightClickRef.current) return;
 
     const hot = hotRef.current?.hotInstance;
@@ -170,7 +145,9 @@ function OrderListTable({ Orders }) {
 
     const selected = hot.getSelected();
     if (!selected || selected.length === 0) {
-      setSelectionSummary({ sum: 0, count: 0, visible: false });
+      setSelectionSummary((prev) =>
+        prev.visible ? { sum: 0, count: 0, visible: false } : prev
+      );
       return;
     }
 
@@ -188,12 +165,18 @@ function OrderListTable({ Orders }) {
       }
     }
 
-    setSelectionSummary({
-      sum,
-      count,
-      visible: count > 1,
+    setSelectionSummary((prev) => {
+      // Only update state if values actually changed
+      if (prev.sum === sum && prev.count === count && prev.visible === count > 1) {
+        return prev;
+      }
+      return {
+        sum,
+        count,
+        visible: count > 1,
+      };
     });
-  };
+  }, []);
   const exportToExcel = () => {
     if (!Orders || Orders.length === 0) return alert("No data to export");
 
@@ -305,13 +288,91 @@ function OrderListTable({ Orders }) {
 
     input.click();
   };
+
   // Fetch options when modal opens
   useEffect(() => {
     if (storeId?.id) {
       dispatch(fetchOrderOptions(storeId?.id));
+      dispatch(fetchOrderTypesMap(storeId.id));
     }
   }, [storeId?.id]);
+  const cells = useCallback((row) => {
+    const order = Orders?.[row];
+    const cellProperties = {};
 
+    if (!order) return cellProperties;
+
+    const status = String(order.Status || "").toLowerCase();
+    const type = String(order.order_type || "").toLowerCase();
+    if (status === "delivered") {
+      cellProperties.className = "delivered-row";
+    } else if (status === "cancelled") {
+      cellProperties.className = "cancelled-row";
+    } else if (type === "po") {
+      cellProperties.className = "po-row";
+    } else if (type === "rma") {
+      cellProperties.className = "rma-row";
+    }
+
+    return cellProperties;
+  }, [Orders]);
+
+  const nestedHeaders = useMemo(() => {
+    return [
+      // Top row (summary)
+      columnsOfSheet.map((col) => {
+        if (col.data === "Order#") {
+          return { label: String(summary.count), colspan: 1 };
+        }
+        if (col.data === "Total Price") {
+          return { label: formatCurrency(summary.totalPrice), colspan: 1 };
+        }
+        if (col.data === "Total Cost") {
+          return { label: formatCurrency(summary.totalCost), colspan: 1 };
+        }
+        if (col.data === "Total Cost+4%") {
+          return { label: formatCurrency(summary.totalCostPlus4), colspan: 1 };
+        }
+        if (col.data === "Gross Profit") {
+          return { label: formatCurrency(summary.grossProfit), colspan: 1 };
+        }
+        if (col.data === "Gross Profit-4%") {
+          return { label: formatCurrency(summary.grossProfitMinus4), colspan: 1 };
+        }
+        return "";
+      }),
+
+      // Second row (titles)
+      columnsOfSheet.map((col) => col.title),
+    ];
+  }, [summary]);
+  useEffect(() => {
+    const styleId = "dynamic-row-colors";
+    let styleTag = document.getElementById(styleId);
+
+    if (!styleTag) {
+      styleTag = document.createElement("style");
+      styleTag.id = styleId;
+      document.head.appendChild(styleTag);
+    }
+
+    styleTag.innerHTML = `
+    .handsontable td.po-row {
+      background-color: ${orderTypesMap?.po} !important;
+    }
+    .handsontable td.rma-row {
+      background-color: ${orderTypesMap?.rma || "#e5c13e"} !important;
+    }
+    .handsontable td.cancelled-row {
+      background-color: ${orderTypesMap?.cancelled || "#ea8b81"} !important;
+    }
+    .handsontable td.delivered-row {
+      background-color: #86bd93 !important;
+    }
+  `;
+  }, [orderTypesMap?.po,
+  orderTypesMap?.rma,
+  orderTypesMap?.cancelled]);
 
   if (orderloading) {
     return (
@@ -352,7 +413,17 @@ function OrderListTable({ Orders }) {
         <EditOrderDetailModal
           order={selectedOrder}
           onClose={() => setSelectedOrder(null)}
-          onSave={(updatedOrder) => {
+          onSave={(updatedOrderPayload) => {
+
+            const {
+              "Total Price": totalPrice,
+              "Total Cost": totalCost,
+              "Card Payment": cardPayment,
+              "Total Cost+4%": totalCostPlus4,
+              "Gross Profit": grossProfit,
+              "Gross Profit-4%": grossProfitMinus4,
+              "Profit %": profitPercent, ...updatedOrder
+            } = updatedOrderPayload;
             if (isCreatePartMode) {
 
               // ========== CREATE API ==========
@@ -494,6 +565,7 @@ function OrderListTable({ Orders }) {
             style={{ zIndex: 10 }}
             colHeaders={true}
             rowHeaders={false}
+
             fragmentSelection={false}
             afterOnCellMouseDown={(event, coords) => {
               // coords.row === -1 means header was clicked
@@ -518,11 +590,13 @@ function OrderListTable({ Orders }) {
                   return;
                 }
                 updateSelectionSummary();
-              }, 100);
+              }, 50);
             }}
 
             afterDeselect={() => {
-              setSelectionSummary({ sum: 0, count: 0, visible: false });
+              setSelectionSummary((prev) =>
+                prev.visible ? { sum: 0, count: 0, visible: false } : prev
+              );
             }}
 
             afterContextMenuHide={() => {
@@ -534,15 +608,16 @@ function OrderListTable({ Orders }) {
             licenseKey="non-commercial-and-evaluation"
             filters={true}
             dropdownMenu={false}
-            // dropdownMenu={[
-            //   'filter_by_condition',
-            //   'filter_by_value',
-            //   'filter_action_bar'
-            // ]}
+            dropdownMenu={[
+              'filter_by_condition',
+              'filter_by_value',
+              'filter_action_bar'
+            ]}
             // contextMenu={true}
             manualColumnResize={true}
             columnSorting={false}
             fixedColumnsStart={2}
+            renderAllRows={false}
             // Important settings
             readOnly={true}
             disableVisualSelection={false}
@@ -579,36 +654,37 @@ function OrderListTable({ Orders }) {
                 TH.classList.add("htGrossProfit4");
               }
             }}
-            nestedHeaders={[
-              // Top row (summary)
-              columnsOfSheet.map((col) => {
-                if (col.data === "Order#") {
-                  return {
-                    label: String(summary.count),
-                    colspan: 1,
-                  };
-                }
-                if (col.data === "Total Price") {
-                  return { label: formatCurrency(summary.totalPrice), colspan: 1 };
-                }
-                if (col.data === "Total Cost") {
-                  return { label: formatCurrency(summary.totalCost), colspan: 1 };
-                }
-                if (col.data === "Total Cost+4%") {
-                  return { label: formatCurrency(summary.totalCostPlus4), colspan: 1 };
-                }
-                if (col.data === "Gross Profit") {
-                  return { label: formatCurrency(summary.grossProfit), colspan: 1 };
-                }
-                if (col.data === "Gross Profit-4%") {
-                  return { label: formatCurrency(summary.grossProfitMinus4), colspan: 1 };
-                }
-                return "";
-              }),
+            nestedHeaders={nestedHeaders}
+            // nestedHeaders={[
+            //   // Top row (summary)
+            //   columnsOfSheet.map((col) => {
+            //     if (col.data === "Order#") {
+            //       return {
+            //         label: String(summary.count),
+            //         colspan: 1,
+            //       };
+            //     }
+            //     if (col.data === "Total Price") {
+            //       return { label: formatCurrency(summary.totalPrice), colspan: 1 };
+            //     }
+            //     if (col.data === "Total Cost") {
+            //       return { label: formatCurrency(summary.totalCost), colspan: 1 };
+            //     }
+            //     if (col.data === "Total Cost+4%") {
+            //       return { label: formatCurrency(summary.totalCostPlus4), colspan: 1 };
+            //     }
+            //     if (col.data === "Gross Profit") {
+            //       return { label: formatCurrency(summary.grossProfit), colspan: 1 };
+            //     }
+            //     if (col.data === "Gross Profit-4%") {
+            //       return { label: formatCurrency(summary.grossProfitMinus4), colspan: 1 };
+            //     }
+            //     return "";
+            //   }),
 
-              // Second row (titles)
-              columnsOfSheet.map((col) => col.title),
-            ]}
+            //   // Second row (titles)
+            //   columnsOfSheet.map((col) => col.title),
+            // ]}
             contextMenu={{
               items: {
                 edit: {
@@ -667,7 +743,7 @@ function OrderListTable({ Orders }) {
                     const order = Orders?.[row];
                     const type = String(order?.order_type || '').toLowerCase();
 
-                    return type === 'po' || type === 'rma';
+                    return type === 'rma';
                   },
                   callback: async (key, selection) => {
                     const row = selection[0].start.row;
@@ -701,21 +777,7 @@ function OrderListTable({ Orders }) {
                 // cut: {},
               }
             }}
-            cells={(row) => {
-              const order = Orders?.[row];
-              const cellProperties = {};
-              if (order && String(order.Status || '').toLowerCase() === 'cancelled') {
-                cellProperties.className = 'cancelled-row';
-              } else {
-                if (order && String(order.order_type || '').toLowerCase() === 'po') {
-                  cellProperties.className = 'po-row';
-                }
-                if (order && String(order.order_type || '').toLowerCase() === 'rma') {
-                  cellProperties.className = 'rma-row';
-                }
-              }
-              return cellProperties;
-            }}
+            cells={cells}
 
             emptyDataMessage="No orders found"
           />

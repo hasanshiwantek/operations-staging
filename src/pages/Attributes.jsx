@@ -3,7 +3,9 @@ import AddAttributes from '../components/AddAttributes'
 
 const Attributes = () => {
   return (
-    <div><AddAttributes/></div>
+    <React.Fragment>
+      <AddAttributes />
+    </React.Fragment>
   )
 }
 

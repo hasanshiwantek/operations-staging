@@ -131,7 +131,7 @@ body {
   font-weight: 600;
 }
 
-.handsontable td.po-row {
+/* .handsontable td.po-row {
   background-color: #86bd93 !important;
 }
 
@@ -141,7 +141,7 @@ body {
 
 .handsontable td.cancelled-row {
   background-color: #fee2e2 !important;
-}
+} */
 
 /* Top summary row */
 .handsontable thead tr:first-child th {
@@ -204,3 +204,4 @@ body {
   color: white !important;
   font-weight: 700 !important;
 }
+
