@@ -18,7 +18,121 @@ export const normalizeOrderOptions = (apiData) => {
 
   return map;
 };
+export const getFieldValue = (field) => {
+  if (field && typeof field === "object") return field.value ?? "";
+  return field ?? "";
+};
+export const getIsAdmin = () => {
+  const value = localStorage.getItem("isAdmin");
+  return value === true || value === "true";
+};
+export const getFieldChecked = (field) => {
+  if (field && typeof field === "object") return Boolean(field.isTrue);
+  return false;
+};
+// const makeCheckboxRenderer = (fieldName) => {
+//   return function (instance, td, row, col, prop, value) {
+//     const val = getFieldValue(value);
+//     const checked = getFieldChecked(value);
 
+//     td.innerHTML = "";
+
+//     const wrap = document.createElement("div");
+//     wrap.style.display = "flex";
+//     wrap.style.gap = "2px";
+//     wrap.style.alignItems = "center";
+
+//     const checkbox = document.createElement("input");
+//     checkbox.type = "checkbox";
+//     checkbox.checked = checked;
+//     checkbox.style.accentColor = "#1B51EF";
+
+//     checkbox.addEventListener("mousedown", (e) => {
+//       e.stopPropagation();
+//     });
+
+//     checkbox.addEventListener("click", (e) => {
+//       e.stopPropagation();
+
+//       const current = instance.getSourceDataAtRow(row);
+//       const currentField = current[fieldName];
+
+//       instance.setSourceDataAtCell(row, fieldName, {
+//         value: getFieldValue(currentField),
+//         isTrue: e.target.checked,
+//       });
+
+//       instance.render(); // refresh pink highlight
+//     });
+
+//     const span = document.createElement("span");
+//     span.textContent = val;
+
+//     wrap.appendChild(checkbox);
+//     wrap.appendChild(span);
+//     td.appendChild(wrap);
+
+//     return td;
+//   };
+// };
+
+const makeCheckboxRenderer = (fieldName) => {
+  return function (instance, td, row, col, prop, value) {
+    const val = getFieldValue(value);
+    const checked = getFieldChecked(value);
+    const isAdmin = getIsAdmin();
+
+    td.innerHTML = "";
+
+    const wrap = document.createElement("div");
+    wrap.style.display = "flex";
+    wrap.style.gap = "2px";
+    wrap.style.alignItems = "center";
+
+    const span = document.createElement("span");
+    span.textContent = val;
+
+    // Admin: only show already-true checkboxes
+    // Normal user: show all checkboxes
+    const shouldShowCheckbox = isAdmin ? checked : true;
+
+    if (shouldShowCheckbox) {
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = checked;
+      checkbox.style.accentColor = "#1B51EF";
+
+      // Admin cannot enable new (false) options
+      if (isAdmin) {
+        checkbox.disabled = true;
+      }
+
+      checkbox.addEventListener("mousedown", (e) => e.stopPropagation());
+
+      checkbox.addEventListener("click", (e) => {
+        e.stopPropagation();
+
+        if (isAdmin) return;
+
+        const current = instance.getSourceDataAtRow(row);
+        const currentField = current[fieldName];
+
+        instance.setSourceDataAtCell(row, fieldName, {
+          value: getFieldValue(currentField),
+          isTrue: e.target.checked,
+        });
+
+        instance.render();
+      });
+
+      wrap.appendChild(checkbox);
+    }
+
+    wrap.appendChild(span);
+    td.appendChild(wrap);
+    return td;
+  };
+};
 export const columnsOfSheet = [
   {
     data: "Sno",
@@ -62,28 +176,31 @@ export const columnsOfSheet = [
   { data: "Email", title: "Email" },
   { data: "Phone", title: "Phone" },
   { data: "Customer PO#", title: "Customer PO#" },
-  { data: "Price", title: "Price" },
-  { data: "Shipping", title: "Shipping" },
-  { data: "Tax", title: "Tax" },
+  // { data: "Price", title: "Price" },
+  // { data: "Shipping", title: "Shipping" },
+  // { data: "Tax", title: "Tax" },
+  { data: "Price", title: "Price", renderer: makeCheckboxRenderer("Price") },
+  { data: "Shipping", title: "Shipping", renderer: makeCheckboxRenderer("Shipping") },
+  { data: "Tax", title: "Tax", renderer: makeCheckboxRenderer("Tax") },
   { data: "Vendor", title: "Vendor" },
   { data: "Vendor order#", title: "Vendor order#" },
   { data: "Vendor Part#", title: "Vendor Part#" },
-  { data: "CC/Paypal 4%", title: "CC/Paypal 4%" },
+  { data: "CC/Paypal 4%", title: "CC/Paypal 4%", renderer: makeCheckboxRenderer("CC/Paypal 4%") },
   { data: "Charged Vendor", title: "Charged Vendor" },
   { data: "Paid Via", title: "Paid Via" },
-  { data: "Cost", title: "Cost" },
-  { data: "Vendor Shipping", title: "Vendor Shipping" },
-  { data: "Vendor Tax", title: "Vendor Tax" },
+  { data: "Cost", title: "Cost", renderer: makeCheckboxRenderer("Cost") },
+  { data: "Vendor Shipping", title: "Vendor Shipping", renderer: makeCheckboxRenderer("Vendor Shipping") },
+  { data: "Vendor Tax", title: "Vendor Tax", renderer: makeCheckboxRenderer("Vendor Tax") },
   // new filds added on 2024-06-05 total cost
-  { data: "Courier Charges", title: "Courier Charges" },
-  { data: "Sales Tax", title: "Sales Tax" },
-  { data: "Warehouse Charges", title: "Warehouse Charges" },
-  { data: "Custom Duties", title: "Custom Duties" },
+  { data: "Courier Charges", title: "Courier Charges", renderer: makeCheckboxRenderer("Courier Charges") },
+  { data: "Sales Tax", title: "Sales Tax", renderer: makeCheckboxRenderer("Sales Tax") },
+  { data: "Warehouse Charges", title: "Warehouse Charges", renderer: makeCheckboxRenderer("Warehouse Charges") },
+  { data: "Custom Duties", title: "Custom Duties", renderer: makeCheckboxRenderer("Custom Duties") },
   { data: "Card Payment", title: "Card Payment" },
   // 
-  { data: "Total Price", title: "Total Price", disabled: true },
-  { data: "Total Cost", title: "Total Cost", disabled: true },
-  { data: "Total Cost+4%", title: "Total Cost+4%", disabled: true },
+  { data: "Total Price", title: "Total Price", disabled: true },//higlight if Price || Shipping || Tax
+  { data: "Total Cost", title: "Total Cost", disabled: true }, //higlight if Cost || Vendor Shipping || Vendor Tax
+  { data: "Total Cost+4%", title: "Total Cost+4%", disabled: true },//higlight if CC/Paypal 4%
   { data: "Gross Profit", title: "Gross Profit", disabled: true },
   { data: "Gross Profit-4%", title: "Gross Profit-4%", disabled: true },
   { data: "Profit %", title: "Profit %", disabled: true },

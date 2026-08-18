@@ -6,7 +6,7 @@ import autoTable from 'jspdf-autotable';   // ← Changed import
 import EditOrderDetailModal from './EditOrderDetailModal';
 import Handsontable from 'handsontable';
 import { fetchOrdersAdmin, fetchOrders, postOrderFiles, updateOrderFiles, createGenerateId, postSyncOrder, importOrderFiles, fetchOrderOptions } from '../store/usersSlice';
-import { columnsOfSheet } from '../utils/constant';
+import { columnsOfSheet, getFieldChecked, getFieldValue, getIsAdmin } from '../utils/constant';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'handsontable/styles/handsontable.min.css';
@@ -23,7 +23,221 @@ const formatCurrency = (value) => {
     minimumFractionDigits: 2,
   }).format(value);
 };
-function OrderListTable({ Orders }) {
+const Orders = [{
+  "Order#": 706411,
+  "Charged Date": "",
+  "Lead Source": "",
+  "Procured By": "",
+  "Order Date": "08/14/2026",
+  "Refund Date": "",
+  "Sales Agent": "",
+  "Invoice#": "",
+  "Invoice Link": "",
+  "Order Source": "",
+  "Payment Status": "",
+  "Brands": "APC",
+  "Category": "SC620I | APC | Smart-UPS Line-Interactive 230V 0.62 kVA 390 W 4 AC outlet(s)",
+  "Part#": "SC620I",
+  "Qty": "2",
+  "Condition": "",
+  "Shipping A/C": "",
+  "Bill to address": "4305 MT PLEASANT ST NW NW Ste 101",
+  "Ship to address": "601 E Main Ave",
+  "City": "Myerstown",
+  "State": "Pennsylvania",
+  "Country": "United States",
+  "Carrier": "",
+  "Tracking": "",
+  "Status": "Delivered",
+  "Reasons (IF any)": "",
+  "Customer": "Art Muzzy",
+  "Customer Company": "Saveway USA",
+  "Email": "savewayam@aol.com",
+  "Phone": "6104510825",
+  "Customer PO#": "",
+  "Price": {
+    value: "680",
+    isTrue: false
+  },
+  "Shipping": {
+    value: "40",
+    isTrue: false
+  },
+  "Tax": {
+    value: "50",
+    isTrue: false
+  },
+  "Vendor": "",
+  "Vendor order#": "",
+  "Vendor Part#": "",
+  "CC/Paypal 4%": 25.6,
+  "Charged Vendor": "",
+  "Paid Via": "Credit Card (via Stripe)",
+  "Cost": "050",
+  "Vendor Shipping": "100",
+  "Vendor Tax": "10",
+  "Courier Charges": "10",
+  "Sales Tax": "10",
+  "Warehouse Charges": "35",
+  "Custom Duties": "50",
+  "Card Payment": 160,
+  "Total Price": 770,
+  "Total Cost": 265,
+  "Total Cost+4%": 290.6,
+  "Gross Profit": 505,
+  "Gross Profit-4%": 479.4,
+  "Profit %": 62.26,
+  "Check/Invoice": "",
+  "Entry Check": "",
+  "Attached To Order": "",
+  "Entry Reason": "",
+  "Comment": "",
+  "order_type": "rma"
+},
+{
+  "Order#": 706410,
+  "Charged Date": "",
+  "Lead Source": "",
+  "Procured By": "",
+  "Order Date": "08/14/2026",
+  "Refund Date": "",
+  "Sales Agent": "",
+  "Invoice#": "",
+  "Invoice Link": "",
+  "Order Source": "",
+  "Payment Status": "",
+  "Brands": "APC",
+  "Category": "SC620I | APC | Smart-UPS Line-Interactive 230V 0.62 kVA 390 W 4 AC outlet(s)",
+  "Part#": "SC620I",
+  "Qty": "2",
+  "Condition": "",
+  "Shipping A/C": "",
+  "Bill to address": "601 E Main Ave",
+  "Ship to address": "601 E Main Ave",
+  "City": "Myerstown",
+  "State": "Pennsylvania",
+  "Country": "United States",
+  "Carrier": "",
+  "Tracking": "",
+  "Status": "Cancelled",
+  "Reasons (IF any)": "",
+  "Customer": "Art Muzzy",
+  "Customer Company": "Saveway USA",
+  "Email": "savewayam@aol.com",
+  "Phone": "6104510825",
+  "Customer PO#": "",
+  "Price": {
+    value: "640",
+    isTrue: true
+  },
+  "Shipping": {
+    value: "0",
+    isTrue: false
+  },
+  "Tax": {
+    value: "0",
+    isTrue: false
+  },
+  "Vendor": "",
+  "Vendor order#": "",
+  "Vendor Part#": "",
+  "CC/Paypal 4%": 25.6,
+  "Charged Vendor": "",
+  "Paid Via": "Credit Card (via Stripe)",
+  "Cost": "",
+  "Vendor Shipping": "",
+  "Vendor Tax": "",
+  "Courier Charges": "",
+  "Sales Tax": "",
+  "Warehouse Charges": "",
+  "Custom Duties": "",
+  "Card Payment": 0,
+  "Total Price": 640,
+  "Total Cost": 0,
+  "Total Cost+4%": 25.6,
+  "Gross Profit": 640,
+  "Gross Profit-4%": 614.4,
+  "Profit %": 96,
+  "Check/Invoice": "",
+  "Entry Check": "",
+  "Attached To Order": "",
+  "Entry Reason": "",
+  "Comment": "",
+  "order_type": null
+},
+{
+  "Order#": 706409,
+  "Charged Date": "",
+  "Lead Source": "",
+  "Procured By": "",
+  "Order Date": "08/14/2026",
+  "Refund Date": "",
+  "Sales Agent": "",
+  "Invoice#": "",
+  "Invoice Link": "",
+  "Order Source": "",
+  "Payment Status": "authorized",
+  "Brands": "Lenovo",
+  "Category": "4XC7A08235 | Lenovo | Broadcom 5719 Internal Ethernet 1000 Mbit/s",
+  "Part#": "4XC7A08235",
+  "Qty": "2",
+  "Condition": "",
+  "Shipping A/C": "",
+  "Bill to address": "104 West Main St",
+  "Ship to address": "880 108th Ave NE",
+  "City": "Bellevue",
+  "State": "Washington",
+  "Country": "United States",
+  "Carrier": "",
+  "Tracking": "",
+  "Status": "Awaiting Payment",
+  "Reasons (IF any)": "",
+  "Customer": "Matthew Moran",
+  "Customer Company": "Portage Bank",
+  "Email": "Ceo@portage.bank",
+  "Phone": "12066012467",
+  "Customer PO#": "",
+
+  "Price": {
+    value: 717.41,
+    isTrue: false
+  },
+  "Shipping": {
+    value: 37.41,
+    isTrue: false
+  },
+  "Tax": {
+    value: 0,
+    isTrue: false
+  },
+  "Vendor": "",
+  "Vendor order#": "",
+  "Vendor Part#": "",
+  "CC/Paypal 4%": 28.7,
+  "Charged Vendor": "",
+  "Paid Via": "Credit Card (via Stripe)",
+  "Cost": "",
+  "Vendor Shipping": "",
+  "Vendor Tax": "",
+  "Courier Charges": "",
+  "Sales Tax": "",
+  "Warehouse Charges": "",
+  "Custom Duties": "",
+  "Card Payment": 0,
+  "Total Price": 754.82,
+  "Total Cost": 0,
+  "Total Cost+4%": 28.7,
+  "Gross Profit": 754.82,
+  "Gross Profit-4%": 726.12,
+  "Profit %": 96.2,
+  "Check/Invoice": "",
+  "Entry Check": "",
+  "Attached To Order": "",
+  "Entry Reason": "",
+  "Comment": "",
+  "order_type": null
+}]
+function OrderListTable({ }) {
   const hotRef = useRef(null);
   const isRightClickRef = useRef(false);
   const isContextMenuOpen = useRef(false);
@@ -303,35 +517,196 @@ function OrderListTable({ Orders }) {
 
     input.click();
   };
+  // const handleSaveCheckedFields = async () => {
+  //   const checkboxFields = [
+  //     "Price",
+  //     "Shipping",
+  //     "Tax",
+  //     "Cost",
+  //     "Vendor Shipping",
+  //     "Vendor Tax",
+  //     "Courier Charges",
+  //     "Sales Tax",
+  //     "Warehouse Charges",
+  //     "Custom Duties",
+  //     "CC/Paypal 4%",
+  //   ];
 
-  // Fetch options when modal opens
-  useEffect(() => {
-    if (storeId?.id) {
-      dispatch(fetchOrderOptions(storeId?.id));
-      dispatch(fetchOrderTypesMap(storeId.id));
-    }
-  }, [storeId?.id]);
-  const cells = useCallback((row) => {
+  //   const payload = (filteredOrders || [])
+  //     .filter((order) =>
+  //       checkboxFields.some((field) => getFieldChecked(order[field]))
+  //     )
+  //     .map((order) => {
+  //       const fields = {};
+
+  //       checkboxFields.forEach((field) => {
+  //         fields[field] = {
+  //           value: getFieldValue(order[field]),
+  //           isTrue: getFieldChecked(order[field]),
+  //           colorCode: "blue"
+  //         };
+  //       });
+
+  //       return {
+  //         order_id: order["Order#"],
+  //         ...fields,
+  //       };
+  //     });
+
+  //   console.log("DUMMY SAVE PAYLOAD:", payload);
+
+  //   // Dummy API
+  //   // try {
+  //   //   const response = await fetch("https://jsonplaceholder.typicode.com/posts", {
+  //   //     method: "POST",
+  //   //     headers: { "Content-Type": "application/json" },
+  //   //     body: JSON.stringify({
+  //   //       role_id: storeId?.id,
+  //   //       data: payload,
+  //   //     }),
+  //   //   });
+
+  //   //   const result = await response.json();
+  //   //   console.log("DUMMY API RESPONSE:", result);
+  //   //   alert(`Saved ${payload.length} order(s)`);
+  //   // } catch (error) {
+  //   //   console.error("Dummy save failed:", error);
+  //   //   alert("Save failed");
+  //   // }
+  // };
+
+  // const cells = useCallback((row) => {
+  //   const order = filteredOrders?.[row];
+  //   const cellProperties = {};
+
+  //   if (!order) return cellProperties;
+
+  //   const status = String(order.Status || "").toLowerCase();
+  //   const type = String(order.order_type || "").toLowerCase();
+  //   if (status === "delivered") {
+  //     cellProperties.className = "delivered-row";
+  //   } else if (status === "cancelled") {
+  //     cellProperties.className = "cancelled-row";
+  //   } else if (type === "po") {
+  //     cellProperties.className = "po-row";
+  //   } else if (type === "rma") {
+  //     cellProperties.className = "rma-row";
+  //   }
+
+  //   return cellProperties;
+  // }, [filteredOrders]);
+
+  const handleSaveCheckedFields = async () => {
+    const isAdmin = getIsAdmin();
+
+    const checkboxFields = [
+      "Price",
+      "Shipping",
+      "Tax",
+      "Cost",
+      "Vendor Shipping",
+      "Vendor Tax",
+      "Courier Charges",
+      "Sales Tax",
+      "Warehouse Charges",
+      "Custom Duties",
+      "CC/Paypal 4%",
+    ];
+
+    const payload = (filteredOrders || [])
+      .map((order) => {
+        const fields = {};
+
+        checkboxFields.forEach((field) => {
+          const checked = getFieldChecked(order[field]);
+
+          // Admin: only already-true fields
+          // User: all selected fields
+          if (isAdmin && !checked) return;
+          if (!isAdmin && !checked) return;
+
+          fields[field] = {
+            value: getFieldValue(order[field]),
+            isTrue: checked,
+            colorCode: !isAdmin ? "blue" : ""
+          };
+        });
+
+        if (Object.keys(fields).length === 0) return null;
+
+        return {
+          order_id: order["Order#"],
+          ...fields,
+        };
+      })
+      .filter(Boolean);
+
+    console.log("isAdmin:", isAdmin);
+    console.log("SAVE PAYLOAD:", payload);
+
+    // try {
+    //   const response = await fetch("https://jsonplaceholder.typicode.com/posts", {
+    //     method: "POST",
+    //     headers: { "Content-Type": "application/json" },
+    //     body: JSON.stringify({
+    //       role_id: storeId?.id,
+    //       isAdmin,
+    //       data: payload,
+    //     }),
+    //   });
+
+    //   const result = await response.json();
+    //   console.log("DUMMY API RESPONSE:", result);
+    //   alert(`Saved ${payload.length} order(s)`);
+    // } catch (error) {
+    //   console.error("Save failed:", error);
+    //   alert("Save failed");
+    // }
+  };
+  const cells = useCallback((row, col) => {
     const order = filteredOrders?.[row];
     const cellProperties = {};
-
     if (!order) return cellProperties;
 
     const status = String(order.Status || "").toLowerCase();
     const type = String(order.order_type || "").toLowerCase();
-    if (status === "delivered") {
-      cellProperties.className = "delivered-row";
-    } else if (status === "cancelled") {
-      cellProperties.className = "cancelled-row";
-    } else if (type === "po") {
-      cellProperties.className = "po-row";
-    } else if (type === "rma") {
-      cellProperties.className = "rma-row";
+
+    if (status === "delivered") cellProperties.className = "delivered-row";
+    else if (status === "cancelled") cellProperties.className = "cancelled-row";
+    else if (type === "po") cellProperties.className = "po-row";
+    else if (type === "rma") cellProperties.className = "rma-row";
+
+    const column = columnsOfSheet[col]?.data;
+    if (!column) return cellProperties;
+
+    const priceGroup = ["Price", "Shipping", "Tax"];
+    const cardGroup = ["Cost", "Vendor Shipping", "Vendor Tax"];
+    const costGroup = ["Courier Charges", "Sales Tax", "Warehouse Charges", "Custom Duties"];
+
+    const isPriceGroupChecked = priceGroup.some((key) => getFieldChecked(order[key]));
+    const isCardGroupChecked = cardGroup.some((key) => getFieldChecked(order[key]));
+    const isCostGroupChecked = costGroup.some((key) => getFieldChecked(order[key]));
+    const isCcChecked = getFieldChecked(order["CC/Paypal 4%"]);
+
+    const shouldPink =
+      (priceGroup.includes(column) && getFieldChecked(order[column])) ||
+      (column === "Total Price" && isPriceGroupChecked) ||
+
+      (cardGroup.includes(column) && getFieldChecked(order[column])) ||
+      (column === "Card Payment" && isCardGroupChecked) ||
+
+      (costGroup.includes(column) && getFieldChecked(order[column])) ||
+      (column === "Total Cost" && isCostGroupChecked) ||
+
+      (column === "CC/Paypal 4%" && isCcChecked) ||
+      (column === "Total Cost+4%" && isCcChecked);
+
+    if (shouldPink) {
+      cellProperties.className = `${cellProperties.className || ""} highlight-price-row`.trim();
     }
 
     return cellProperties;
   }, [filteredOrders]);
-
   const nestedHeaders = useMemo(() => {
     return [
       // Top row (summary)
@@ -388,7 +763,13 @@ function OrderListTable({ Orders }) {
   }, [orderTypesMap?.po,
   orderTypesMap?.rma,
   orderTypesMap?.cancelled]);
-
+  // Fetch options when modal opens
+  useEffect(() => {
+    if (storeId?.id) {
+      dispatch(fetchOrderOptions(storeId?.id));
+      dispatch(fetchOrderTypesMap(storeId.id));
+    }
+  }, [storeId?.id]);
   if (orderloading) {
     return (
       <div style={{ padding: '40px', textAlign: 'center' }}>
@@ -609,6 +990,19 @@ function OrderListTable({ Orders }) {
 
           <div style={{ display: 'flex', gap: '12px' }}>
             <button
+              onClick={handleSaveCheckedFields}
+              style={{
+                padding: "8px 16px",
+                background: "#db2777",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+              }}
+            >
+              Save
+            </button>
+            <button
               onClick={handleSyncOrders}
               style={{ padding: '8px 16px', background: 'gray', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
             >
@@ -698,13 +1092,13 @@ function OrderListTable({ Orders }) {
             height="calc(100vh - 180px)"
             width="100%"
             licenseKey="non-commercial-and-evaluation"
-            filters={true}
+            filters={false}
             dropdownMenu={false}
-            dropdownMenu={[
-              'filter_by_condition',
-              'filter_by_value',
-              'filter_action_bar'
-            ]}
+            // dropdownMenu={[
+            //   'filter_by_condition',
+            //   'filter_by_value',
+            //   'filter_action_bar'
+            // ]}
             // contextMenu={true}
             manualColumnResize={true}
             fixedColumnsStart={2}
@@ -847,9 +1241,9 @@ function OrderListTable({ Orders }) {
           {selectionSummary.visible && (
             <div
               style={{
-                position: "fixed",
-                bottom: "24px",
-                right: "30px",
+                // position: "fixed",
+                // bottom: "24px",
+                // right: "30px",
                 background: "#e8f5e9",
                 border: "1px solid #81c784",
                 borderRadius: "6px",

@@ -205,3 +205,6 @@ body {
   font-weight: 700 !important;
 }
 
+.handsontable td.highlight-price-row {
+  background-color: red !important;
+}
