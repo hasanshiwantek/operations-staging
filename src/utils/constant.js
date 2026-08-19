@@ -18,68 +18,100 @@ export const normalizeOrderOptions = (apiData) => {
 
   return map;
 };
+
+
+const CHECKBOX_STORAGE_KEY = "orderCheckboxState";
+
+export const CHECKBOX_FIELDS = [
+  "Price",
+  "Shipping",
+  "Tax",
+  "Cost",
+  "Vendor Shipping",
+  "Vendor Tax",
+  "Courier Charges",
+  "Sales Tax",
+  "Warehouse Charges",
+  "Custom Duties",
+  "CC/Paypal 4%",
+];
+
+export const getSavedCheckboxState = () => {
+  try {
+    return JSON.parse(localStorage.getItem(CHECKBOX_STORAGE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+};
+
+export const saveCheckboxState = (payload) => {
+  const saved = getSavedCheckboxState();
+
+  payload.forEach((row) => {
+    const id = String(row.order_id);
+    const { order_id, ...fields } = row;
+    saved[id] = { ...(saved[id] || {}), ...fields };
+  });
+
+  localStorage.setItem(CHECKBOX_STORAGE_KEY, JSON.stringify(saved));
+};
+
+export const applySavedCheckboxState = (orders) => {
+  const saved = getSavedCheckboxState();
+
+  return (orders || []).map((order) => {
+    const row = saved[String(order["Order#"])];
+    if (!row) return order;
+
+    const next = { ...order };
+
+    CHECKBOX_FIELDS.forEach((field) => {
+      if (!row[field]) return;
+      next[field] = {
+        value: row[field].value ?? getFieldValue(order[field]),
+        isTrue: Boolean(row[field].isTrue),
+        isHighlight: Boolean(row[field].isHighlight),
+        colorCode: row[field].colorCode || "",
+      };
+    });
+
+    const priceGroupOn = ["Price", "Shipping", "Tax"].some(
+      (key) => getFieldHighlight(next[key]) || getFieldChecked(next[key])
+    );
+
+    next["Total Price"] = {
+      value: getFieldValue(next["Total Price"]) || 0,
+      isHighlight: priceGroupOn,
+    };
+
+    return next;
+  });
+};
 export const getFieldValue = (field) => {
   if (field && typeof field === "object") return field.value ?? "";
   return field ?? "";
 };
+
 export const getIsAdmin = () => {
   const value = localStorage.getItem("isAdmin");
   return value === true || value === "true";
 };
+
 export const getFieldChecked = (field) => {
   if (field && typeof field === "object") return Boolean(field.isTrue);
   return false;
 };
-// const makeCheckboxRenderer = (fieldName) => {
-//   return function (instance, td, row, col, prop, value) {
-//     const val = getFieldValue(value);
-//     const checked = getFieldChecked(value);
 
-//     td.innerHTML = "";
-
-//     const wrap = document.createElement("div");
-//     wrap.style.display = "flex";
-//     wrap.style.gap = "2px";
-//     wrap.style.alignItems = "center";
-
-//     const checkbox = document.createElement("input");
-//     checkbox.type = "checkbox";
-//     checkbox.checked = checked;
-//     checkbox.style.accentColor = "#1B51EF";
-
-//     checkbox.addEventListener("mousedown", (e) => {
-//       e.stopPropagation();
-//     });
-
-//     checkbox.addEventListener("click", (e) => {
-//       e.stopPropagation();
-
-//       const current = instance.getSourceDataAtRow(row);
-//       const currentField = current[fieldName];
-
-//       instance.setSourceDataAtCell(row, fieldName, {
-//         value: getFieldValue(currentField),
-//         isTrue: e.target.checked,
-//       });
-
-//       instance.render(); // refresh pink highlight
-//     });
-
-//     const span = document.createElement("span");
-//     span.textContent = val;
-
-//     wrap.appendChild(checkbox);
-//     wrap.appendChild(span);
-//     td.appendChild(wrap);
-
-//     return td;
-//   };
-// };
+export const getFieldHighlight = (field) => {
+  if (field && typeof field === "object") return Boolean(field.isHighlight);
+  return false;
+};
 
 const makeCheckboxRenderer = (fieldName) => {
   return function (instance, td, row, col, prop, value) {
     const val = getFieldValue(value);
     const checked = getFieldChecked(value);
+    const highlighted = getFieldHighlight(value);
     const isAdmin = getIsAdmin();
 
     td.innerHTML = "";
@@ -92,9 +124,7 @@ const makeCheckboxRenderer = (fieldName) => {
     const span = document.createElement("span");
     span.textContent = val;
 
-    // Admin: only show already-true checkboxes
-    // Normal user: show all checkboxes
-    const shouldShowCheckbox = isAdmin ? checked : true;
+    const shouldShowCheckbox = isAdmin ? highlighted : !highlighted;
 
     if (shouldShowCheckbox) {
       const checkbox = document.createElement("input");
@@ -102,17 +132,9 @@ const makeCheckboxRenderer = (fieldName) => {
       checkbox.checked = checked;
       checkbox.style.accentColor = "#1B51EF";
 
-      // Admin cannot enable new (false) options
-      if (isAdmin) {
-        checkbox.disabled = true;
-      }
-
       checkbox.addEventListener("mousedown", (e) => e.stopPropagation());
-
       checkbox.addEventListener("click", (e) => {
         e.stopPropagation();
-
-        if (isAdmin) return;
 
         const current = instance.getSourceDataAtRow(row);
         const currentField = current[fieldName];
@@ -120,6 +142,7 @@ const makeCheckboxRenderer = (fieldName) => {
         instance.setSourceDataAtCell(row, fieldName, {
           value: getFieldValue(currentField),
           isTrue: e.target.checked,
+          isHighlight: getFieldHighlight(currentField),
         });
 
         instance.render();
@@ -130,6 +153,13 @@ const makeCheckboxRenderer = (fieldName) => {
 
     wrap.appendChild(span);
     td.appendChild(wrap);
+    return td;
+  };
+};
+const makeValueRenderer = (fieldName) => {
+  return function (instance, td, row) {
+    const raw = instance.getSourceDataAtRow(row)?.[fieldName];
+    td.innerHTML = getFieldValue(raw);
     return td;
   };
 };
@@ -196,13 +226,19 @@ export const columnsOfSheet = [
   { data: "Sales Tax", title: "Sales Tax", renderer: makeCheckboxRenderer("Sales Tax") },
   { data: "Warehouse Charges", title: "Warehouse Charges", renderer: makeCheckboxRenderer("Warehouse Charges") },
   { data: "Custom Duties", title: "Custom Duties", renderer: makeCheckboxRenderer("Custom Duties") },
-  { data: "Card Payment", title: "Card Payment" },
+  { data: "Card Payment", title: "Card Payment", renderer: makeValueRenderer("Card Payment") },
   // 
-  { data: "Total Price", title: "Total Price", disabled: true },//higlight if Price || Shipping || Tax
-  { data: "Total Cost", title: "Total Cost", disabled: true }, //higlight if Cost || Vendor Shipping || Vendor Tax
-  { data: "Total Cost+4%", title: "Total Cost+4%", disabled: true },//higlight if CC/Paypal 4%
-  { data: "Gross Profit", title: "Gross Profit", disabled: true },
-  { data: "Gross Profit-4%", title: "Gross Profit-4%", disabled: true },
+  // { data: "Total Price", title: "Total Price", disabled: true },//higlight if Price || Shipping || Tax
+  // { data: "Total Cost", title: "Total Cost", disabled: true }, //higlight if Cost || Vendor Shipping || Vendor Tax
+  // { data: "Total Cost+4%", title: "Total Cost+4%", disabled: true },//higlight if CC/Paypal 4%
+  // { data: "Gross Profit", title: "Gross Profit", disabled: true },
+  // { data: "Gross Profit-4%", title: "Gross Profit-4%", disabled: true },
+
+  { data: "Total Price", title: "Total Price", readOnly: true, renderer: makeValueRenderer("Total Price") },
+  { data: "Total Cost", title: "Total Cost", readOnly: true, renderer: makeValueRenderer("Total Cost") },
+  { data: "Total Cost+4%", title: "Total Cost+4%", readOnly: true, renderer: makeValueRenderer("Total Cost+4%") },
+  { data: "Gross Profit", title: "Gross Profit", readOnly: true, },
+  { data: "Gross Profit-4%", title: "Gross Profit-4%", readOnly: true, },
   { data: "Profit %", title: "Profit %", disabled: true },
 
   { data: "Check/Invoice", title: "Check/Invoice" },
