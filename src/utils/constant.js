@@ -4,6 +4,11 @@ export const toNumber = (price) => {
   const value = parseFloat(price.toString().replace(/[^0-9.]/g, ""));
   return isNegative ? -value : value;
 };
+export const standFor = {
+  rma: "Return Merchandise Authorization",
+  po: "Create Part Order",
+  cancelled: "Cancelled",
+}
 export const normalizeOrderOptions = (apiData) => {
   if (!apiData || typeof apiData !== 'object') return {};
 
@@ -93,8 +98,30 @@ export const getFieldValue = (field) => {
 };
 
 export const getIsAdmin = () => {
-  const value = localStorage.getItem("isAdmin");
-  return value === true || value === "true";
+  // const value = localStorage.getItem("isAdmin");
+  // return value === true || value === "true";
+  let persistedAuth = JSON.parse(
+    localStorage.getItem("persist:auth")
+  );
+  let user = JSON.parse(
+    persistedAuth?.user
+  );
+
+  return [1, 2].includes(user?.role_id)
+
+};
+export const getIsFinance = () => {
+  // const value = localStorage.getItem("isAdmin");
+  // return value === true || value === "true";
+  let persistedAuth = JSON.parse(
+    localStorage.getItem("persist:auth")
+  );
+  let user = JSON.parse(
+    persistedAuth?.user
+  );
+
+  return [3].includes(user?.role_id)
+
 };
 
 export const getFieldChecked = (field) => {
@@ -113,6 +140,7 @@ const makeCheckboxRenderer = (fieldName) => {
     const checked = getFieldChecked(value);
     const highlighted = getFieldHighlight(value);
     const isAdmin = getIsAdmin();
+    const isFinance = getIsFinance();
 
     td.innerHTML = "";
 
@@ -124,7 +152,15 @@ const makeCheckboxRenderer = (fieldName) => {
     const span = document.createElement("span");
     span.textContent = val;
 
-    const shouldShowCheckbox = isAdmin ? highlighted : !highlighted;
+    // const shouldShowCheckbox = isAdmin ? highlighted : !highlighted;
+    // Admin: show checkbox only when highlighted
+    // Finance: show checkbox only when NOT highlighted
+    // Other roles: never show checkbox
+    const shouldShowCheckbox = isAdmin
+      ? highlighted
+      : isFinance
+        ? !highlighted
+        : false;
 
     if (shouldShowCheckbox) {
       const checkbox = document.createElement("input");

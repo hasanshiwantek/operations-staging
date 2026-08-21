@@ -34,81 +34,7 @@ const formatCurrency = (value) => {
     minimumFractionDigits: 2,
   }).format(value);
 };
-// const Orders = [
-//   {
-//     "Order#": 706410,
-//     "Charged Date": "",
-//     "Lead Source": "",
-//     "Procured By": "",
-//     "Order Date": "08/14/2026",
-//     "Refund Date": "",
-//     "Sales Agent": "",
-//     "Invoice#": "",
-//     "Invoice Link": "",
-//     "Order Source": "",
-//     "Payment Status": "",
-//     "Brands": "APC",
-//     "Category": "SC620I | APC | Smart-UPS Line-Interactive 230V 0.62 kVA 390 W 4 AC outlet(s)",
-//     "Part#": "SC620I",
-//     "Qty": "2",
-//     "Condition": "",
-//     "Shipping A/C": "",
-//     "Bill to address": "601 E Main Ave",
-//     "Ship to address": "601 E Main Ave",
-//     "City": "Myerstown",
-//     "State": "Pennsylvania",
-//     "Country": "United States",
-//     "Carrier": "",
-//     "Tracking": "",
-//     "Status": "Cancelled",
-//     "Reasons (IF any)": "",
-//     "Customer": "Art Muzzy",
-//     "Customer Company": "Saveway USA",
-//     "Email": "savewayam@aol.com",
-//     "Phone": "6104510825",
-//     "Customer PO#": "",
-//     "Price": {
-//       value: "640",
-//       isTrue: true,
-//       isHighlight: false   // user still sees checkbox (not saved yet)
-//     },
-//     "Shipping": {
-//       value: "0",
-//       isTrue: false,
-//       isHighlight: false
-//     },
-//     "Tax": {
-//       value: "0",
-//       isTrue: false,
-//       isHighlight: false
-//     },
-//     "Vendor": "",
-//     "Vendor order#": "",
-//     "Vendor Part#": "",
-//     "CC/Paypal 4%": 25.6,
-//     "Charged Vendor": "",
-//     "Paid Via": "Credit Card (via Stripe)",
-//     "Cost": "",
-//     "Vendor Shipping": "",
-//     "Vendor Tax": "",
-//     "Courier Charges": "",
-//     "Sales Tax": "",
-//     "Warehouse Charges": "",
-//     "Custom Duties": "",
-//     "Card Payment": 0,
-//     "Total Price": 640,
-//     "Total Cost": 0,
-//     "Total Cost+4%": 25.6,
-//     "Gross Profit": 640,
-//     "Gross Profit-4%": 614.4,
-//     "Profit %": 96,
-//     "Check/Invoice": "",
-//     "Entry Check": "",
-//     "Attached To Order": "",
-//     "Entry Reason": "",
-//     "Comment": "",
-//     "order_type": null
-//   }]
+
 const Orders = [
   {
     "Order#": 12,
@@ -144,8 +70,8 @@ const Orders = [
     "Customer PO#": "",
 
     // 1
-    "Price": { "value": 640, "isTrue": true, "isHighlight": true, "colorCode": "green" },
-    "Shipping": { "value": 0, "isTrue": true, "isHighlight": true, "colorCode": "green" },
+    "Price": { "value": 640, "isTrue": false, "isHighlight": false, "colorCode": "" },
+    "Shipping": { "value": 0, "isTrue": false, "isHighlight": false, "colorCode": "" },
     "Tax": { "value": 0, "isTrue": false, "isHighlight": false, "colorCode": "" },
     "Vendor": "",
     "Vendor order#": "",
@@ -220,8 +146,8 @@ const Orders = [
     "Customer PO#": "",
 
     // 1
-    "Price": { "value": 640, "isTrue": false, "isHighlight": false, "colorCode": "blue" },
-    "Shipping": { "value": 0, "isTrue": false, "isHighlight": false, "colorCode": "blue" },
+    "Price": { "value": 640, "isTrue": false, "isHighlight": false, },
+    "Shipping": { "value": 0, "isTrue": false, "isHighlight": false, },
     "Tax": { "value": 0, "isTrue": false, "isHighlight": false, "colorCode": "" },
     "Vendor": "",
     "Vendor order#": "",
@@ -247,7 +173,6 @@ const Orders = [
     "Total Price": {
       value: 640,
       isHighlight: false,    // true because Price is on
-      "colorCode": "green"
     },
     "Total Cost": { "value": 0, "isHighlight": false },
     "Total Cost+4%": { "value": 25.6, "isHighlight": false },
@@ -306,6 +231,8 @@ function OrderListTable({ }) {
   const dispatch = useDispatch();
   const { orderloading, syncLoading } = useSelector((state) => state.users);
   const { token, storeId, user: authUser } = useSelector((state) => state.auth);
+  const { user } = useSelector((state) => state?.auth);
+  const allowCheck = [1, 2, 3].includes(user?.role_id)
   const { orderTypesMap } = useSelector((state) => state.orderTypes);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isRMAMode, setIsRMAMode] = useState(false);

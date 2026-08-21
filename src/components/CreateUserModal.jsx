@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import addUserIcon from "../assets/adduser-icon.svg";
 import { useDispatch, useSelector } from "react-redux";
-import { deleteUser, updateUser } from "../store/usersSlice";
+import { deleteUser, fetchUsers, updateUser } from "../store/usersSlice";
 import { register } from "../store/authSlice";
 import { toast } from "react-toastify";
 
@@ -31,7 +31,12 @@ const pageAccessOptions = [
     tabs: ["Order", "Invoice", "Customer", "Vendor", "Total price & Profit"],
   },
 ];
-
+const departments = [
+  { id: 1, name: "Superadmin" },
+  { id: 2, name: "Admin" },
+  { id: 3, name: "Finance" },
+  { id: 4, name: "Operations" },
+];
 // Helper function to convert page_name array to pageAccess object
 const convertPageNamesToPageAccess = (pageNames) => {
   if (!pageNames || !Array.isArray(pageNames)) return {};
@@ -57,10 +62,9 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [expandedPages, setExpandedPages] = useState({});
   const dispatch = useDispatch();
-  const { user, storeId } = useSelector((state) => state.auth);
+  const { user, storeId, loading } = useSelector((state) => state.auth);
   const { updateLoading } = useSelector((state) => state.users);
   const roles = user?.roles;
-
   const isEditMode = !!editUser;
 
   // Initialize form with edit data if available
@@ -79,11 +83,11 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
   const [formData, setFormData] = useState({
     name: editUser?.name || "",
     email: editUser?.email || "",
-    password: "",
-    confirmPassword: "",
-    role: editUser?.role_id?.toString(),
+    role: editUser?.department_id,
     pageAccess: getInitialPageAccess(),
+    colour_code: editUser?.colour_code
   });
+
   const [errors, setErrors] = useState({});
 
   // Debug: Log the converted page access
@@ -98,26 +102,22 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
       newErrors.email = "Enter a valid email";
     }
 
+    if (!formData?.role) newErrors.role = "Role is required";
+
+    if (formData?.role == 3) {
+      if (!formData?.colour_code) newErrors.colour_code = "Colour is required"
+    }
     // Password validation only for create mode or if password is entered in edit mode
     if (!isEditMode) {
-      if (!formData.password) {
-        newErrors.password = "Password is required";
-      } else if (formData.password.length < 6) {
-        newErrors.password = "Min 6 characters";
-      }
-      if (!formData.confirmPassword) {
-        newErrors.confirmPassword = "Confirm password is required";
-      } else if (formData.password !== formData.confirmPassword) {
-        newErrors.confirmPassword = "Passwords do not match";
-      }
+
     } else if (formData.password) {
       // In edit mode, only validate if password is provided
-      if (formData.password.length < 6) {
-        newErrors.password = "Min 6 characters";
-      }
-      if (formData.password !== formData.confirmPassword) {
-        newErrors.confirmPassword = "Passwords do not match";
-      }
+      // if (formData.password.length < 6) {
+      //   newErrors.password = "Min 6 characters";
+      // }
+      // if (formData.password !== formData.confirmPassword) {
+      //   newErrors.confirmPassword = "Passwords do not match";
+      // }
     }
 
     // if (!formData.role) newErrors.role = "Role is required";
@@ -131,6 +131,8 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    const departmentsDetail = departments?.find((item) => item?.id == formData?.role)
 
     if (!validateForm()) return;
 
@@ -151,19 +153,22 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
         email: formData.email,
         role_id: Number(storeId?.id),
         page_name: pageAccessArray,
+        colour_code: formData?.colour_code,
+        "department_name": departmentsDetail?.name?.toLowerCase(),
+        "department_id": departmentsDetail?.id
       };
-
-      // Only include password if it's provided
-      if (formData.password) {
-        payload.password = formData.password;
-        payload.password_confirmation = formData.confirmPassword;
-      }
+      // // Only include password if it's provided
+      // if (formData.password) {
+      //   payload.password = formData.password;
+      //   payload.password_confirmation = formData.confirmPassword;
+      // }
 
       const result = await dispatch(
         updateUser({ id: editUser.id, data: payload }),
       );
 
       if (updateUser.fulfilled.match(result)) {
+        dispatch(fetchUsers())
         onClose();
       } else {
         toast.error("Failed to update user. Please try again."); // ❌ error toast
@@ -173,15 +178,16 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
       const payload = {
         name: formData.name,
         email: formData.email,
-        password: formData.password,
-        password_confirmation: formData.confirmPassword,
         role_id: Number(storeId?.id),
         page_name: pageAccessArray,
+        colour_code: formData?.colour_code,
+        "department_name": departmentsDetail?.name?.toLowerCase(),
+        "department_id": departmentsDetail?.id
       };
-
       const result = await dispatch(register(payload));
 
       if (register.fulfilled.match(result)) {
+        dispatch(fetchUsers())
         onClose();
       } else {
         toast.error("Failed to create user. Please try again.");
@@ -265,9 +271,8 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
                 onChange={(e) =>
                   setFormData({ ...formData, name: e.target.value })
                 }
-                className={`w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${
-                  errors.name ? "border-red-400" : "border-gray-200"
-                }`}
+                className={`w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${errors.name ? "border-red-400" : "border-gray-200"
+                  }`}
               />
               <p className="text-xs text-red-500 min-h-[16px] mt-1">
                 {errors.name || " "}
@@ -280,12 +285,12 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
                 type="email"
                 placeholder="e.g. example@gmail.com"
                 value={formData.email}
+                disabled={editUser}
                 onChange={(e) =>
                   setFormData({ ...formData, email: e.target.value })
                 }
-                className={`w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${
-                  errors.email ? "border-red-400" : "border-gray-200"
-                }`}
+                className={`w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${errors.email ? "border-red-400" : "border-gray-200"
+                  }`}
               />
               <p className="text-xs text-red-500 min-h-[16px] mt-1">
                 {errors.email || " "}
@@ -293,7 +298,8 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+
+          {/* <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-sm text-gray-600 font-medium">
                 Password{" "}
@@ -313,9 +319,8 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
                   onChange={(e) =>
                     setFormData({ ...formData, password: e.target.value })
                   }
-                  className={`w-full mt-1 p-2 pr-10 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${
-                    errors.password ? "border-red-400" : "border-gray-200"
-                  }`}
+                  className={`w-full mt-1 p-2 pr-10 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${errors.password ? "border-red-400" : "border-gray-200"
+                    }`}
                 />
                 <button
                   type="button"
@@ -348,11 +353,10 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
                       confirmPassword: e.target.value,
                     })
                   }
-                  className={`w-full mt-1 p-2 pr-10 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${
-                    errors.confirmPassword
-                      ? "border-red-400"
-                      : "border-gray-200"
-                  }`}
+                  className={`w-full mt-1 p-2 pr-10 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${errors.confirmPassword
+                    ? "border-red-400"
+                    : "border-gray-200"
+                    }`}
                 />
                 <button
                   type="button"
@@ -370,24 +374,23 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
                 {errors.confirmPassword || " "}
               </p>
             </div>
-          </div>
+          </div> */}
 
-          {/* <div className="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             <div>
               <label className="text-sm text-gray-600 font-medium">
-                Select role
+                Select Role/Department
               </label>
               <select
                 value={formData.role}
                 onChange={(e) => {
-                  setFormData({ ...formData, role: e.target.value });
+                  setFormData({ ...formData, role: e.target.value, colour_code: null });
                 }}
-                className={`w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${
-                  errors.role ? "border-red-400" : "border-gray-200"
-                }`}
+                className={`w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${errors.role ? "border-red-400" : "border-gray-200"
+                  }`}
               >
                 <option value="">Select a role</option>
-                {roles?.map((role) => (
+                {departments?.map((role) => (
                   <option key={role.id} value={role.id.toString()}>
                     {role.name}
                   </option>
@@ -397,8 +400,56 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
                 {errors.role || " "}
               </p>
             </div>
-          </div> */}
+          </div>
+          {/* Color Picker */}
+          {formData.role == 3 && <div>
+            <label className="mb-2 block text-sm font-medium text-gray-700">
+              Colour <span className="text-red-500">*</span>
+            </label>
 
+            <div className="flex items-center gap-3">
+              {/* Native Color Picker */}
+              <div className="relative">
+                <input
+                  type="color"
+                  value={formData?.colour_code || ""}
+                  onChange={(e) =>
+                    setFormData({ ...formData, colour_code: e.target.value })
+                  }
+                  className="h-11 w-14 cursor-pointer rounded-lg border border-gray-300 p-1"
+                  title="Pick a color"
+                />
+              </div>
+
+              {/* Hex Input */}
+              <input
+                type="text"
+                value={formData?.colour_code || ""}
+                onChange={(e) => {
+                  let value = e.target.value;
+
+                  // Automatically add #
+                  if (value && !value.startsWith("#")) {
+                    value = `#${value}`;
+                  }
+                  setFormData({ ...formData, colour_code: value })
+                }}
+                placeholder="#22c55e"
+                maxLength={7}
+                className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-mono outline-none transition
+        ${errors.colour_code
+                    ? "border-red-500 focus:ring-2 focus:ring-red-200"
+                    : "border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                  }`}
+              />
+            </div>
+
+            {errors.colour_code && (
+              <p className="mt-1 text-sm text-red-500">
+                {errors.colour_code}
+              </p>
+            )}
+          </div>}
           <div>
             <label className="text-sm text-gray-600 font-medium mb-2 block">
               Page access
@@ -416,9 +467,8 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
                     className={`${index !== 0 ? "border-t border-gray-200" : ""}`}
                   >
                     <div
-                      className={`flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50 ${
-                        selected ? "bg-indigo-50" : ""
-                      }`}
+                      className={`flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50 ${selected ? "bg-indigo-50" : ""
+                        }`}
                       onClick={() => togglePageExpansion(item.page)}
                     >
                       <div className="flex items-center gap-2">
@@ -457,11 +507,10 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
                             return (
                               <label
                                 key={tab}
-                                className={`text-xs px-3 py-1.5 rounded-lg border cursor-pointer transition ${
-                                  isTabSelected
-                                    ? "bg-indigo-600 text-white border-indigo-600"
-                                    : "text-gray-700 border-gray-300 hover:bg-white"
-                                }`}
+                                className={`text-xs px-3 py-1.5 rounded-lg border cursor-pointer transition ${isTabSelected
+                                  ? "bg-indigo-600 text-white border-indigo-600"
+                                  : "text-gray-700 border-gray-300 hover:bg-white"
+                                  }`}
                               >
                                 <input
                                   type="checkbox"
@@ -499,6 +548,6 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
           </button>
         </div>
       </div>
-    </div>
+    </div >
   );
 };

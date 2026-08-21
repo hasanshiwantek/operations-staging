@@ -2,8 +2,9 @@
 import axios from "axios";
 import { toast } from "react-toastify";
 
+export const BASEURL = "https://optest.advertsedge.com/api"
 const axiosInstance = axios.create({
-  baseURL: "https://optest.advertsedge.com/api",
+  baseURL: BASEURL,
   //  baseURL: "https://operations.advertsedge.com/api",
 });
 
@@ -20,9 +21,9 @@ axiosInstance.interceptors.request.use((config) => {
     if (tokenparsed) {
       config.headers.Authorization = `Bearer ${tokenparsed}`;
     }
-    // if (storeId) {
-    //   config.headers["storeId"] = Number(storeId);
-    // }
+    if (storeId) {
+      config.headers["store-id"] = Number(storeId);
+    }
     // if (roleId) {
     //   config.headers["role_id"] = Number(roleId);
     // }

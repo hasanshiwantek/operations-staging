@@ -1,32 +1,86 @@
 import React, { useEffect, useState } from "react";
+import { BASEURL } from "../Axios/axiosInstance";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { setStoreId } from "../store/authSlice";
+export const getRolesByStoreId = async (token, storeId) => {
+  try {
+    const response = await fetch(
+      `${BASEURL}/auth/get-role-by-store-id`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          "store-id": storeId,
+        },
+      }
+    );
 
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        data?.message || "Failed to fetch roles"
+      );
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Get roles error:", error);
+    throw error;
+  }
+};
 const StoreSelection = () => {
-  const [store, setStore] = useState("");
-    const { user ,storeId} = useSelector((state) => state.auth);
-    const roles = user?.roles
-    const navigate = useNavigate();
+  const navigate = useNavigate();
   const dispatch = useDispatch();
-  
+  const [store, setStore] = useState("");
+  const { user, storeId, token } = useSelector((state) => state.auth);
+  const stores = user?.stores
 
-    // Redirect to dashboard on successful login
-    useEffect(() => {
-      if (storeId) {
-        navigate("/dashboard");
-      } 
-    }, [storeId, navigate]);
+  // Redirect to dashboard on successful login
+  useEffect(() => {
+    if (storeId) {
+      navigate("/dashboard");
+    }
+  }, [storeId, navigate]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const selectedStore = roles.find((s) => s.id === Number(store));
+    const selectedStore = stores?.find((s) => s?.id === Number(store));
     if (selectedStore) {
-      dispatch(setStoreId(selectedStore));
+      if (user?.role_id == 1 || user?.role_id == 2) {
+        dispatch(setStoreId(selectedStore));
+      } else {
+        try {
+          const result = await getRolesByStoreId(token, selectedStore?.id);
+
+          const roleData = {
+            ...user,
+            role_id: result?.role?.id,
+            role_name: result?.role?.name
+          }
+          let persistedAuth = JSON.parse(
+            localStorage.getItem("persist:auth")
+          );
+
+          if (persistedAuth?.user && roleData) {
+            persistedAuth.user = JSON.stringify(roleData);
+
+            localStorage.setItem(
+              "persist:auth",
+              JSON.stringify(persistedAuth)
+            );
+          }
+          dispatch(setStoreId(selectedStore));
+        } catch (error) {
+          console.error("Failed to fetch roles:", error);
+        }
+      }
     }
   };
-
   return (
     <div className="flex items-center justify-center bg-gray-50 h-screen w-full min-w-full">
       <div className="bg-white shadow-lg rounded-2xl p-8 w-[25%] text-center">
@@ -59,7 +113,7 @@ const StoreSelection = () => {
               className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none"
             >
               <option value="">Select store</option>
-              {roles.map((store) => (
+              {stores?.map((store) => (
                 <option key={store.id} value={store.id}>
                   {store.name}
                 </option>

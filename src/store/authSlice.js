@@ -5,7 +5,7 @@ import { updateUser } from './usersSlice';
 const initialState = {
   user: null,
   token: null,
-    storeId: null, 
+  storeId: null,
   isAuthenticated: false,
   signInLoading: false,
   loading: false,
@@ -42,13 +42,37 @@ export const register = createAsyncThunk(
   }
 );
 
+export const getRolesByStoreId = createAsyncThunk(
+  "roles/getRolesByStoreId",
+  async ({ token, storeId }, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.get(
+        "/auth/get-role-by-store-id",
+        {
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            "store-id": storeId,
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
-
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to fetch roles"
+      );
+    }
+  }
+);
 const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-        // ✅ Store select (manual)
+    // ✅ Store select (manual)
     setStoreId: (state, action) => {
       state.storeId = action.payload; // payload = storeId
     },
@@ -77,6 +101,7 @@ const authSlice = createSlice({
         state.error = null;
       })
       .addCase(login.fulfilled, (state, action) => {
+
         state.signInLoading = false;
         state.isAuthenticated = true;
         state.user = action.payload.data || action.payload.data?.user;

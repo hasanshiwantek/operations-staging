@@ -86,10 +86,9 @@ const OrderTypeModal = ({
                 required: "Order type is required",
               })}
               className={`w-full rounded-lg border px-4 py-2.5 text-sm outline-none transition appearance-none bg-white
-                ${
-                  errors.type
-                    ? "border-red-500 focus:ring-2 focus:ring-red-200"
-                    : "border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                ${errors.type
+                  ? "border-red-500 focus:ring-2 focus:ring-red-200"
+                  : "border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
                 }`}
             >
               <option value="">Select order type</option>
@@ -138,10 +137,9 @@ const OrderTypeModal = ({
                 placeholder="#22c55e"
                 maxLength={7}
                 className={`flex-1 rounded-lg border px-4 py-2.5 text-sm outline-none transition font-mono
-                  ${
-                    errors.color_code
-                      ? "border-red-500 focus:ring-2 focus:ring-red-200"
-                      : "border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                  ${errors.color_code
+                    ? "border-red-500 focus:ring-2 focus:ring-red-200"
+                    : "border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
                   }`}
               />
             </div>
@@ -167,10 +165,9 @@ const OrderTypeModal = ({
               type="submit"
               disabled={loading}
               className={`rounded-lg px-5 py-2 text-sm font-medium text-white transition
-                ${
-                  loading
-                    ? "cursor-not-allowed bg-gray-400"
-                    : "bg-indigo-600 hover:bg-indigo-700"
+                ${loading
+                  ? "cursor-not-allowed bg-gray-400"
+                  : "bg-indigo-600 hover:bg-indigo-700"
                 }`}
             >
               {loading ? "Saving..." : editData ? "Update" : "Create"}

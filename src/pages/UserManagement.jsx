@@ -15,6 +15,8 @@ const UsersSection = ({
   error = null,
 }) => {
   const { user } = useSelector((state) => state?.auth);
+  const { storeId } = useSelector((state) => state.auth);
+
   const dispatch = useDispatch();
   const roleId = user?.role_id;
   const [openMenuId, setOpenMenuId] = useState(null);
@@ -72,13 +74,13 @@ const UsersSection = ({
             <p className="text-sm text-red-500 text-center py-4">
               {error}
             </p>
-          ) : users.length > 0 ? (
-            users.map((user, i) => {
+          ) : users?.length > 0 ? (
+            users?.map((user, i) => {
               const userName = typeof user === 'object' ? user.name : user;
               const userEmail = typeof user === 'object' ? user.email : '';
               const userInitial = userName ? userName.charAt(0).toUpperCase() : '?';
               const userId = typeof user === 'object' ? user.id : i;
-              
+
               return (
                 <div
                   key={userId}
@@ -138,7 +140,7 @@ const UsersSection = ({
             </p>
           )}
         </div>
-        
+
         {[1, 2].includes(roleId) && (
           <button
             onClick={() => setShowCreateModal(true)}

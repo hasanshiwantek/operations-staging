@@ -11,6 +11,9 @@ import {
   deleteOrderType,
 } from "../store/orderTypeSlice"; // ← make sure path is correct
 
+
+
+
 const OrderTypeTable = () => {
   const [showModal, setShowModal] = useState(false);
   const [editData, setEditData] = useState(null);
@@ -45,6 +48,7 @@ const OrderTypeTable = () => {
     setEditData(item);
     setShowModal(true);
   };
+  console.log("orderTypes", orderTypes);
 
   // Delete
   const handleDelete = async (item) => {
@@ -159,7 +163,7 @@ const OrderTypeTable = () => {
                   className="border-b last:border-b-0 hover:bg-gray-50 transition"
                 >
                   <td className="px-6 py-4 text-gray-800 font-medium capitalize">
-                    {item.type}
+                    {item.type.toUpperCase()}
                   </td>
 
                   <td className="px-6 py-4">

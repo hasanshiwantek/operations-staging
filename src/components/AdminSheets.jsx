@@ -27,6 +27,7 @@ const AdminSheets = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingSheet, setEditingSheet] = useState(null); // track edit
   const [selectedFile, setSelectedFile] = useState(null);
+  const [loading, setLoading] = useState(false)
   const {
     register,
     handleSubmit,
@@ -57,29 +58,39 @@ const AdminSheets = () => {
     setValue("sheet_id", sheet.sheet_id);
     setShowModal(true);
   };
-
   const onSubmit = async (data) => {
+    setLoading(true)
     try {
+
       if (editingSheet) {
-        const result = await dispatch(updateSheet({ id: editingSheet.id, ...data })).unwrap();
-        toast.success("Sheet updated successfully");
+        await dispatch(
+          updateSheet({ id: editingSheet.id, ...data })
+        ).unwrap();
+
       } else {
-        const result = await dispatch(createSheetStore(data)).unwrap();
-        toast.success("Sheet created successfully");
+
+        await dispatch(createSheetStore(data)).unwrap().then(() => {
+          // Close only after everything succeeds
+          setShowModal(false);
+          setEditingSheet(null);
+          reset();
+        });
       }
 
-      // ✅ Success ke baad hi close karo
+      // Refresh list after successful operation
+      await dispatch(fetchSheets()).unwrap();
+
+      // Close only after everything succeeds
       setShowModal(false);
+      setEditingSheet(null);
       reset();
-      setEditingSheet(null); // ✅ editing state bhi clear karo
 
     } catch (err) {
-      // Error already state mein set ho gaya hai
       toast.error(err || "Operation failed");
-      // ❌ Modal close NAHI karna error pe
+    } finally {
+      setLoading(false)
     }
   };
-
   const handleDelete = async (id) => {
     if (!window.confirm("Are you sure you want to delete this sheet?")) return;
 
@@ -240,11 +251,11 @@ const AdminSheets = () => {
 
               <button
                 type="submit"
-                disabled={updateLoading || createLoading}
+                disabled={loading}
                 className={`w-full py-2 px-4 rounded-lg text-white mt-2 
-              ${updateLoading || createLoading ? "bg-gray-400 cursor-not-allowed" : "bg-blue-500 hover:bg-blue-600"} transition-colors`}
+              ${loading ? "bg-gray-400 cursor-not-allowed" : "bg-blue-500 hover:bg-blue-600"} transition-colors`}
               >
-                {updateLoading ? "Updating..." : createLoading ? "Creating..." : editingSheet ? "Update" : "Create"}
+                {loading ? "Saving..." : editingSheet ? "Update" : "Create"}
               </button>
             </form>
           </div>
