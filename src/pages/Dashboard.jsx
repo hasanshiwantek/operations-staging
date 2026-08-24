@@ -18,6 +18,7 @@ import { toNumber } from "../utils/constant";
 import { useNavigate } from "react-router-dom";
 import OrderDetailModal from "../components/OrderDetailModal";
 import OrderListTable from "../components/OrderListTable";
+import { getPermissionsByStoreId } from "../store/permissionsSlice";
 const tabs = [
   {
     label: "Dashboard",
@@ -140,6 +141,34 @@ const Dashboard = () => {
   const [showUserModal, setShowUserModal] = useState(false);
   const [hasFetchedUsers, setHasFetchedUsers] = useState(false);
   const { user, storeId } = useSelector((state) => state?.auth);
+  const { userPermissions } = useSelector((state) => state?.permissions);
+  const roleId = user?.role_id;
+  const permissions = userPermissions
+  
+  const hasPermission = (slug) => {
+    // Super Admin / Admin → full access
+    if (roleId === 1 || roleId === 2) return true;
+
+    return permissions.some((p) => p.slug === slug);
+  };
+  // Helper: check by parent name or id (optional)
+  const hasParentPermission = (parentSlug) => {
+    if (roleId === 1 || roleId === 2) return true;
+    return permissions.some((p) => p.slug === parentSlug || p.slug?.startsWith(parentSlug + "."));
+  };
+  // Available tabs based on permissions
+  const availableTabs = [
+    {
+      label: "Dashboard",
+      value: "dashboard",
+      permission: "dashboard", // parent slug
+    },
+    {
+      label: "View Sheet",
+      value: "view-sheet",
+      permission: "view_sheet", // parent slug
+    },
+  ].filter((tab) => hasParentPermission(tab.permission));
 
   const userAccess = user?.page_access?.page_name
     ? Array.isArray(user.page_access.page_name)
@@ -147,7 +176,6 @@ const Dashboard = () => {
       : Object.values(user.page_access.page_name) // object → array
     : [];
 
-  const roleId = user?.role_id;
   // Backend se aaya hua raw data
   // Agar Orders = backend response
   const orderData = Orders?.map(order => ({
@@ -171,13 +199,17 @@ const Dashboard = () => {
 
   const procuredByList = [...new Set(orderData.map(o => o?.procured_by).filter(Boolean))];
   // ["Bill Dawson", "Mike"]
-  const hasAccess = (page) => {
-    // Super Admin / Admin
+  // For status filters (All, Delivered, Intransit, etc.)
+  // These belong under "dashboard.home"
+  const hasAccess = (filter) => {
     if (roleId === 1 || roleId === 2) return true;
 
-    return userAccess.includes(page);
+    // If user has the parent "dashboard" or specifically "dashboard.home"
+    return (
+      hasPermission("dashboard") ||
+      hasPermission("dashboard.home")
+    );
   };
-
   const toggleUserModal = () => setShowUserModal(prev => !prev);
 
 
@@ -265,16 +297,6 @@ const Dashboard = () => {
     return userfiltered;
   }, [users, userSearch, authUser.id]);
 
-  // === Stats ===
-  // const totalOrders = orderData.length; // Total orders
-  // const orderValue = orderData.reduce((sum, order) => sum + (order?.totalPrice || 0), 0); // Sum of price
-  // const grossProfit = orderData.reduce((sum, order) => sum + ((order?.grossProfit || 0)), 0);
-  // // const grossProfit = orderData.reduce((sum, order) => sum + ((order?.grossProfit || 0) * 0.2), 0);
-  // // Example: assume 20% profit. Replace with real logic if you have
-  // const deliveredCount = orderData.filter(
-  //   o => o.status?.toLowerCase() === "completed" // match backend delivered
-  // ).length;
-
   const selectedOrderIds = filteredOrders?.map((item) => String(item?.order_id));
   const matchedOrders = Orders?.filter((order) =>
     selectedOrderIds?.includes(String(order?.["Order#"]))
@@ -285,6 +307,9 @@ const Dashboard = () => {
   const deliveredCount = filteredOrders.filter(
     o => o.status?.toLowerCase() === "delivered"
   ).length;
+
+  // Helper: check if user has a permission by slug
+
   useEffect(() => {
     localStorage.setItem("activeTab", activeTab);
   }, [activeTab]);
@@ -375,7 +400,7 @@ const Dashboard = () => {
         ))}
       </div>
 
-      <div className="flex border-b mb-2">
+      {/* <div className="flex border-b mb-2">
         <button
           onClick={() => setActiveTab("dashboard")}
           className={`px-4 py-2 ${activeTab === "dashboard"
@@ -395,8 +420,25 @@ const Dashboard = () => {
         >
           View Sheet
         </button>
-      </div>
-      {activeTab === "dashboard" ? <>
+      </div> */}
+      {/* ==== Tabs ==== */}
+      {availableTabs.length > 0 && (
+        <div className="flex border-b mb-2">
+          {availableTabs.map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => setActiveTab(tab.value)}
+              className={`px-4 py-2 ${activeTab === tab.value
+                ? "border-b-2 border-blue-600 font-semibold text-blue-600"
+                : "text-gray-500 hover:text-gray-700"
+                }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
+      {activeTab === "dashboard" && hasParentPermission("dashboard") ? <>
         {/* ==== Orders Section ==== */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8" >
           {/* === Orders List === */}
@@ -468,7 +510,13 @@ const Dashboard = () => {
           }
         </div>
 
-      </> : <OrderListTable Orders={matchedOrders} />}
+      </> : activeTab === "view-sheet" && hasParentPermission("view_sheet") ? (
+        <OrderListTable Orders={matchedOrders} />
+      ) : (
+        <div className="flex justify-center items-center h-64">
+          {/* <NotAllowed /> */}
+        </div>
+      )}
 
       {
         showDateFilter && (

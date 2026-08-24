@@ -10,8 +10,9 @@ import {
 import addUserIcon from "../assets/adduser-icon.svg";
 import { useDispatch, useSelector } from "react-redux";
 import { deleteUser, fetchUsers, updateUser } from "../store/usersSlice";
-import { register } from "../store/authSlice";
+import { getRoles, register } from "../store/authSlice";
 import { toast } from "react-toastify";
+import { Permissions } from "./Permissions";
 
 const pageAccessOptions = [
   {
@@ -31,12 +32,7 @@ const pageAccessOptions = [
     tabs: ["Order", "Invoice", "Customer", "Vendor", "Total price & Profit"],
   },
 ];
-const departments = [
-  { id: 1, name: "Superadmin" },
-  { id: 2, name: "Admin" },
-  { id: 3, name: "Finance" },
-  { id: 4, name: "Operations" },
-];
+
 // Helper function to convert page_name array to pageAccess object
 const convertPageNamesToPageAccess = (pageNames) => {
   if (!pageNames || !Array.isArray(pageNames)) return {};
@@ -63,9 +59,10 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
   const [expandedPages, setExpandedPages] = useState({});
   const dispatch = useDispatch();
   const { user, storeId, loading } = useSelector((state) => state.auth);
+  const { roles, rolesLoading, error } = useSelector((state) => state.auth);
   const { updateLoading } = useSelector((state) => state.users);
-  const roles = user?.roles;
   const isEditMode = !!editUser;
+  const [errors, setErrors] = useState({});
 
   // Initialize form with edit data if available
   const getInitialPageAccess = () => {
@@ -80,15 +77,22 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
     return editUser.page_access || {};
   };
 
+  // const [formData, setFormData] = useState({
+  //   name: editUser?.name || "",
+  //   email: editUser?.email || "",
+  //   role: editUser?.department_id,
+  //   pageAccess: getInitialPageAccess(),
+  //   colour_code: editUser?.colour_code
+  // });
   const [formData, setFormData] = useState({
     name: editUser?.name || "",
     email: editUser?.email || "",
-    role: editUser?.department_id,
-    pageAccess: getInitialPageAccess(),
-    colour_code: editUser?.colour_code
+    role: editUser?.department_id || editUser?.role_id || "",
+    colour_code: editUser?.colour_code || "",
+    permission_ids: editUser?.permissions?.map((p) => p.id) || [], // ✅ correct
   });
 
-  const [errors, setErrors] = useState({});
+
 
   // Debug: Log the converted page access
 
@@ -104,90 +108,50 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
 
     if (!formData?.role) newErrors.role = "Role is required";
 
-    if (formData?.role == 3) {
-      if (!formData?.colour_code) newErrors.colour_code = "Colour is required"
-    }
-    // Password validation only for create mode or if password is entered in edit mode
-    if (!isEditMode) {
-
-    } else if (formData.password) {
-      // In edit mode, only validate if password is provided
-      // if (formData.password.length < 6) {
-      //   newErrors.password = "Min 6 characters";
-      // }
-      // if (formData.password !== formData.confirmPassword) {
-      //   newErrors.confirmPassword = "Passwords do not match";
-      // }
+    if (formData?.role == 3 && !formData?.colour_code) {
+      newErrors.colour_code = "Colour is required";
     }
 
-    // if (!formData.role) newErrors.role = "Role is required";
-    if (Object.keys(formData.pageAccess).length === 0) {
-      newErrors.pageAccess = "Select at least one page access";
+    if (!formData.permission_ids || formData.permission_ids.length === 0) {
+      newErrors.pageAccess = "Select at least one permission";
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    const departmentsDetail = departments?.find((item) => item?.id == formData?.role)
-
     if (!validateForm()) return;
 
-    // Format page access for API
-    const pageAccessArray = [];
-    Object.entries(formData.pageAccess).forEach(([page, tabs]) => {
-      if (tabs && tabs.length > 0) {
-        tabs.forEach((tab) => {
-          pageAccessArray.push(tab);
-        });
-      }
-    });
+    const roleDetail = roles?.find((item) => item?.id == formData?.role);
+
+    const payload = {
+      name: formData.name,
+      email: formData.email,
+      role_id: Number(roleDetail?.id),
+      colour_code: formData.colour_code || null,
+      permission_ids: formData.permission_ids, // ← dynamic now
+    };
+
+    // Optional: if you still need colour_name
+    // payload.colour_name = "Blue"; // or map from colour_code
 
     if (isEditMode) {
-      // Update user
-      const payload = {
-        name: formData.name,
-        email: formData.email,
-        role_id: Number(storeId?.id),
-        page_name: pageAccessArray,
-        colour_code: formData?.colour_code,
-        "department_name": departmentsDetail?.name?.toLowerCase(),
-        "department_id": departmentsDetail?.id
-      };
-      // // Only include password if it's provided
-      // if (formData.password) {
-      //   payload.password = formData.password;
-      //   payload.password_confirmation = formData.confirmPassword;
-      // }
-
       const result = await dispatch(
-        updateUser({ id: editUser.id, data: payload }),
+        updateUser({ id: editUser.id, data: payload })
       );
 
       if (updateUser.fulfilled.match(result)) {
-        dispatch(fetchUsers())
+        dispatch(fetchUsers());
         onClose();
       } else {
-        toast.error("Failed to update user. Please try again."); // ❌ error toast
+        toast.error("Failed to update user. Please try again.");
       }
     } else {
-      // Create user
-      const payload = {
-        name: formData.name,
-        email: formData.email,
-        role_id: Number(storeId?.id),
-        page_name: pageAccessArray,
-        colour_code: formData?.colour_code,
-        "department_name": departmentsDetail?.name?.toLowerCase(),
-        "department_id": departmentsDetail?.id
-      };
       const result = await dispatch(register(payload));
 
       if (register.fulfilled.match(result)) {
-        dispatch(fetchUsers())
+        dispatch(fetchUsers());
         onClose();
       } else {
         toast.error("Failed to create user. Please try again.");
@@ -240,6 +204,9 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
     const currentTabs = formData.pageAccess[page] || [];
     return tabs.every((tab) => currentTabs.includes(tab));
   };
+  useEffect(() => {
+    dispatch(getRoles());
+  }, [dispatch]);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex justify-center items-center z-50 p-4">
@@ -297,91 +264,13 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
               </p>
             </div>
           </div>
-
-
-          {/* <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm text-gray-600 font-medium">
-                Password{" "}
-                {isEditMode && (
-                  <span className="text-gray-400">(optional)</span>
-                )}
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  placeholder={
-                    isEditMode
-                      ? "Leave blank to keep current"
-                      : "Enter secure password"
-                  }
-                  value={formData.password}
-                  onChange={(e) =>
-                    setFormData({ ...formData, password: e.target.value })
-                  }
-                  className={`w-full mt-1 p-2 pr-10 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${errors.password ? "border-red-400" : "border-gray-200"
-                    }`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((prev) => !prev)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-              <p className="text-xs text-red-500 min-h-[16px] mt-1">
-                {errors.password || " "}
-              </p>
-            </div>
-
-            <div>
-              <label className="text-sm text-gray-600 font-medium">
-                Confirm password{" "}
-                {isEditMode && (
-                  <span className="text-gray-400">(optional)</span>
-                )}
-              </label>
-              <div className="relative">
-                <input
-                  type={showConfirmPassword ? "text" : "password"}
-                  placeholder="Re-enter password"
-                  value={formData.confirmPassword}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      confirmPassword: e.target.value,
-                    })
-                  }
-                  className={`w-full mt-1 p-2 pr-10 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${errors.confirmPassword
-                    ? "border-red-400"
-                    : "border-gray-200"
-                    }`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword((prev) => !prev)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
-                >
-                  {showConfirmPassword ? (
-                    <EyeOff size={18} />
-                  ) : (
-                    <Eye size={18} />
-                  )}
-                </button>
-              </div>
-              <p className="text-xs text-red-500 min-h-[16px] mt-1">
-                {errors.confirmPassword || " "}
-              </p>
-            </div>
-          </div> */}
-
           <div className="grid grid-cols-1 gap-4">
             <div>
               <label className="text-sm text-gray-600 font-medium">
                 Select Role/Department
               </label>
               <select
+                disabled={editUser}
                 value={formData.role}
                 onChange={(e) => {
                   setFormData({ ...formData, role: e.target.value, colour_code: null });
@@ -390,7 +279,7 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
                   }`}
               >
                 <option value="">Select a role</option>
-                {departments?.map((role) => (
+                {roles?.map((role) => (
                   <option key={role.id} value={role.id.toString()}>
                     {role.name}
                   </option>
@@ -455,7 +344,7 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
               Page access
             </label>
 
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
+            {/* <div className="border border-gray-200 rounded-lg overflow-hidden">
               {pageAccessOptions.map((item, index) => {
                 const isExpanded = expandedPages[item.page];
                 const selected = isPageSelected(item.page);
@@ -528,8 +417,13 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
                   </div>
                 );
               })}
-            </div>
-
+            </div> */}
+            <Permissions
+              selectedIds={formData.permission_ids}
+              onChange={(ids) =>
+                setFormData((prev) => ({ ...prev, permission_ids: ids }))
+              }
+            />
             <p className="text-xs text-red-500 min-h-[16px] mt-1">
               {errors.pageAccess || " "}
             </p>

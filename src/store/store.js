@@ -5,6 +5,7 @@ import authReducer from './authSlice';
 import usersReducer from './usersSlice';
 import attributeReducer from "./attributeSlice";
 import orderTypeReducer from "./orderTypeSlice";
+import permissionsReducer from "./permissionsSlice";
 
 // Persist configuration for auth
 const authPersistConfig = {
@@ -24,6 +25,7 @@ export const store = configureStore({
     users: usersReducer,
     attributes: attributeReducer,
     orderTypes: orderTypeReducer,
+    permissions: permissionsReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

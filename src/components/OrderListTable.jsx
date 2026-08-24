@@ -6,8 +6,6 @@ import autoTable from 'jspdf-autotable';   // ← Changed import
 import EditOrderDetailModal from './EditOrderDetailModal';
 import Handsontable from 'handsontable';
 import { fetchOrdersAdmin, fetchOrders, postOrderFiles, updateOrderFiles, createGenerateId, postSyncOrder, importOrderFiles, fetchOrderOptions } from '../store/usersSlice';
-// import { columnsOfSheet, getFieldChecked, getFieldValue, getIsAdmin } from '../utils/constant';
-// import { columnsOfSheet, getFieldChecked, getFieldValue, getFieldHighlight, getIsAdmin } from '../utils/constant';
 import {
   columnsOfSheet,
   getFieldChecked,
@@ -224,15 +222,15 @@ const resolveCellColor = (order, column) => {
 
 
 function OrderListTable({ }) {
+  const dispatch = useDispatch();
   const hotRef = useRef(null);
   const isRightClickRef = useRef(false);
   const isContextMenuOpen = useRef(false);
   const [tableOrders, setTableOrders] = useState(() => applySavedCheckboxState(Orders));
-  const dispatch = useDispatch();
   const { orderloading, syncLoading } = useSelector((state) => state.users);
   const { token, storeId, user: authUser } = useSelector((state) => state.auth);
   const { user } = useSelector((state) => state?.auth);
-  const allowCheck = [1, 2, 3].includes(user?.role_id)
+  const { userPermissions } = useSelector((state) => state?.permissions);
   const { orderTypesMap } = useSelector((state) => state.orderTypes);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isRMAMode, setIsRMAMode] = useState(false);
@@ -246,6 +244,13 @@ function OrderListTable({ }) {
     count: 0,
     visible: false,
   });
+  const permissions = userPermissions || [];
+  const roleId = user?.role_id;
+  const hasPermission = (slug) => {
+    // Super Admin / Admin → full access
+    if (roleId === 1 || roleId === 2) return true;
+    return permissions?.some((p) => p.slug === slug);
+  };
 
 
   // const filteredOrders = useMemo(() => {
@@ -276,6 +281,8 @@ function OrderListTable({ }) {
       return type === orderTypeFilter;
     });
   }, [tableOrders, orderTypeFilter]);
+
+
 
   // Add these calculations inside the component (before the return)
   const summary = useMemo(() => {
@@ -529,57 +536,7 @@ function OrderListTable({ }) {
 
     input.click();
   };
-  // const handleSaveCheckedFields = async () => {
-  //   const isAdmin = getIsAdmin();
 
-  //   const checkboxFields = [
-  //     "Price",
-  //     "Shipping",
-  //     "Tax",
-  //     "Cost",
-  //     "Vendor Shipping",
-  //     "Vendor Tax",
-  //     "Courier Charges",
-  //     "Sales Tax",
-  //     "Warehouse Charges",
-  //     "Custom Duties",
-  //     "CC/Paypal 4%",
-  //   ];
-
-  //   const payload = (filteredOrders || [])
-  //     .map((order) => {
-  //       const fields = {};
-
-  //       checkboxFields.forEach((field) => {
-  //         const checked = getFieldChecked(order[field]);
-  //         const highlighted = getFieldHighlight(order[field]);
-
-  //         // skip if nothing changed
-  //         if (checked === highlighted) return;
-
-  //         fields[field] = {
-  //           value: getFieldValue(order[field]),
-  //           isTrue: checked,
-  //           isHighlight: checked, // commit
-  //           colorCode: !isAdmin ? "blue" : "",
-  //         };
-  //       });
-
-  //       if (Object.keys(fields).length === 0) return null;
-
-  //       return {
-  //         order_id: order["Order#"],
-  //         ...fields,
-  //       };
-  //     })
-  //     .filter(Boolean);
-
-  //   console.log("isAdmin:", isAdmin);
-  //   console.log("SAVE PAYLOAD:", payload);
-
-  //   // after a successful API call:
-  //   // dispatch(fetchOrdersAdmin(storeId?.id));
-  // };
   const handleSaveCheckedFields = async () => {
     const isAdmin = getIsAdmin();
     const hot = hotRef.current?.hotInstance;
@@ -599,7 +556,7 @@ function OrderListTable({ }) {
             value: getFieldValue(order[field]),
             isTrue: checked,
             isHighlight: checked,
-            colorCode: "blue"
+            colorCode: user?.colour_code
           };
         });
 
@@ -640,7 +597,11 @@ function OrderListTable({ }) {
   // };
 
   const ensureColorClass = (color) => {
-    const safe = String(color).replace(/[^a-zA-Z0-9#-]/g, "");
+    // const safe = String(color).replace(/[^a-zA-Z0-9#-]/g, "");
+    // Remove # and any invalid characters
+    const safe = String(color)
+      .replace(/#/g, "hex")           // #0000FF → hex0000FF
+      .replace(/[^a-zA-Z0-9_-]/g, "");
     const className = `dyn-color-${safe}`;
     const styleId = `style-${className}`;
 
@@ -658,6 +619,7 @@ function OrderListTable({ }) {
     `;
       document.head.appendChild(style);
     }
+    console.log('className', className);
 
     return className;
   };
@@ -716,6 +678,7 @@ function OrderListTable({ }) {
     }
 
     if (color) {
+      console.log("color", color);
       cellProperties.className = `${cellProperties.className || ""} ${ensureColorClass(color)}`.trim();
     }
 
@@ -784,6 +747,8 @@ function OrderListTable({ }) {
       dispatch(fetchOrderTypesMap(storeId.id));
     }
   }, [storeId?.id]);
+
+
   if (orderloading) {
     return (
       <div style={{ padding: '40px', textAlign: 'center' }}>
@@ -1016,19 +981,19 @@ function OrderListTable({ }) {
             >
               Save
             </button>
-            <button
+            {hasPermission("view_sheet.sync_orders") && (<button
               onClick={handleSyncOrders}
               style={{ padding: '8px 16px', background: 'gray', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
             >
               {syncLoading ? "Sync..." : "Sync Orders"}
-            </button>
-            <button
+            </button>)}
+            {hasPermission("view_sheet.download_excel") && (<button
               onClick={exportToExcel}
               style={{ padding: '8px 16px', background: '#4CAF50', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
             >
               Download Excel
-            </button>
-            <button
+            </button>)}
+            {hasPermission("view_sheet.import_excel") && (<button
               onClick={importExcel}
               style={{
                 padding: "8px 16px",
@@ -1040,16 +1005,18 @@ function OrderListTable({ }) {
               }}
             >
               Import Excel
-            </button>
-            <ExportOrdersPdf orders={filteredOrders || []} />
-
-            <button
+            </button>)}
+            {/* Export PDF */}
+            {hasPermission("view_sheet.export_pdf") && (
+              <ExportOrdersPdf orders={filteredOrders || []} />
+            )}
+            {hasPermission("view_sheet.add_order") && (<button
               onClick={() => setIsAddMode(true)}
               className="bg-indigo-600"
               style={{ padding: '8px 16px', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: "center" }}
             >
               + Add Order
-            </button>
+            </button>)}
           </div>
         </div>
         {/* Summary Bar */}

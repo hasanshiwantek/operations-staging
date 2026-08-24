@@ -1,6 +1,7 @@
-import React from "react";
-
+import React, { useEffect } from "react";
+import { useDispatch } from "react-redux";
 const Footer = () => {
+
   return (
     <footer className="bg-[#1C1C1C] text-gray-300 py-4">
       <div className="max-w-7xl mx-auto px-4 text-center ">

@@ -99,7 +99,7 @@ export const fetchOrderTypesMap = createAsyncThunk(
     async (roleId, { rejectWithValue }) => {
         try {
             const response = await axiosInstance.get(
-                `/order-types/map?role_id=${roleId}`
+                `/order-types/map`
             );
             return response.data; // { rma: "#22c55e", po: "#22c55e", cancelled: "#22c55e" }
         } catch (error) {

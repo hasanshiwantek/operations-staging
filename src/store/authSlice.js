@@ -10,6 +10,8 @@ const initialState = {
   signInLoading: false,
   loading: false,
   error: null,
+  roles: [],           // added
+  rolesLoading: false, // added
 };
 
 // Login async thunk
@@ -42,23 +44,17 @@ export const register = createAsyncThunk(
   }
 );
 
-export const getRolesByStoreId = createAsyncThunk(
-  "roles/getRolesByStoreId",
-  async ({ token, storeId }, { rejectWithValue }) => {
-    try {
-      const response = await axiosInstance.get(
-        "/auth/get-role-by-store-id",
-        {
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-            "store-id": storeId,
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
 
-      return response.data;
+// ✅ NEW: Get all roles  →  GET /auth/roles
+export const getRoles = createAsyncThunk(
+  "auth/getRoles",
+  async (_, { getState, rejectWithValue }) => {
+    try {
+      const { token } = getState().auth;
+
+      const response = await axiosInstance.get("/auth/roles");
+
+      return response.data; // expected shape: { status: true, data: [...] }
     } catch (error) {
       return rejectWithValue(
         error.response?.data?.message ||
@@ -68,6 +64,7 @@ export const getRolesByStoreId = createAsyncThunk(
     }
   }
 );
+
 const authSlice = createSlice({
   name: 'auth',
   initialState,
@@ -128,6 +125,24 @@ const authSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
       })
+
+      // Get Roles (new)
+      .addCase(getRoles.pending, (state) => {
+        state.rolesLoading = true;
+        state.error = null;
+      })
+      .addCase(getRoles.fulfilled, (state, action) => {
+        state.rolesLoading = false;
+        // Based on your sample response
+        state.roles = action.payload?.data || action.payload || [];
+        state.error = null;
+      })
+      .addCase(getRoles.rejected, (state, action) => {
+        state.rolesLoading = false;
+        state.roles = [];
+        state.error = action.payload;
+      })
+
       // When super admin (or any user) updates own profile, sync auth.user
       .addCase(updateUser.fulfilled, (state, action) => {
         const updated = action.payload?.data;

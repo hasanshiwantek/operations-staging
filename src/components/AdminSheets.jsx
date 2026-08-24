@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "react-toastify";
-import { X, Plus, Edit, Trash2 } from "lucide-react";
+import { X, Plus, Edit, Trash2, ArrowLeft } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 import {
@@ -104,8 +104,18 @@ const AdminSheets = () => {
 
   return (
     <div className="p-6">
+      <div className="mb-6">
+        <button
+          type="button"
+          onClick={() => navigate("/dashboard")}
+          className="flex items-center gap-2 text-gray-600 hover:text-indigo-600 font-medium transition-colors"
+        >
+          <ArrowLeft size={18} />
+          Back
+        </button>
+      </div>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-3">
-        <h1 className="text-xl font-semibold">Sheets Admin</h1>
+        <h1 className="text-xl font-semibold">All Store</h1>
 
         {/* Buttons + File Selector */}
         <div className="flex flex-col md:flex-row gap-2 items-start md:items-center">
@@ -126,13 +136,12 @@ const AdminSheets = () => {
             onClick={openCreateModal}
             className="flex items-center gap-1 bg-indigo-600 text-white px-3 py-1 rounded-lg hover:bg-indigo-700"
           >
-            <Plus size={16} /> Add Sheet
+            <Plus size={16} /> Add Store
           </button>
 
 
           {/* Download Button */}
-
-          <div className="p-4 bg-gray-50 rounded-md shadow-sm max-w-full flex flex-col md:flex-row md:items-center md:gap-4">
+          {/* <div className="p-4 bg-gray-50 rounded-md shadow-sm max-w-full flex flex-col md:flex-row md:items-center md:gap-4">
             <p className="font-semibold text-gray-700 mb-2 md:mb-0">Example Files:</p>
             <div className="flex flex-col md:flex-row gap-2 md:gap-4">
               <a
@@ -150,10 +159,7 @@ const AdminSheets = () => {
                 example.csv
               </a>
             </div>
-          </div>
-
-
-
+          </div> */}
         </div>
       </div>
 
@@ -165,7 +171,6 @@ const AdminSheets = () => {
             <tr>
               <th className="p-2 border text-left">Name</th>
               <th className="p-2 border text-left">Store Name</th>
-              <th className="p-2 border text-left">Sheet ID</th>
               <th className="p-2 border text-left">Actions</th>
             </tr>
           </thead>
@@ -179,10 +184,9 @@ const AdminSheets = () => {
             ) : sheetsData.length ? (
               sheetsData.map((sheet) => (
                 <tr key={sheet.id} className="hover:bg-gray-50 text-center md:text-left">
-                  <td className="p-2 border">{sheet.name}</td>
-                  <td className="p-2 border">{sheet.store_name}</td>
-                  <td className="p-2 border">{sheet.sheet_id}</td>
-                  <td className="p-2 border flex gap-2 justify-center md:justify-start">
+                  <td className="p-2 ">{sheet.name}</td>
+                  <td className="p-2 ">{sheet.store_name}</td>
+                  <td className="p-2  flex gap-2 justify-center md:justify-start">
                     <button
                       onClick={() => openEditModal(sheet)}
                       className="text-blue-500 hover:text-blue-700"
@@ -222,7 +226,7 @@ const AdminSheets = () => {
               <X size={20} />
             </button>
             <h2 className="text-lg font-semibold text-gray-800 mb-4 text-center">
-              {editingSheet ? "Edit Sheet" : "Create New Sheet"}
+              {editingSheet ? "Edit Store" : "Create New Store"}
             </h2>
             <form className="flex flex-col gap-3" onSubmit={handleSubmit(onSubmit)}>
               <input
@@ -241,13 +245,13 @@ const AdminSheets = () => {
               />
               {errors.store_name && <span className="text-red-500 text-xs">{errors.store_name.message}</span>}
 
-              <input
+              {/* <input
                 type="text"
                 placeholder="Sheet ID"
                 {...register("sheet_id", { required: "Sheet ID is required" })}
                 className="border p-2 rounded-lg text-sm w-full"
               />
-              {errors.sheet_id && <span className="text-red-500 text-xs">{errors.sheet_id.message}</span>}
+              {errors.sheet_id && <span className="text-red-500 text-xs">{errors.sheet_id.message}</span>} */}
 
               <button
                 type="submit"

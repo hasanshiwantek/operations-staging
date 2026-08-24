@@ -36,6 +36,7 @@ const StoreSelection = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const [store, setStore] = useState("");
+  const [loading, setLoading] = useState(false); // ✅ loading state
   const { user, storeId, token } = useSelector((state) => state.auth);
   const stores = user?.stores
 
@@ -51,33 +52,32 @@ const StoreSelection = () => {
 
     const selectedStore = stores?.find((s) => s?.id === Number(store));
     if (selectedStore) {
-      if (user?.role_id == 1 || user?.role_id == 2) {
-        dispatch(setStoreId(selectedStore));
-      } else {
-        try {
-          const result = await getRolesByStoreId(token, selectedStore?.id);
+      setLoading(true);
+      try {
+        const result = await getRolesByStoreId(token, selectedStore?.id);
 
-          const roleData = {
-            ...user,
-            role_id: result?.role?.id,
-            role_name: result?.role?.name
-          }
-          let persistedAuth = JSON.parse(
-            localStorage.getItem("persist:auth")
-          );
-
-          if (persistedAuth?.user && roleData) {
-            persistedAuth.user = JSON.stringify(roleData);
-
-            localStorage.setItem(
-              "persist:auth",
-              JSON.stringify(persistedAuth)
-            );
-          }
-          dispatch(setStoreId(selectedStore));
-        } catch (error) {
-          console.error("Failed to fetch roles:", error);
+        const roleData = {
+          ...user,
+          role_id: result?.role?.id,
+          role_name: result?.role?.name
         }
+        let persistedAuth = JSON.parse(
+          localStorage.getItem("persist:auth")
+        );
+
+        if (persistedAuth?.user && roleData) {
+          persistedAuth.user = JSON.stringify(roleData);
+
+          localStorage.setItem(
+            "persist:auth",
+            JSON.stringify(persistedAuth)
+          );
+        }
+        dispatch(setStoreId(selectedStore));
+      } catch (error) {
+        console.error("Failed to fetch roles:", error);
+      } finally {
+        setLoading(false); // stop loading
       }
     }
   };
@@ -124,10 +124,11 @@ const StoreSelection = () => {
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={!store}
+            disabled={!store || loading}
+
             className="w-full bg-indigo-600 text-white py-2 rounded-lg font-semibold hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Submit
+            {loading ? "Loading..." : "Submit"}
           </button>
         </form>
       </div>

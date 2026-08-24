@@ -64,7 +64,7 @@ export const postOrderFiles = createAsyncThunk(
   "orderFiles/postOrderFiles",
   async ({ payload, role_id }, { rejectWithValue }) => {
     try {
-      const response = await axiosInstance.post(`order-files?role_id=${role_id}`, payload);
+      const response = await axiosInstance.post(`order-files`, payload);
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || error.message || "Failed to post order files");
@@ -97,7 +97,7 @@ export const updateOrderFiles = createAsyncThunk(
   async ({ id, data, role_id }, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.put(
-        `order-files/${id}?role_id=${role_id}`,
+        `order-files/${id}`,
         data
       );
       return response.data; // updated user return karo
@@ -132,7 +132,7 @@ export const fetchOrdersAdmin = createAsyncThunk(
   "users/fetchOrdersAdmin",
   async (role_id, { rejectWithValue }) => {
     try {
-      const response = await axiosInstance.get(`/order-files?role_id=${role_id}`);
+      const response = await axiosInstance.get(`/order-files`);
       // const response = await axiosInstance.get(`/order-files?sheet_id=${storeId}`);
       return response.data; // single order object
     } catch (error) {
@@ -164,7 +164,7 @@ export const fetchSingleOrderAdmin = createAsyncThunk(
   async ({ orderId, role_id }, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.get(
-        `/order-files/${orderId}?role_id=${role_id}`
+        `/order-files/${orderId}`
         // `/my-sheet-order?order_id=${orderId}&sheet_id=${sheetId}`
       );
       return response.data; // single order object
@@ -187,7 +187,7 @@ export const createSheetStore = createAsyncThunk(
       formData.append("sheet_id", sheet_id);
 
       const response = await axiosInstance.post(
-        "/auth/roles", // 👈 yahan apna endpoint confirm kar lena
+        "/auth/admin/stores", // 👈 yahan apna endpoint confirm kar lena
         formData,
         {
           headers: {
@@ -212,7 +212,7 @@ export const fetchSheets = createAsyncThunk(
   "users/fetchSheets",
   async (_, { rejectWithValue }) => {
     try {
-      const response = await axiosInstance.get("auth/roles"); // 👈 your endpoint
+      const response = await axiosInstance.get("auth/admin/stores"); // 👈 your endpoint
       return response.data; // should return array of sheets
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || error.message || "Failed to fetch sheets");
@@ -225,7 +225,7 @@ export const deleteSheet = createAsyncThunk(
   "users/deleteSheet",
   async (id, { rejectWithValue }) => {
     try {
-      const response = await axiosInstance.delete(`auth/roles/${id}`);
+      const response = await axiosInstance.delete(`auth/admin/stores/${id}`);
       return id; // return the deleted id so we can remove it from the state
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || error.message || "Failed to delete sheet");
@@ -239,7 +239,7 @@ export const updateSheet = createAsyncThunk(
   "users/updateSheet",
   async ({ id, name, store_name, sheet_id }, { rejectWithValue }) => {
     try {
-      const response = await axiosInstance.put(`auth/roles/${id}`, {
+      const response = await axiosInstance.put(`auth/admin/stores/${id}`, {
         name,
         store_name,
         sheet_id,
@@ -256,7 +256,7 @@ export const fetchOrderById = createAsyncThunk(
   "users/fetchOrderById",
   async ({ orderId, role_id }, { rejectWithValue }) => {
     try {
-      const res = await axiosInstance.get(`/order-files/${orderId}?role_id=${role_id}`);
+      const res = await axiosInstance.get(`/order-files/${orderId}`);
       const result = res.data;
       const fetchedOrder = result?.data || result?.order || result;
       return fetchedOrder;
@@ -274,7 +274,7 @@ export const createGenerateId = createAsyncThunk(
     try {
 
       const response = await axiosInstance.post(
-        `/order-files/generate-id?role_id=${role_id}`,
+        `/order-files/generate-id`,
         { "Order#": orderId },
       );
 
@@ -327,7 +327,7 @@ export const fetchOrderOptions = createAsyncThunk(
   "users/fetchOrderOptions",
   async (role_id, { rejectWithValue }) => {
     try {
-      const response = await axiosInstance.get(`/order-options?role_id=${role_id}`);
+      const response = await axiosInstance.get(`/order-options`);
       return response.data;
     } catch (error) {
       return rejectWithValue(
