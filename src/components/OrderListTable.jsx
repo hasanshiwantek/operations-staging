@@ -231,6 +231,7 @@ function OrderListTable({ }) {
   const { token, storeId, user: authUser } = useSelector((state) => state.auth);
   const { user } = useSelector((state) => state?.auth);
   const { userPermissions } = useSelector((state) => state?.permissions);
+  const permissions = userPermissions || [];
   const { orderTypesMap } = useSelector((state) => state.orderTypes);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isRMAMode, setIsRMAMode] = useState(false);
@@ -244,8 +245,8 @@ function OrderListTable({ }) {
     count: 0,
     visible: false,
   });
-  const permissions = userPermissions || [];
   const roleId = user?.role_id;
+  const permissionOfSaveBtn = [1, 2, 3].includes(roleId)
   const hasPermission = (slug) => {
     // Super Admin / Admin → full access
     if (roleId === 1 || roleId === 2) return true;
@@ -619,8 +620,6 @@ function OrderListTable({ }) {
     `;
       document.head.appendChild(style);
     }
-    console.log('className', className);
-
     return className;
   };
   const cells = useCallback((row, col) => {
@@ -678,7 +677,6 @@ function OrderListTable({ }) {
     }
 
     if (color) {
-      console.log("color", color);
       cellProperties.className = `${cellProperties.className || ""} ${ensureColorClass(color)}`.trim();
     }
 
@@ -968,7 +966,7 @@ function OrderListTable({ }) {
           <h2>Dashboard - Order Sheet</h2>
 
           <div style={{ display: 'flex', gap: '12px' }}>
-            <button
+            {permissionOfSaveBtn && <button
               onClick={handleSaveCheckedFields}
               style={{
                 padding: "8px 16px",
@@ -980,7 +978,7 @@ function OrderListTable({ }) {
               }}
             >
               Save
-            </button>
+            </button>}
             {hasPermission("view_sheet.sync_orders") && (<button
               onClick={handleSyncOrders}
               style={{ padding: '8px 16px', background: 'gray', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
@@ -1135,6 +1133,11 @@ function OrderListTable({ }) {
               items: {
                 edit: {
                   name: 'Edit',
+                  hidden: function () {
+                    // Hide if user doesn't have permission
+                    if (!hasPermission("view_sheet.edit_order")) return true;
+                    return false;
+                  },
                   callback: function (key, selection) {
                     const row = selection[0].start.row;
                     handleOrderClick(row);          // your existing handler
@@ -1143,6 +1146,10 @@ function OrderListTable({ }) {
                 create_part: {
                   name: 'Create part order',
                   hidden: function () {
+
+                    // Hide if no permission
+                    if (!hasPermission("view_sheet.po")) return true;
+
                     const selected = this.getSelectedLast();
                     if (!selected) return true;
 
@@ -1182,6 +1189,8 @@ function OrderListTable({ }) {
                 rma: {
                   name: 'RMA',
                   hidden: function () {
+                    if (!hasPermission("view_sheet.rma")) return true;
+
                     const selected = this.getSelectedLast();
                     if (!selected) return true;
 
@@ -1216,11 +1225,6 @@ function OrderListTable({ }) {
                     }
                   }
                 },
-                // Optional separator
-                sp1: '---------',
-                // You can still keep some default items if needed
-                // copy: {},
-                // cut: {},
               }
             }}
             cells={cells}

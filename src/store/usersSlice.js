@@ -179,21 +179,15 @@ export const fetchSingleOrderAdmin = createAsyncThunk(
 // create order / role / sheet thunk (POST with form-data)
 export const createSheetStore = createAsyncThunk(
   "orders/createSheetStore",
-  async ({ name, store_name, sheet_id }, { rejectWithValue }) => {
+  async ({ name, store_name }, { rejectWithValue }) => {
     try {
       const formData = new FormData();
       formData.append("name", name);
       formData.append("store_name", store_name);
-      formData.append("sheet_id", sheet_id);
 
       const response = await axiosInstance.post(
-        "/auth/admin/stores", // 👈 yahan apna endpoint confirm kar lena
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        }
+        "/auth/admin/stores",
+        formData
       );
 
       return response.data;
@@ -475,7 +469,9 @@ const usersSlice = createSlice({
 
       // CREATE
       .addCase(createSheetStore.pending, (state) => { state.createLoading = true; state.error = null; })
-      .addCase(createSheetStore.fulfilled, (state, action) => { state.createLoading = false; state.sheets.push(action.payload); })
+      .addCase(createSheetStore.fulfilled, (state, action) => {
+        state.createLoading = false
+      })
       .addCase(createSheetStore.rejected, (state, action) => { state.createLoading = false; state.error = action.payload; })
 
       // UPDATE

@@ -144,24 +144,24 @@ const Dashboard = () => {
   const { userPermissions } = useSelector((state) => state?.permissions);
   const roleId = user?.role_id;
   const permissions = userPermissions
-  
-  const hasPermission = (slug) => {
-    // Super Admin / Admin → full access
-    if (roleId === 1 || roleId === 2) return true;
 
-    return permissions.some((p) => p.slug === slug);
+  const hasPermission = (slug) => {
+    if (roleId === 1 || roleId === 2) return true;
+    return permissions?.some((p) => p.slug === slug);
   };
   // Helper: check by parent name or id (optional)
   const hasParentPermission = (parentSlug) => {
     if (roleId === 1 || roleId === 2) return true;
-    return permissions.some((p) => p.slug === parentSlug || p.slug?.startsWith(parentSlug + "."));
+    return permissions?.some(
+      (p) => p.slug === parentSlug || p.slug?.startsWith(parentSlug + ".")
+    );
   };
   // Available tabs based on permissions
   const availableTabs = [
     {
       label: "Dashboard",
       value: "dashboard",
-      permission: "dashboard", // parent slug
+      permission: "order", // parent slug
     },
     {
       label: "View Sheet",
@@ -206,8 +206,8 @@ const Dashboard = () => {
 
     // If user has the parent "dashboard" or specifically "dashboard.home"
     return (
-      hasPermission("dashboard") ||
-      hasPermission("dashboard.home")
+      hasPermission("order") ||
+      hasPermission("order")
     );
   };
   const toggleUserModal = () => setShowUserModal(prev => !prev);
@@ -438,7 +438,7 @@ const Dashboard = () => {
           ))}
         </div>
       )}
-      {activeTab === "dashboard" && hasParentPermission("dashboard") ? <>
+      {activeTab === "dashboard" && hasParentPermission("order") ? <>
         {/* ==== Orders Section ==== */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8" >
           {/* === Orders List === */}
@@ -514,7 +514,7 @@ const Dashboard = () => {
         <OrderListTable Orders={matchedOrders} />
       ) : (
         <div className="flex justify-center items-center h-64">
-          {/* <NotAllowed /> */}
+          <NotAllowed />
         </div>
       )}
 

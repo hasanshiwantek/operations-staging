@@ -55,40 +55,41 @@ const AdminSheets = () => {
     setEditingSheet(sheet);
     setValue("name", sheet.name);
     setValue("store_name", sheet.store_name);
-    setValue("sheet_id", sheet.sheet_id);
     setShowModal(true);
   };
   const onSubmit = async (data) => {
-    setLoading(true)
-    try {
+    setLoading(true);
 
+    try {
       if (editingSheet) {
         await dispatch(
-          updateSheet({ id: editingSheet.id, ...data })
+          updateSheet({
+            id: editingSheet.id,
+            ...data,
+          })
         ).unwrap();
 
       } else {
+        await dispatch(
+          createSheetStore(data)
+        ).unwrap();
 
-        await dispatch(createSheetStore(data)).unwrap().then(() => {
-          // Close only after everything succeeds
-          setShowModal(false);
-          setEditingSheet(null);
-          reset();
-        });
       }
 
-      // Refresh list after successful operation
-      await dispatch(fetchSheets()).unwrap();
-
-      // Close only after everything succeeds
+      // ✅ API success ke immediately baad modal close
       setShowModal(false);
       setEditingSheet(null);
       reset();
 
+      // ✅ Table refresh separately
+      dispatch(fetchSheets());
+
     } catch (err) {
+      console.error("Submit error:", err);
       toast.error(err || "Operation failed");
+
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   };
   const handleDelete = async (id) => {
@@ -244,15 +245,6 @@ const AdminSheets = () => {
                 className="border p-2 rounded-lg text-sm w-full"
               />
               {errors.store_name && <span className="text-red-500 text-xs">{errors.store_name.message}</span>}
-
-              {/* <input
-                type="text"
-                placeholder="Sheet ID"
-                {...register("sheet_id", { required: "Sheet ID is required" })}
-                className="border p-2 rounded-lg text-sm w-full"
-              />
-              {errors.sheet_id && <span className="text-red-500 text-xs">{errors.sheet_id.message}</span>} */}
-
               <button
                 type="submit"
                 disabled={loading}

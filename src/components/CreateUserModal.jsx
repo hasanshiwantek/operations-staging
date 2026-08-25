@@ -77,21 +77,13 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
     return editUser.page_access || {};
   };
 
-  // const [formData, setFormData] = useState({
-  //   name: editUser?.name || "",
-  //   email: editUser?.email || "",
-  //   role: editUser?.department_id,
-  //   pageAccess: getInitialPageAccess(),
-  //   colour_code: editUser?.colour_code
-  // });
   const [formData, setFormData] = useState({
     name: editUser?.name || "",
     email: editUser?.email || "",
-    role: editUser?.department_id || editUser?.role_id || "",
+    role: editUser?.role_id || "",
     colour_code: editUser?.colour_code || "",
     permission_ids: editUser?.permissions?.map((p) => p.id) || [], // ✅ correct
   });
-
 
 
   // Debug: Log the converted page access
@@ -267,7 +259,7 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
           <div className="grid grid-cols-1 gap-4">
             <div>
               <label className="text-sm text-gray-600 font-medium">
-                Select Role/Department
+                Select Role
               </label>
               <select
                 disabled={editUser}
@@ -281,7 +273,7 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
                 <option value="">Select a role</option>
                 {roles?.map((role) => (
                   <option key={role.id} value={role.id.toString()}>
-                    {role.name}
+                    {role?.name?.toUpperCase()}
                   </option>
                 ))}
               </select>
@@ -343,81 +335,6 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
             <label className="text-sm text-gray-600 font-medium mb-2 block">
               Page access
             </label>
-
-            {/* <div className="border border-gray-200 rounded-lg overflow-hidden">
-              {pageAccessOptions.map((item, index) => {
-                const isExpanded = expandedPages[item.page];
-                const selected = isPageSelected(item.page);
-                const allSelected = areAllTabsSelected(item.page, item.tabs);
-
-                return (
-                  <div
-                    key={item.page}
-                    className={`${index !== 0 ? "border-t border-gray-200" : ""}`}
-                  >
-                    <div
-                      className={`flex items-center justify-between p-3 cursor-pointer hover:bg-gray-50 ${selected ? "bg-indigo-50" : ""
-                        }`}
-                      onClick={() => togglePageExpansion(item.page)}
-                    >
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-700">
-                          {item.page}
-                        </span>
-                        {selected && (
-                          <span className="text-xs bg-indigo-600 text-white px-2 py-0.5 rounded-full">
-                            {formData.pageAccess[item.page]?.length || 0}{" "}
-                            selected
-                          </span>
-                        )}
-                      </div>
-                      {isExpanded ? (
-                        <ChevronUp size={18} className="text-gray-400" />
-                      ) : (
-                        <ChevronDown size={18} className="text-gray-400" />
-                      )}
-                    </div>
-
-                    {isExpanded && (
-                      <div className="p-3 bg-gray-50 border-t border-gray-200">
-                        <div className="mb-2">
-                          <button
-                            type="button"
-                            onClick={() => selectAllTabs(item.page, item.tabs)}
-                            className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
-                          >
-                            {allSelected ? "Deselect all" : "Select all"}
-                          </button>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {item.tabs.map((tab) => {
-                            const isTabSelected =
-                              formData.pageAccess[item.page]?.includes(tab);
-                            return (
-                              <label
-                                key={tab}
-                                className={`text-xs px-3 py-1.5 rounded-lg border cursor-pointer transition ${isTabSelected
-                                  ? "bg-indigo-600 text-white border-indigo-600"
-                                  : "text-gray-700 border-gray-300 hover:bg-white"
-                                  }`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  className="hidden"
-                                  checked={isTabSelected}
-                                  onChange={() => toggleTab(item.page, tab)}
-                                />
-                                {tab}
-                              </label>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div> */}
             <Permissions
               selectedIds={formData.permission_ids}
               onChange={(ids) =>
@@ -442,6 +359,6 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
           </button>
         </div>
       </div>
-    </div >
+    </div>
   );
 };
