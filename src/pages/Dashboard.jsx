@@ -17,103 +17,7 @@ import { OrderCardSkeleton } from "../components/Utils";
 import { toNumber } from "../utils/constant";
 import { useNavigate } from "react-router-dom";
 import OrderDetailModal from "../components/OrderDetailModal";
-import OrderListTable from "../components/OrderListTable";
-const tabs = [
-  {
-    label: "Dashboard",
-    value: "dashboard",
-  },
-  {
-    label: "View Sheet",
-    value: "view-sheet",
-  },
-];
-const staticDashboardData = {
-  order_value: 235000,
-  gross_profit: 42000,
-  orders: [
-    {
-      order_id: 1001,
-      brand: "Acme Gear",
-      category: "Electronics",
-      status: "Delivered",
-      price: 12500,
-      qty: 12,
-      procured_by: "Sarah Wilson",
-      order_date: "2024-10-01",
-    },
-    {
-      order_id: 1002,
-      brand: "Nova Foods",
-      category: "Grocery",
-      status: "Intransit",
-      price: 8450,
-      qty: 30,
-      procured_by: "Mark Patel",
-      order_date: "2024-10-05",
-    },
-    {
-      order_id: 1003,
-      brand: "Urban Threads",
-      category: "Apparel",
-      status: "Delayed",
-      price: 5400,
-      qty: 18,
-      procured_by: "Olivia Chen",
-      order_date: "2024-09-28",
-    },
-    {
-      order_id: 1004,
-      brand: "Zen Living",
-      category: "Home",
-      status: "Cancel",
-      price: 2999,
-      qty: 6,
-      procured_by: "James Carter",
-      order_date: "2024-09-20",
-    },
-    {
-      order_id: 1005,
-      brand: "Bright Labs",
-      category: "Health",
-      status: "Partial",
-      price: 7600,
-      qty: 10,
-      procured_by: "Sarah Wilson",
-      order_date: "2024-09-15",
-    },
-    {
-      order_id: 1006,
-      brand: "PixelPlay",
-      category: "Gaming",
-      status: "Refunded",
-      price: 15600,
-      qty: 8,
-      procured_by: "Mark Patel",
-      order_date: "2024-08-18",
-    },
-    {
-      order_id: 1007,
-      brand: "EcoDrive",
-      category: "Automotive",
-      status: "Delivered",
-      price: 22000,
-      qty: 4,
-      procured_by: "Olivia Chen",
-      order_date: "2024-08-10",
-    },
-    {
-      order_id: 1008,
-      brand: "Skyline Tech",
-      category: "Electronics",
-      status: "Delivered",
-      price: 18999,
-      qty: 7,
-      procured_by: "James Carter",
-      order_date: "2024-07-30",
-    },
-  ],
-};
+import OrderListTable from "../components/OrderListTable"
 
 const Dashboard = () => {
   const dispatch = useDispatch();
@@ -140,6 +44,34 @@ const Dashboard = () => {
   const [showUserModal, setShowUserModal] = useState(false);
   const [hasFetchedUsers, setHasFetchedUsers] = useState(false);
   const { user, storeId } = useSelector((state) => state?.auth);
+  const { userPermissions } = useSelector((state) => state?.permissions);
+  const roleId = user?.role_id;
+  const permissions = userPermissions
+
+  const hasPermission = (slug) => {
+    if (roleId === 1 || roleId === 2) return true;
+    return permissions?.some((p) => p.slug === slug);
+  };
+  // Helper: check by parent name or id (optional)
+  const hasParentPermission = (parentSlug) => {
+    if (roleId === 1 || roleId === 2) return true;
+    return permissions?.some(
+      (p) => p.slug === parentSlug || p.slug?.startsWith(parentSlug + ".")
+    );
+  };
+  // Available tabs based on permissions
+  const availableTabs = [
+    {
+      label: "Dashboard",
+      value: "dashboard",
+      permission: "order", // parent slug
+    },
+    {
+      label: "View Sheet",
+      value: "view-sheet",
+      permission: "view_sheet", // parent slug
+    },
+  ].filter((tab) => hasParentPermission(tab.permission));
 
   const userAccess = user?.page_access?.page_name
     ? Array.isArray(user.page_access.page_name)
@@ -147,7 +79,6 @@ const Dashboard = () => {
       : Object.values(user.page_access.page_name) // object → array
     : [];
 
-  const roleId = user?.role_id;
   // Backend se aaya hua raw data
   // Agar Orders = backend response
   const orderData = Orders?.map(order => ({
@@ -155,9 +86,9 @@ const Dashboard = () => {
     brand: order["Brands"],
     category: order["Category"],
     qty: Number(toNumber(order["Qty"])),
-    price: Number(toNumber(order["Price"])),
+    price: Number(toNumber(order["Price"]?.value)),
     grossProfit: Number(toNumber(order["Gross Profit-4%"])),
-    totalPrice: Number(toNumber(order["Total Price"])),
+    totalPrice: Number(toNumber(order["Total Price"]?.value)),
     status: order["Status"],
     procured_by: order["Procured By"],
     order_date: order["Order Date"],
@@ -171,13 +102,17 @@ const Dashboard = () => {
 
   const procuredByList = [...new Set(orderData.map(o => o?.procured_by).filter(Boolean))];
   // ["Bill Dawson", "Mike"]
-  const hasAccess = (page) => {
-    // Super Admin / Admin
+  // For status filters (All, Delivered, Intransit, etc.)
+  // These belong under "dashboard.home"
+  const hasAccess = (filter) => {
     if (roleId === 1 || roleId === 2) return true;
 
-    return userAccess.includes(page);
+    // If user has the parent "dashboard" or specifically "dashboard.home"
+    return (
+      hasPermission("order") ||
+      hasPermission("order")
+    );
   };
-
   const toggleUserModal = () => setShowUserModal(prev => !prev);
 
 
@@ -218,7 +153,7 @@ const Dashboard = () => {
     return <p className="text-center mt-10 text-red-500">Failed to load data.</p>;
 
   // === Filter logic ===
-  const filteredOrders = orderData.filter(order => {
+  const filteredOrders = orderData?.filter(order => {
     const matchStatus =
       selectedFilter === "All" ||
       order.status?.toLowerCase().replace(/\s+/g, "") === selectedFilter.toLowerCase().replace(/\s+/g, "");
@@ -265,29 +200,97 @@ const Dashboard = () => {
     return userfiltered;
   }, [users, userSearch, authUser.id]);
 
-  // === Stats ===
-  // const totalOrders = orderData.length; // Total orders
-  // const orderValue = orderData.reduce((sum, order) => sum + (order?.totalPrice || 0), 0); // Sum of price
-  // const grossProfit = orderData.reduce((sum, order) => sum + ((order?.grossProfit || 0)), 0);
-  // // const grossProfit = orderData.reduce((sum, order) => sum + ((order?.grossProfit || 0) * 0.2), 0);
-  // // Example: assume 20% profit. Replace with real logic if you have
-  // const deliveredCount = orderData.filter(
-  //   o => o.status?.toLowerCase() === "completed" // match backend delivered
-  // ).length;
-
-
+  const selectedOrderIds = filteredOrders?.map((item) => String(item?.order_id));
+  const matchedOrders = Orders?.filter((order) =>
+    selectedOrderIds?.includes(String(order?.["Order#"]))
+  );
   const totalOrders = filteredOrders.length;
   const orderValue = filteredOrders.reduce((sum, order) => sum + (order?.totalPrice || 0), 0);
   const grossProfit = filteredOrders.reduce((sum, order) => sum + (order?.grossProfit || 0), 0);
   const deliveredCount = filteredOrders.filter(
     o => o.status?.toLowerCase() === "delivered"
   ).length;
+
+  // Helper: check if user has a permission by slug
+
   useEffect(() => {
     localStorage.setItem("activeTab", activeTab);
   }, [activeTab]);
   return (
     <>
+      {/* Filters */}
+      <div className="flex justify-end gap-2 mb-4 w-full">
+        {["All", "Delivered", "Intransit"].map(
+          (filter) => (
+            <button
+              key={filter}
+              className={`px-4 py-2 rounded-full text-sm font-medium ${selectedFilter === filter
+                ? "bg-indigo-600 text-white"
+                : "bg-white text-gray-700 border hover:bg-gray-100"
+                }`}
+              onClick={() => {
+                setSelectedFilter(filter);
+                setCurrentPage(1);
+              }}
+            >
+              {filter}
+            </button>
+          )
+        )}
+        {/* Sales Agent Dropdown */}
+        <select
+          value={selectedAgent}
+          onChange={(e) => {
+            setSelectedAgent(e.target.value);
+            setCurrentPage(1);
+            setSelectedProcuredBy("All");
+          }}
+          className="px-4 py-2 rounded-full text-sm font-medium bg-white text-gray-700 border shadow-sm hover:bg-gray-100 outline-none cursor-pointer"
+        >
+          <option value="All">All Agents</option>
+          {salesAgents.map((agent) => (
+            <option key={agent} value={agent}>{agent}</option>
+          ))}
+        </select>
 
+        {/* Procured By Dropdown */}
+        <select
+          value={selectedProcuredBy}
+          onChange={(e) => {
+            setSelectedProcuredBy(e.target.value);
+            setSelectedAgent("All");
+            setCurrentPage(1);
+          }}
+          className="px-4 py-2 rounded-full text-sm font-medium bg-white text-gray-700 border shadow-sm hover:bg-gray-100 outline-none cursor-pointer"
+        >
+          <option value="All">All Procured By</option>
+          {procuredByList.map((name) => (
+            <option key={name} value={name}>{name}</option>
+          ))}
+        </select>
+
+        <button
+          onClick={() => setShowDateFilter(true)}
+          className="flex items-center gap-2 bg-white border px-4 py-2 rounded-full text-sm text-gray-700 shadow-sm hover:bg-gray-100"
+        >
+          <Filter size={16} /> Filter by date
+        </button>
+        <button
+          onClick={() => {
+            setShowDateFilter(false);
+            setStartDate(null);
+            setEndDate(null);
+            setSearchQuery("");
+            setSelectedFilter("All");
+            setSelectedAgent("All");
+            setSelectedProcuredBy("All");
+            setCurrentPage(1);
+          }}
+          className="flex items-center gap-2 bg-white border px-4 py-2 rounded-full text-sm text-gray-700 shadow-sm hover:bg-gray-100"
+        >
+          Reset
+        </button>
+      </div>
       {/* ==== Stats Cards ==== */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
         {[
@@ -300,7 +303,7 @@ const Dashboard = () => {
         ))}
       </div>
 
-      <div className="flex border-b mb-2">
+      {/* <div className="flex border-b mb-2">
         <button
           onClick={() => setActiveTab("dashboard")}
           className={`px-4 py-2 ${activeTab === "dashboard"
@@ -320,8 +323,25 @@ const Dashboard = () => {
         >
           View Sheet
         </button>
-      </div>
-      {activeTab === "dashboard" ? <>
+      </div> */}
+      {/* ==== Tabs ==== */}
+      {availableTabs.length > 0 && (
+        <div className="flex border-b mb-2">
+          {availableTabs.map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => setActiveTab(tab.value)}
+              className={`px-4 py-2 ${activeTab === tab.value
+                ? "border-b-2 border-blue-600 font-semibold text-blue-600"
+                : "text-gray-500 hover:text-gray-700"
+                }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
+      {activeTab === "dashboard" && hasParentPermission("order") ? <>
         {/* ==== Orders Section ==== */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8" >
           {/* === Orders List === */}
@@ -332,79 +352,7 @@ const Dashboard = () => {
               <h2 className="font-semibold text-gray-800 text-lg">Orders</h2>
             </div>
 
-            {/* Filters */}
-            <div className="flex flex-wrap gap-2 mb-4 w-full">
-              {["All", "Delivered", "Intransit"].map(
-                (filter) => (
-                  <button
-                    key={filter}
-                    className={`px-4 py-2 rounded-full text-sm font-medium ${selectedFilter === filter
-                      ? "bg-indigo-600 text-white"
-                      : "bg-white text-gray-700 border hover:bg-gray-100"
-                      }`}
-                    onClick={() => {
-                      setSelectedFilter(filter);
-                      setCurrentPage(1);
-                    }}
-                  >
-                    {filter}
-                  </button>
-                )
-              )}
-              {/* Sales Agent Dropdown */}
-              <select
-                value={selectedAgent}
-                onChange={(e) => {
-                  setSelectedAgent(e.target.value);
-                  setCurrentPage(1);
-                  setSelectedProcuredBy("All");
-                }}
-                className="px-4 py-2 rounded-full text-sm font-medium bg-white text-gray-700 border shadow-sm hover:bg-gray-100 outline-none cursor-pointer"
-              >
-                <option value="All">All Agents</option>
-                {salesAgents.map((agent) => (
-                  <option key={agent} value={agent}>{agent}</option>
-                ))}
-              </select>
 
-              {/* Procured By Dropdown */}
-              <select
-                value={selectedProcuredBy}
-                onChange={(e) => {
-                  setSelectedProcuredBy(e.target.value);
-                  setSelectedAgent("All");
-                  setCurrentPage(1);
-                }}
-                className="px-4 py-2 rounded-full text-sm font-medium bg-white text-gray-700 border shadow-sm hover:bg-gray-100 outline-none cursor-pointer"
-              >
-                <option value="All">All Procured By</option>
-                {procuredByList.map((name) => (
-                  <option key={name} value={name}>{name}</option>
-                ))}
-              </select>
-
-              <button
-                onClick={() => setShowDateFilter(true)}
-                className="flex items-center gap-2 bg-white border px-4 py-2 rounded-full text-sm text-gray-700 shadow-sm hover:bg-gray-100"
-              >
-                <Filter size={16} /> Filter by date
-              </button>
-              <button
-                onClick={() => {
-                  setShowDateFilter(false);
-                  setStartDate(null);
-                  setEndDate(null);
-                  setSearchQuery("");
-                  setSelectedFilter("All");
-                  setSelectedAgent("All");
-                  setSelectedProcuredBy("All");
-                  setCurrentPage(1);
-                }}
-                className="flex items-center gap-2 bg-white border px-4 py-2 rounded-full text-sm text-gray-700 shadow-sm hover:bg-gray-100"
-              >
-                Reset
-              </button>
-            </div>
 
             <div className="mb-6">
               <div className="flex items-center gap-2 border rounded-full px-4 py-2 bg-white shadow-sm w-full">
@@ -439,9 +387,6 @@ const Dashboard = () => {
               )}
             </div>
 
-
-
-
             {/* Pagination */}
             <Pagination
               totalPages={totalPages}
@@ -465,79 +410,85 @@ const Dashboard = () => {
           }
         </div>
 
-        {
-          showDateFilter && (
-            <div className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex justify-center items-center z-50">
-              <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-lg relative">
-                <button
-                  onClick={() => setShowDateFilter(false)}
-                  className="absolute right-4 top-4 text-gray-400 hover:text-gray-600"
-                >
-                  <X size={20} />
-                </button>
+      </> : activeTab === "view-sheet" && hasParentPermission("view_sheet") ? (
+        <OrderListTable Orders={matchedOrders} />
+      ) : (
+        <div className="flex justify-center items-center h-64">
+          <NotAllowed />
+        </div>
+      )}
 
-                <h2 className="text-lg font-semibold text-gray-800 mb-3">
-                  Select Date Range
-                </h2>
-                <div className="flex flex-col gap-4">
-                  <div>
-                    <label className="text-sm text-gray-600 font-medium">
-                      Start Date
-                    </label>
-                    <DatePicker
-                      selected={startDate}
-                      onChange={(date) => setStartDate(date)}
-                      selectsStart
-                      startDate={startDate}
-                      endDate={endDate}
-                      dateFormat="MM/dd/yyyy"
-                      className="w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                      placeholderText="Select start date"
-                    />
-                  </div>
+      {
+        showDateFilter && (
+          <div className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex justify-center items-center z-50">
+            <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-lg relative">
+              <button
+                onClick={() => setShowDateFilter(false)}
+                className="absolute right-4 top-4 text-gray-400 hover:text-gray-600"
+              >
+                <X size={20} />
+              </button>
 
-                  <div>
-                    <label className="text-sm text-gray-600 font-medium">
-                      End Date
-                    </label>
-                    <DatePicker
-                      selected={endDate}
-                      onChange={(date) => setEndDate(date)}
-                      selectsEnd
-                      startDate={startDate}
-                      endDate={endDate}
-                      minDate={startDate}
-                      dateFormat="MM/dd/yyyy"
-                      className="w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                      placeholderText="Select end date"
-                    />
-                  </div>
+              <h2 className="text-lg font-semibold text-gray-800 mb-3">
+                Select Date Range
+              </h2>
+              <div className="flex flex-col gap-4">
+                <div>
+                  <label className="text-sm text-gray-600 font-medium">
+                    Start Date
+                  </label>
+                  <DatePicker
+                    selected={startDate}
+                    onChange={(date) => setStartDate(date)}
+                    selectsStart
+                    startDate={startDate}
+                    endDate={endDate}
+                    dateFormat="MM/dd/yyyy"
+                    className="w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholderText="Select start date"
+                  />
+                </div>
 
-                  <div className="flex justify-between gap-3 mt-4">
-                    <button
-                      onClick={() => {
-                        setStartDate(null);
-                        setEndDate(null);
-                        setShowDateFilter(false);
-                      }}
-                      className="w-1/2 border py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100"
-                    >
-                      Close
-                    </button>
-                    <button
-                      onClick={() => setShowDateFilter(false)}
-                      className="w-1/2 bg-indigo-600 text-white py-2 rounded-lg text-sm hover:bg-indigo-700"
-                    >
-                      Continue
-                    </button>
-                  </div>
+                <div>
+                  <label className="text-sm text-gray-600 font-medium">
+                    End Date
+                  </label>
+                  <DatePicker
+                    selected={endDate}
+                    onChange={(date) => setEndDate(date)}
+                    selectsEnd
+                    startDate={startDate}
+                    endDate={endDate}
+                    minDate={startDate}
+                    dateFormat="MM/dd/yyyy"
+                    className="w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                    placeholderText="Select end date"
+                  />
+                </div>
+
+                <div className="flex justify-between gap-3 mt-4">
+                  <button
+                    onClick={() => {
+                      setStartDate(null);
+                      setEndDate(null);
+                      setShowDateFilter(false);
+                    }}
+                    className="w-1/2 border py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100"
+                  >
+                    Close
+                  </button>
+                  <button
+                    onClick={() => setShowDateFilter(false)}
+                    className="w-1/2 bg-indigo-600 text-white py-2 rounded-lg text-sm hover:bg-indigo-700"
+                  >
+                    Continue
+                  </button>
                 </div>
               </div>
             </div>
-          )
-        }
-      </> : <OrderListTable />}
-      {/* {showUserModal && <CreateUserModal onClose={() => setShowUserModal(false)} />} */}
+          </div>
+        )
+      }
     </>
   );
 };

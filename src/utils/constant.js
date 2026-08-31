@@ -4,6 +4,11 @@ export const toNumber = (price) => {
   const value = parseFloat(price.toString().replace(/[^0-9.]/g, ""));
   return isNegative ? -value : value;
 };
+export const standFor = {
+  rma: "Return Merchandise Authorization",
+  po: "Create Part Order",
+  cancelled: "Cancelled",
+}
 export const normalizeOrderOptions = (apiData) => {
   if (!apiData || typeof apiData !== 'object') return {};
 
@@ -18,16 +23,215 @@ export const normalizeOrderOptions = (apiData) => {
 
   return map;
 };
-export const dropdownFields = {
-  "Lead Source": "lead_source",
-  "Procured By": "procured_by",
-  "Sales Agent": "sales_agent",
-  "Order Source": "order_source",
-  "Payment Status": "payment_status",
-  "Condition": "condition",
-  "Status": "status",
+
+
+const CHECKBOX_STORAGE_KEY = "orderCheckboxState";
+
+export const CHECKBOX_FIELDS = [
+  "Price",
+  "Shipping",
+  "Tax",
+  "Cost",
+  "Vendor Shipping",
+  "Vendor Tax",
+  "Courier Charges",
+  "Sales Tax",
+  "Warehouse Charges",
+  "Custom Duties",
+  "CC/Paypal 4%",
+];
+export const cloneOrders = (orders) => {
+  try {
+    return structuredClone(orders || []);
+  } catch {
+    return JSON.parse(JSON.stringify(orders || []));
+  }
+};
+
+
+/** Optional hook so the renderer can update React state instead of HOT internals */
+let onCheckboxChange = null;
+export const setCheckboxChangeHandler = (fn) => {
+  onCheckboxChange = fn;
+};
+export const getSavedCheckboxState = () => {
+  try {
+    return JSON.parse(localStorage.getItem(CHECKBOX_STORAGE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+};
+export const getFieldValue = (field) => {
+
+  if (field && typeof field === "object") return Number(field?.value) ?? "";
+  return field ?? "";
+};
+
+export const getFieldChecked = (field) => {
+  if (field && typeof field === "object") return Boolean(field.isTrue);
+  return false;
+};
+
+export const getFieldHighlight = (field) => {
+  if (field && typeof field === "object") return Boolean(field.isHighlight);
+  return false;
+};
+export const saveCheckboxState = (payload) => {
+  const saved = getSavedCheckboxState();
+
+  payload.forEach((row) => {
+    const id = String(row.order_id);
+    const { order_id, ...fields } = row;
+    saved[id] = { ...(saved[id] || {}), ...fields };
+  });
+
+  localStorage.setItem(CHECKBOX_STORAGE_KEY, JSON.stringify(saved));
+};
+
+export const applySavedCheckboxState = (orders) => {
+  const saved = getSavedCheckboxState();
+
+  return (orders || []).map((order) => {
+    const row = saved[String(order["Order#"])];
+    if (!row) return order;
+
+    const next = { ...order };
+
+    CHECKBOX_FIELDS.forEach((field) => {
+      if (!row[field]) return;
+      next[field] = {
+        value: row[field].value ?? getFieldValue(order[field]),
+        isTrue: Boolean(row[field].isTrue),
+        isHighlight: Boolean(row[field].isHighlight),
+        colorCode: row[field].colorCode || "",
+      };
+    });
+
+    const priceGroupOn = ["Price", "Shipping", "Tax"].some(
+      (key) => getFieldHighlight(next[key]) || getFieldChecked(next[key])
+    );
+
+    next["Total Price"] = {
+      value: getFieldValue(next["Total Price"]) || 0,
+      isHighlight: priceGroupOn,
+    };
+
+    return next;
+  });
+};
+
+export const getIsAdmin = () => {
+  // const value = localStorage.getItem("isAdmin");
+  // return value === true || value === "true";
+  let persistedAuth = JSON.parse(
+    localStorage.getItem("persist:auth")
+  );
+  let user = JSON.parse(
+    persistedAuth?.user
+  );
+
+  return [1, 2].includes(user?.role_id)
+
+};
+export const getIsFinance = () => {
+  // const value = localStorage.getItem("isAdmin");
+  // return value === true || value === "true";
+  let persistedAuth = JSON.parse(
+    localStorage.getItem("persist:auth")
+  );
+  let user = JSON.parse(
+    persistedAuth?.user
+  );
+
+  return [3].includes(user?.role_id)
+
+};
+
+const makeCheckboxRenderer = (fieldName) => {
+  return function (instance, td, row, col, prop, value) {
+    const val = getFieldValue(value);
+    const checked = getFieldChecked(value);
+    const highlighted = getFieldHighlight(value);
+    const isAdmin = getIsAdmin();
+    const isFinance = getIsFinance();
+    const hasAmount = toNumber(val) > 0;
+    td.innerHTML = "";
+
+    const wrap = document.createElement("div");
+    wrap.style.display = "flex";
+    wrap.style.gap = "2px";
+    wrap.style.alignItems = "center";
+
+    const span = document.createElement("span");
+    span.textContent = val;
+
+    // const shouldShowCheckbox = isAdmin
+    //   ? highlighted
+    //   : isFinance
+    //     ? !highlighted
+    //     : false;
+    const shouldShowCheckbox =
+      hasAmount &&
+      (isAdmin ? highlighted : isFinance ? !highlighted : false);
+
+    if (shouldShowCheckbox) {
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = checked;
+      checkbox.style.accentColor = "#1B51EF";
+
+      checkbox.addEventListener("mousedown", (e) => e.stopPropagation());
+      checkbox.addEventListener("click", (e) => {
+        e.stopPropagation();
+
+        const physicalRow = instance.toPhysicalRow(row);
+        const current = instance.getSourceDataAtRow(physicalRow);
+        if (!current) return;
+
+        const nextField = {
+          value: getFieldValue(current[fieldName]),
+          isTrue: e.target.checked,
+          isHighlight: getFieldHighlight(current[fieldName]),
+          colorCode: current[fieldName]?.colorCode || "",
+        };
+
+        // Prefer React update — avoids Object.defineProperty on "Price"/"Shipping"
+        if (onCheckboxChange) {
+          onCheckboxChange(current["Order#"], fieldName, nextField);
+          return;
+        }
+
+        // Fallback: mutate the cloned row only (never setSourceDataAtCell)
+        current[fieldName] = nextField;
+      });
+
+      wrap.appendChild(checkbox);
+    }
+
+    wrap.appendChild(span);
+    td.appendChild(wrap);
+    return td;
+  };
+};
+const makeValueRenderer = (fieldName) => {
+  return function (instance, td, row) {
+    const raw = instance.getSourceDataAtRow(row)?.[fieldName];
+    td.innerHTML = getFieldValue(raw);
+    return td;
+  };
 };
 export const columnsOfSheet = [
+  {
+    data: "Sno",
+    title: "Sno",
+    width: 60,
+    readOnly: true,
+    renderer: function (instance, td, row) {
+      td.innerHTML = row + 1; // Serial number starting from 1
+      td.style.textAlign = "center";
+      return td;
+    },
+  },
   { data: "Order#", title: "Order#" },
   { data: "Charged Date", title: "Charged Date" },
   { data: "Lead Source", title: "Lead Source" },
@@ -59,30 +263,39 @@ export const columnsOfSheet = [
   { data: "Email", title: "Email" },
   { data: "Phone", title: "Phone" },
   { data: "Customer PO#", title: "Customer PO#" },
-  { data: "Price", title: "Price" },
-  { data: "Shipping", title: "Shipping" },
-  { data: "Tax", title: "Tax" },
+  // { data: "Price", title: "Price" },
+  // { data: "Shipping", title: "Shipping" },
+  // { data: "Tax", title: "Tax" },
+  { data: "Price", title: "Price", renderer: makeCheckboxRenderer("Price") },
+  { data: "Shipping", title: "Shipping", renderer: makeCheckboxRenderer("Shipping") },
+  { data: "Tax", title: "Tax", renderer: makeCheckboxRenderer("Tax") },
   { data: "Vendor", title: "Vendor" },
   { data: "Vendor order#", title: "Vendor order#" },
   { data: "Vendor Part#", title: "Vendor Part#" },
-  { data: "CC/Paypal 4%", title: "CC/Paypal 4%" },
+  { data: "CC/Paypal 4%", title: "CC/Paypal 4%", renderer: makeCheckboxRenderer("CC/Paypal 4%") },
   { data: "Charged Vendor", title: "Charged Vendor" },
   { data: "Paid Via", title: "Paid Via" },
-  { data: "Cost", title: "Cost" },
-  { data: "Vendor Shipping", title: "Vendor Shipping" },
-  { data: "Vendor Tax", title: "Vendor Tax" },
+  { data: "Cost", title: "Cost", renderer: makeCheckboxRenderer("Cost") },
+  { data: "Vendor Shipping", title: "Vendor Shipping", renderer: makeCheckboxRenderer("Vendor Shipping") },
+  { data: "Vendor Tax", title: "Vendor Tax", renderer: makeCheckboxRenderer("Vendor Tax") },
   // new filds added on 2024-06-05 total cost
-  { data: "Courier Charges", title: "Courier Charges" },
-  { data: "Sales Tax", title: "Sales Tax" },
-  { data: "Warehouse Charges", title: "Warehouse Charges" },
-  { data: "Custom Duties", title: "Custom Duties" },
-  { data: "Card Payment", title: "Card Payment" },
+  { data: "Courier Charges", title: "Courier Charges", renderer: makeCheckboxRenderer("Courier Charges") },
+  { data: "Sales Tax", title: "Sales Tax", renderer: makeCheckboxRenderer("Sales Tax") },
+  { data: "Warehouse Charges", title: "Warehouse Charges", renderer: makeCheckboxRenderer("Warehouse Charges") },
+  { data: "Custom Duties", title: "Custom Duties", renderer: makeCheckboxRenderer("Custom Duties") },
+  { data: "Card Payment", title: "Card Payment", renderer: makeValueRenderer("Card Payment") },
   // 
-  { data: "Total Price", title: "Total Price", disabled: true },
-  { data: "Total Cost", title: "Total Cost", disabled: true },
-  { data: "Total Cost+4%", title: "Total Cost+4%", disabled: true },
-  { data: "Gross Profit", title: "Gross Profit", disabled: true },
-  { data: "Gross Profit-4%", title: "Gross Profit-4%", disabled: true },
+  // { data: "Total Price", title: "Total Price", disabled: true },//higlight if Price || Shipping || Tax
+  // { data: "Total Cost", title: "Total Cost", disabled: true }, //higlight if Cost || Vendor Shipping || Vendor Tax
+  // { data: "Total Cost+4%", title: "Total Cost+4%", disabled: true },//higlight if CC/Paypal 4%
+  // { data: "Gross Profit", title: "Gross Profit", disabled: true },
+  // { data: "Gross Profit-4%", title: "Gross Profit-4%", disabled: true },
+
+  { data: "Total Price", title: "Total Price", readOnly: true, renderer: makeValueRenderer("Total Price") },
+  { data: "Total Cost", title: "Total Cost", readOnly: true, renderer: makeValueRenderer("Total Cost") },
+  { data: "Total Cost+4%", title: "Total Cost+4%", readOnly: true, renderer: makeValueRenderer("Total Cost+4%") },
+  { data: "Gross Profit", title: "Gross Profit", readOnly: true, },
+  { data: "Gross Profit-4%", title: "Gross Profit-4%", readOnly: true, },
   { data: "Profit %", title: "Profit %", disabled: true },
 
   { data: "Check/Invoice", title: "Check/Invoice" },
@@ -156,4 +369,16 @@ export const defaultOrder = {
   "Attached To Order": "",
   "Entry Reason": "",
   "Comment": ""
+};
+const FLAT_VALUE_FIELDS = ["Price", "Shipping", "Tax", "CC/Paypal 4%", "Cost", "Vendor Shipping", "Vendor Tax", "Courier Charges", "Sales Tax", "Warehouse Charges", "Custom Duties", "Card Payment", "Total Price", "Total Cost", "Total Cost+4%"];
+export const flattenOrderValues = (order) => {
+  if (!order || typeof order !== "object") return order;
+
+  const next = { ...order };
+
+  FLAT_VALUE_FIELDS.forEach((key) => {
+    next[key] = String(getFieldValue(next[key]) ?? "0");
+  });
+
+  return next;
 };

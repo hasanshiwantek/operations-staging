@@ -9,6 +9,7 @@ import { logoutManual } from "../store/authSlice";
 import { createSheetStore } from "../store/usersSlice";
 import { CreateUserModal } from "./CreateUserModal";
 import { SuperAdminProfileModal } from "./SuperAdminProfileModal";
+import { getPermissionsByStoreId } from "../store/permissionsSlice";
 
 const Header = () => {
   const navigate = useNavigate();
@@ -39,7 +40,9 @@ const Header = () => {
     toast.success("Logged out successfully", { style: { fontSize: "12px", fontWeight: "bold" } });
     navigate("/");
   };
-
+  useEffect(() => {
+    dispatch(getPermissionsByStoreId(storeId?.id))
+  }, [])
 
   return (
     <>

@@ -10,7 +10,7 @@ export const fetchAttributes = createAsyncThunk(
   async (roleId, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.get(
-        `/order-options/detailed?role_id=${roleId}`
+        `/order-options/detailed`
       );
 
       return response.data;
@@ -31,14 +31,14 @@ export const fetchAttributeDetails = createAsyncThunk(
   async ({ id, roleId }, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.get(
-        `/attributes/${id}?role_id=${roleId}`
+        `/attributes/${id}`
       );
 
       return response.data;
     } catch (error) {
       return rejectWithValue(
         error.response?.data?.message ||
-          "Failed to fetch attribute details"
+        "Failed to fetch attribute details"
       );
     }
   }
@@ -48,9 +48,9 @@ export const createAttribute = createAsyncThunk(
   async ({ roleId, attribute_name }, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.post(
-        `/attributes?role_id=${roleId}`,
+        `/attributes`,
         {
-          role_id: roleId,
+          // role_id: roleId,
           attribute_name,
         }
       );
@@ -59,7 +59,7 @@ export const createAttribute = createAsyncThunk(
     } catch (error) {
       return rejectWithValue(
         error.response?.data?.message ||
-          "Failed to create attribute"
+        "Failed to create attribute"
       );
     }
   }
@@ -99,7 +99,7 @@ export const createAttributeValue = createAsyncThunk(
     } catch (error) {
       return rejectWithValue(
         error.response?.data?.message ||
-          "Failed to create attribute value"
+        "Failed to create attribute value"
       );
     }
   }
@@ -119,7 +119,7 @@ export const updateAttributeValue = createAsyncThunk(
     } catch (error) {
       return rejectWithValue(
         error.response?.data?.message ||
-          "Failed to update value"
+        "Failed to update value"
       );
     }
   }
@@ -136,7 +136,7 @@ export const deleteAttributeValue = createAsyncThunk(
     } catch (error) {
       return rejectWithValue(
         error.response?.data?.message ||
-          "Failed to delete value"
+        "Failed to delete value"
       );
     }
   }
@@ -156,7 +156,7 @@ export const updateAttribute = createAsyncThunk(
     } catch (error) {
       return rejectWithValue(
         error.response?.data?.message ||
-          "Failed to update attribute"
+        "Failed to update attribute"
       );
     }
   }
@@ -168,12 +168,12 @@ const initialState = {
 
   loading: false,
   detailLoading: false,
- createLoading: false,
+  createLoading: false,
   createValueLoading: false,
-   deleteLoading: false,
-     updateValueLoading: false,
-     deleteValueLoading: false,
-     updateAttributeLoading: false,
+  deleteLoading: false,
+  updateValueLoading: false,
+  deleteValueLoading: false,
+  updateAttributeLoading: false,
 
   error: null,
 };
@@ -224,91 +224,91 @@ const attributeSlice = createSlice({
         state.error = action.payload;
       })
       // ==========================
-// Create Attribute
-// ==========================
+      // Create Attribute
+      // ==========================
 
-.addCase(createAttribute.pending, (state) => {
-  state.createLoading = true;
-  state.error = null;
-})
+      .addCase(createAttribute.pending, (state) => {
+        state.createLoading = true;
+        state.error = null;
+      })
 
-.addCase(createAttribute.fulfilled, (state) => {
-  state.createLoading = false;
-})
+      .addCase(createAttribute.fulfilled, (state) => {
+        state.createLoading = false;
+      })
 
-.addCase(createAttribute.rejected, (state, action) => {
-  state.createLoading = false;
-  state.error = action.payload;
-})
+      .addCase(createAttribute.rejected, (state, action) => {
+        state.createLoading = false;
+        state.error = action.payload;
+      })
 
-.addCase(deleteAttribute.pending, (state) => {
-  state.deleteLoading = true;
-})
+      .addCase(deleteAttribute.pending, (state) => {
+        state.deleteLoading = true;
+      })
 
-.addCase(deleteAttribute.fulfilled, (state) => {
-  state.deleteLoading = false;
-})
+      .addCase(deleteAttribute.fulfilled, (state) => {
+        state.deleteLoading = false;
+      })
 
-.addCase(deleteAttribute.rejected, (state, action) => {
-  state.deleteLoading = false;
-  state.error = action.payload;
-})
+      .addCase(deleteAttribute.rejected, (state, action) => {
+        state.deleteLoading = false;
+        state.error = action.payload;
+      })
 
-.addCase(createAttributeValue.pending, (state) => {
-    state.createValueLoading = true;
-    state.error = null;
-})
+      .addCase(createAttributeValue.pending, (state) => {
+        state.createValueLoading = true;
+        state.error = null;
+      })
 
-.addCase(createAttributeValue.fulfilled, (state) => {
-    state.createValueLoading = false;
-})
+      .addCase(createAttributeValue.fulfilled, (state) => {
+        state.createValueLoading = false;
+      })
 
-.addCase(createAttributeValue.rejected, (state, action) => {
-    state.createValueLoading = false;
-    state.error = action.payload;
-})
+      .addCase(createAttributeValue.rejected, (state, action) => {
+        state.createValueLoading = false;
+        state.error = action.payload;
+      })
 
-.addCase(updateAttributeValue.pending, (state) => {
-    state.updateValueLoading = true;
-    state.error = null;
-})
+      .addCase(updateAttributeValue.pending, (state) => {
+        state.updateValueLoading = true;
+        state.error = null;
+      })
 
-.addCase(updateAttributeValue.fulfilled, (state) => {
-    state.updateValueLoading = false;
-})
+      .addCase(updateAttributeValue.fulfilled, (state) => {
+        state.updateValueLoading = false;
+      })
 
-.addCase(updateAttributeValue.rejected, (state, action) => {
-    state.updateValueLoading = false;
-    state.error = action.payload;
-})
+      .addCase(updateAttributeValue.rejected, (state, action) => {
+        state.updateValueLoading = false;
+        state.error = action.payload;
+      })
 
-.addCase(deleteAttributeValue.pending, (state) => {
-    state.deleteValueLoading = true;
-    state.error = null;
-})
+      .addCase(deleteAttributeValue.pending, (state) => {
+        state.deleteValueLoading = true;
+        state.error = null;
+      })
 
-.addCase(deleteAttributeValue.fulfilled, (state) => {
-    state.deleteValueLoading = false;
-})
+      .addCase(deleteAttributeValue.fulfilled, (state) => {
+        state.deleteValueLoading = false;
+      })
 
-.addCase(deleteAttributeValue.rejected, (state, action) => {
-    state.deleteValueLoading = false;
-    state.error = action.payload;
-})
+      .addCase(deleteAttributeValue.rejected, (state, action) => {
+        state.deleteValueLoading = false;
+        state.error = action.payload;
+      })
 
-.addCase(updateAttribute.pending, (state) => {
-  state.updateAttributeLoading = true;
-  state.error = null;
-})
+      .addCase(updateAttribute.pending, (state) => {
+        state.updateAttributeLoading = true;
+        state.error = null;
+      })
 
-.addCase(updateAttribute.fulfilled, (state) => {
-  state.updateAttributeLoading = false;
-})
+      .addCase(updateAttribute.fulfilled, (state) => {
+        state.updateAttributeLoading = false;
+      })
 
-.addCase(updateAttribute.rejected, (state, action) => {
-  state.updateAttributeLoading = false;
-  state.error = action.payload;
-})
+      .addCase(updateAttribute.rejected, (state, action) => {
+        state.updateAttributeLoading = false;
+        state.error = action.payload;
+      })
   },
 });
 

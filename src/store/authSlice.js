@@ -5,11 +5,13 @@ import { updateUser } from './usersSlice';
 const initialState = {
   user: null,
   token: null,
-    storeId: null, 
+  storeId: null,
   isAuthenticated: false,
   signInLoading: false,
   loading: false,
   error: null,
+  roles: [],           // added
+  rolesLoading: false, // added
 };
 
 // Login async thunk
@@ -41,14 +43,52 @@ export const register = createAsyncThunk(
     }
   }
 );
+export const forgotPassword = createAsyncThunk(
+  'auth/forgotPassword',
+  async ({ email }, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.post(
+        'forgot-password',
+        { email }
+      );
+
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message ||
+        error.message ||
+        'Failed to send password reset link'
+      );
+    }
+  }
+);
 
 
+// ✅ NEW: Get all roles  →  GET /auth/roles
+export const getRoles = createAsyncThunk(
+  "auth/getRoles",
+  async (_, { getState, rejectWithValue }) => {
+    try {
+      const { token } = getState().auth;
+
+      const response = await axiosInstance.get("/auth/roles");
+
+      return response.data; // expected shape: { status: true, data: [...] }
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to fetch roles"
+      );
+    }
+  }
+);
 
 const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-        // ✅ Store select (manual)
+    // ✅ Store select (manual)
     setStoreId: (state, action) => {
       state.storeId = action.payload; // payload = storeId
     },
@@ -77,6 +117,7 @@ const authSlice = createSlice({
         state.error = null;
       })
       .addCase(login.fulfilled, (state, action) => {
+
         state.signInLoading = false;
         state.isAuthenticated = true;
         state.user = action.payload.data || action.payload.data?.user;
@@ -103,6 +144,39 @@ const authSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
       })
+
+
+      // Forgot Password
+      .addCase(forgotPassword.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(forgotPassword.fulfilled, (state, action) => {
+        state.loading = false;
+        state.error = null;
+      })
+      .addCase(forgotPassword.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
+
+      // Get Roles (new)
+      .addCase(getRoles.pending, (state) => {
+        state.rolesLoading = true;
+        state.error = null;
+      })
+      .addCase(getRoles.fulfilled, (state, action) => {
+        state.rolesLoading = false;
+        // Based on your sample response
+        state.roles = action.payload?.data || action.payload || [];
+        state.error = null;
+      })
+      .addCase(getRoles.rejected, (state, action) => {
+        state.rolesLoading = false;
+        state.roles = [];
+        state.error = action.payload;
+      })
+
       // When super admin (or any user) updates own profile, sync auth.user
       .addCase(updateUser.fulfilled, (state, action) => {
         const updated = action.payload?.data;

@@ -92,6 +92,7 @@ body {
   bottom: 0 !important;
   z-index: 50 !important;
 }
+
 .handsontable td.ols-title {
   background-color: #a4c2f4;
   /* light blue like the screenshot */
@@ -130,7 +131,7 @@ body {
   font-weight: 600;
 }
 
-.handsontable td.po-row {
+/* .handsontable td.po-row {
   background-color: #86bd93 !important;
 }
 
@@ -140,4 +141,70 @@ body {
 
 .handsontable td.cancelled-row {
   background-color: #fee2e2 !important;
+} */
+
+/* Top summary row */
+.handsontable thead tr:first-child th {
+  text-align: end !important;
+  color: white !important;
 }
+
+.handsontable thead tr:first-child th.htOrderCount {
+  background-color: #9c0720 !important;
+}
+
+.handsontable thead tr:first-child th.htTotalPrice {
+  background-color: #9c0720 !important;
+}
+
+.handsontable thead tr:first-child th.htTotalCost {
+  background-color: #9c0720 !important;
+}
+
+.handsontable thead tr:first-child th.htTotalCost4 {
+  background-color: #1a3a6e !important;
+}
+
+.handsontable thead tr:first-child th.htGrossProfit {
+  background-color: #1a3a6e !important;
+}
+
+.handsontable thead tr:first-child th.htGrossProfit4 {
+  background-color: #9c0720 !important;
+}
+
+/* Make all column headers bold */
+.handsontable thead th {
+  font-weight: 700 !important;
+  cursor: default !important;
+  /* removes pointer cursor */
+}
+
+/* Prevent clicking on the header text (but keep filter icon working) */
+.handsontable thead th .colHeader {
+  pointer-events: none;
+}
+
+/* Allow the filter dropdown button to still be clickable */
+.handsontable thead th .changeType,
+.handsontable thead th .colHeader .changeType {
+  pointer-events: auto !important;
+  cursor: pointer !important;
+}
+
+/* Make sure the summary cells are properly aligned */
+.handsontable thead tr:first-child th {
+  text-align: center !important;
+  vertical-align: middle !important;
+  height: 36px !important;
+}
+
+.handsontable thead tr:first-child th.htOrderCount {
+  background-color: #c41e3a !important;
+  color: white !important;
+  font-weight: 700 !important;
+}
+
+/* .handsontable td.highlight-price-row {
+  background-color: red !important;
+} */

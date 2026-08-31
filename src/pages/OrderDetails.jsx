@@ -26,15 +26,18 @@ const OrderDetails = () => {
     { label: "Total price & Profit", path: "total-price-profit" },
   ];
   const { singleOrder, orderloading, error: usersError } = useSelector((state) => state.users);
+  const [activeTab, setActiveTab] = useState("order");
   const { storeId, user: authUser } = useSelector((state) => state.auth);
   const { user } = useSelector((state) => state?.auth);
+  const { userPermissions } = useSelector((state) => state?.permissions);
+  const permissions = userPermissions || [];
+  const roleId = user?.role_id;
 
-  const [activeTab, setActiveTab] = useState("order");
   const hasDash = String(singleOrder?.order_id)?.includes("-");
   // const hasDash = String(order?.order_id)?.includes("-");
   // Format order data
   const formattedOrder = singleOrder?.data ? {
-    orderId: singleOrder.data["Order#"] ,
+    orderId: singleOrder.data["Order#"],
     chargedDate: singleOrder.data["Charged Date"],
     chargedVendor: singleOrder.data["Charged Vendor"],
     leadSource: singleOrder.data["Lead Source"],
@@ -64,15 +67,15 @@ const OrderDetails = () => {
     customerEmail: singleOrder.data["Email"],
     customerPhone: singleOrder.data["Phone"],
     paidVia: singleOrder.data["Paid Via"],
-    ccPaypal: toNumber(singleOrder.data["CC/Paypal 4%"]),
+    ccPaypal: toNumber(singleOrder?.data["CC/Paypal 4%"]?.value),
     qty: singleOrder.data["Qty"],
-    price: toNumber(singleOrder.data["Price"]),
-    shipping: toNumber(singleOrder.data["Shipping"]),
-    tax: toNumber(singleOrder.data["Tax"]),
-    cost: toNumber(singleOrder.data["Cost"]),
-    vendorShipping: toNumber(singleOrder.data["Vendor Shipping"]),
-    vendorTax: toNumber(singleOrder.data["Vendor Tax"]),
-    totalPriceValue: toNumber(singleOrder.data["Total Price"]),
+    price: toNumber(singleOrder.data["Price"]?.value),
+    shipping: toNumber(singleOrder.data["Shipping"]?.value),
+    tax: toNumber(singleOrder.data["Tax"]?.value),
+    cost: toNumber(singleOrder.data["Cost"]?.value),
+    vendorShipping: toNumber(singleOrder.data["Vendor Shipping"]?.value),
+    vendorTax: toNumber(singleOrder.data["Vendor Tax"]?.value),
+    totalPriceValue: toNumber(singleOrder.data["Total Price"]?.value),
     vendor: singleOrder.data["Vendor"],
     vendorOrder: singleOrder.data["Vendor order"],
     vendorPart: singleOrder.data["Vendor Part"],
@@ -85,14 +88,14 @@ const OrderDetails = () => {
     totalPrice: singleOrder.total_price?.total_price,
     totalPricePrice: singleOrder.total_price?.price,
     totalPriceTax: singleOrder.total_price?.tax,
-    totalCost: toNumber(singleOrder.data["Total Cost"]),
+    totalCost: toNumber(singleOrder.data["Total Cost"]?.value),
     // totalCost: singleOrder.total_cost?.total_cost,
 
     totalCostValue: singleOrder.total_cost?.Cost,
     totalCostVendorTax: singleOrder.total_cost?.["Vendor Tax"],
 
     totalCostWith4Percent: singleOrder["total_cost + 4%"]?.total_cost_4,
-    totalCost4Percent: toNumber(singleOrder?.data["Total Cost+4%"]),
+    totalCost4Percent: toNumber(singleOrder?.data["Total Cost+4%"]?.value),
     // totalCost4Percent: singleOrder?.data["Gross Profit"],
     // totalCost4Percent: singleOrder["total_cost + 4%"]?.total_Cost,
     ccPaypal4Percent: singleOrder["total_cost + 4%"]?.["CC/Paypal 4%"],
@@ -116,37 +119,38 @@ const OrderDetails = () => {
       : Object.values(user.page_access.page_name)
     : [];
 
-  const roleId = user?.role_id;
   const pageAccess = user
+  const hasPermission = (slug) => {
+    if (roleId === 1 || roleId === 2) return true;
+    return permissions.some((p) => p.slug === slug);
+  };
+
+  const tabPermissionMap = {
+    Order: "order.order",
+    Invoice: "order.invoice",
+    Customer: "order.customer",
+    Vendor: "order.vendor",
+    "Total price & Profit": "order.total_price_profit",
+  };
+  const hasAccess = (tabLabel) => {
+    if (roleId === 1 || roleId === 2) return true;
+
+    const slug = tabPermissionMap[tabLabel];
+    if (!slug) return false;
+
+    // Option A (Recommended): Strict – only show tab if specific permission exists
+    return hasPermission(slug);
+
+    // Option B: If parent "order" is enough to show ALL tabs → use this instead:
+    // return hasPermission(slug) || hasPermission("order");
+  };
 
   // Fetch order on mount
   useEffect(() => {
-    if (authUser?.role_id === 1 || authUser?.role_id === 2) {
-      dispatch(fetchSingleOrderAdmin({ orderId: orderId, role_id: storeId?.id }));
-      // dispatch(fetchSingleOrderAdmin({ orderId: orderId, sheetId: storeId?.sheet_id }));
-    }
-    else {
-      dispatch(fetchSingleOrderAdmin({ orderId: orderId, role_id: storeId?.id }));
-      // dispatch(fetchSingleOrder(orderId))
-    }
+    dispatch(fetchSingleOrderAdmin({ orderId: orderId, role_id: storeId?.id }));
   }, [authUser?.role_id, dispatch, orderId]);
-  // useEffect(() => {
-  //   const firstAccessible = tabs.find((tab) => {
-  //     const tabKey = tab.path === "total-price-profit" ? "Total price & Profit" : tab.label;
-  //     return hasAccess(tabKey);
-  //   });
-  //   if (firstAccessible) {
-  //     const key = firstAccessible.path === "total-price-profit" ? "total price & profit" : firstAccessible.path;
-  //     setActiveTab(key);
-  //   }
-  // }, [userAccess]);
-  // const hasAccess = (page) => {
-  //   if (roleId === 1 || roleId === 2) return true;
-  //   return userAccess.includes(page.toLowerCase());
-  //   // return userAccess.some(
-  //   //   (access) => access.toLowerCase() === page.toLowerCase()
-  //   // );
-  // };
+
+
   useEffect(() => {
     const firstAccessible = tabs.find((tab) => hasAccess(tab.label));
     if (firstAccessible && userAccess.length) {
@@ -154,13 +158,6 @@ const OrderDetails = () => {
       setActiveTab(key);
     }
   }, [userAccess]);
-  const hasAccess = (page) => {
-    if (roleId === 1 || roleId === 2) return true;
-    if (!userAccess || userAccess.length === 0) return true;
-    return userAccess.some(
-      (access) => access.toLowerCase() === page.toLowerCase()
-    );
-  };
 
   // Handle field update
   const handleUpdateField = async (field, value) => {
@@ -174,7 +171,17 @@ const OrderDetails = () => {
     //   console.error("Update failed:", err);
     // }
   };
-
+  // Auto-select first accessible tab
+  useEffect(() => {
+    const firstAccessible = tabs.find((tab) => hasAccess(tab.label));
+    if (firstAccessible) {
+      const key =
+        firstAccessible.path === "total-price-profit"
+          ? "total price & profit"
+          : firstAccessible.path;
+      setActiveTab(key);
+    }
+  }, [permissions]);
   // Single loading check
   if (orderloading) {
     return (
@@ -210,6 +217,8 @@ const OrderDetails = () => {
     setActiveTab(tabKey);
   };
 
+  console.log("formattedOrder", formattedOrder);
+
   return (
     <>
       {/* Header */}
@@ -243,10 +252,16 @@ const OrderDetails = () => {
 
       {/* Tabs */}
       <div className="bg-white p-6 rounded-2xl shadow-sm">
+        {/* Tabs */}
         <div className="flex gap-3 mb-6">
           {tabs.map((tab) => {
             if (!hasAccess(tab.label)) return null;
-            const tabKey = tab.path === "total-price-profit" ? "total price & profit" : tab.path;
+
+            const tabKey =
+              tab.path === "total-price-profit"
+                ? "total price & profit"
+                : tab.path;
+
             return (
               <button
                 key={tab.path}
@@ -260,11 +275,11 @@ const OrderDetails = () => {
               </button>
             );
           })}
+
           <span className="ml-auto text-xs flex justify-center items-center bg-blue-100 text-blue-600 px-3 py-1 rounded-md">
             • {formattedOrder?.status || ""}
           </span>
         </div>
-
         {/* === ORDER TAB === */}
         {activeTab === "order" && (
           hasAccess("Order")

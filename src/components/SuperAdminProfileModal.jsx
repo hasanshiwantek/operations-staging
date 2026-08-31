@@ -94,9 +94,8 @@ export const SuperAdminProfileModal = ({ onClose }) => {
               onChange={(e) =>
                 setFormData((prev) => ({ ...prev, name: e.target.value }))
               }
-              className={`w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none ${
-                errors.name ? "border-red-500" : "border-gray-300"
-              }`}
+              className={`w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none ${errors.name ? "border-red-500" : "border-gray-300"
+                }`}
               placeholder="Your name"
             />
             {errors.name && (
@@ -110,19 +109,19 @@ export const SuperAdminProfileModal = ({ onClose }) => {
             <input
               type="email"
               value={formData.email}
+              disabled={true}
               onChange={(e) =>
                 setFormData((prev) => ({ ...prev, email: e.target.value }))
               }
-              className={`w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none ${
-                errors.email ? "border-red-500" : "border-gray-300"
-              }`}
+              className={`w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 outline-none ${errors.email ? "border-red-500" : "border-gray-300"
+                }`}
               placeholder="your@email.com"
             />
             {errors.email && (
               <p className="text-red-500 text-xs mt-1">{errors.email}</p>
             )}
           </div>
-          <div>
+          {/* <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               New password (optional)
             </label>
@@ -192,7 +191,7 @@ export const SuperAdminProfileModal = ({ onClose }) => {
                 </p>
               )}
             </div>
-          )}
+          )} */}
           <div className="flex gap-3 pt-2">
             <button
               type="button"
