@@ -223,7 +223,7 @@ const makeValueRenderer = (fieldName) => {
 export const columnsOfSheet = [
   {
     data: "Sno",
-    title: "Sno",
+    title: "S.no",
     width: 60,
     readOnly: true,
     renderer: function (instance, td, row) {
