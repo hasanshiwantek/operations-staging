@@ -40,7 +40,20 @@ export const CHECKBOX_FIELDS = [
   "Custom Duties",
   "CC/Paypal 4%",
 ];
+export const cloneOrders = (orders) => {
+  try {
+    return structuredClone(orders || []);
+  } catch {
+    return JSON.parse(JSON.stringify(orders || []));
+  }
+};
 
+
+/** Optional hook so the renderer can update React state instead of HOT internals */
+let onCheckboxChange = null;
+export const setCheckboxChangeHandler = (fn) => {
+  onCheckboxChange = fn;
+};
 export const getSavedCheckboxState = () => {
   try {
     return JSON.parse(localStorage.getItem(CHECKBOX_STORAGE_KEY) || "{}");
@@ -48,7 +61,21 @@ export const getSavedCheckboxState = () => {
     return {};
   }
 };
+export const getFieldValue = (field) => {
 
+  if (field && typeof field === "object") return Number(field?.value) ?? "";
+  return field ?? "";
+};
+
+export const getFieldChecked = (field) => {
+  if (field && typeof field === "object") return Boolean(field.isTrue);
+  return false;
+};
+
+export const getFieldHighlight = (field) => {
+  if (field && typeof field === "object") return Boolean(field.isHighlight);
+  return false;
+};
 export const saveCheckboxState = (payload) => {
   const saved = getSavedCheckboxState();
 
@@ -92,10 +119,6 @@ export const applySavedCheckboxState = (orders) => {
     return next;
   });
 };
-export const getFieldValue = (field) => {
-  if (field && typeof field === "object") return field.value ?? "";
-  return field ?? "";
-};
 
 export const getIsAdmin = () => {
   // const value = localStorage.getItem("isAdmin");
@@ -124,16 +147,6 @@ export const getIsFinance = () => {
 
 };
 
-export const getFieldChecked = (field) => {
-  if (field && typeof field === "object") return Boolean(field.isTrue);
-  return false;
-};
-
-export const getFieldHighlight = (field) => {
-  if (field && typeof field === "object") return Boolean(field.isHighlight);
-  return false;
-};
-
 const makeCheckboxRenderer = (fieldName) => {
   return function (instance, td, row, col, prop, value) {
     const val = getFieldValue(value);
@@ -141,7 +154,7 @@ const makeCheckboxRenderer = (fieldName) => {
     const highlighted = getFieldHighlight(value);
     const isAdmin = getIsAdmin();
     const isFinance = getIsFinance();
-
+    const hasAmount = toNumber(val) > 0;
     td.innerHTML = "";
 
     const wrap = document.createElement("div");
@@ -152,15 +165,14 @@ const makeCheckboxRenderer = (fieldName) => {
     const span = document.createElement("span");
     span.textContent = val;
 
-    // const shouldShowCheckbox = isAdmin ? highlighted : !highlighted;
-    // Admin: show checkbox only when highlighted
-    // Finance: show checkbox only when NOT highlighted
-    // Other roles: never show checkbox
-    const shouldShowCheckbox = isAdmin
-      ? highlighted
-      : isFinance
-        ? !highlighted
-        : false;
+    // const shouldShowCheckbox = isAdmin
+    //   ? highlighted
+    //   : isFinance
+    //     ? !highlighted
+    //     : false;
+    const shouldShowCheckbox =
+      hasAmount &&
+      (isAdmin ? highlighted : isFinance ? !highlighted : false);
 
     if (shouldShowCheckbox) {
       const checkbox = document.createElement("input");
@@ -172,16 +184,25 @@ const makeCheckboxRenderer = (fieldName) => {
       checkbox.addEventListener("click", (e) => {
         e.stopPropagation();
 
-        const current = instance.getSourceDataAtRow(row);
-        const currentField = current[fieldName];
+        const physicalRow = instance.toPhysicalRow(row);
+        const current = instance.getSourceDataAtRow(physicalRow);
+        if (!current) return;
 
-        instance.setSourceDataAtCell(row, fieldName, {
-          value: getFieldValue(currentField),
+        const nextField = {
+          value: getFieldValue(current[fieldName]),
           isTrue: e.target.checked,
-          isHighlight: getFieldHighlight(currentField),
-        });
+          isHighlight: getFieldHighlight(current[fieldName]),
+          colorCode: current[fieldName]?.colorCode || "",
+        };
 
-        instance.render();
+        // Prefer React update — avoids Object.defineProperty on "Price"/"Shipping"
+        if (onCheckboxChange) {
+          onCheckboxChange(current["Order#"], fieldName, nextField);
+          return;
+        }
+
+        // Fallback: mutate the cloned row only (never setSourceDataAtCell)
+        current[fieldName] = nextField;
       });
 
       wrap.appendChild(checkbox);
@@ -348,4 +369,16 @@ export const defaultOrder = {
   "Attached To Order": "",
   "Entry Reason": "",
   "Comment": ""
+};
+const FLAT_VALUE_FIELDS = ["Price", "Shipping", "Tax", "CC/Paypal 4%", "Cost", "Vendor Shipping", "Vendor Tax", "Courier Charges", "Sales Tax", "Warehouse Charges", "Custom Duties", "Card Payment", "Total Price", "Total Cost", "Total Cost+4%"];
+export const flattenOrderValues = (order) => {
+  if (!order || typeof order !== "object") return order;
+
+  const next = { ...order };
+
+  FLAT_VALUE_FIELDS.forEach((key) => {
+    next[key] = String(getFieldValue(next[key]) ?? "0");
+  });
+
+  return next;
 };

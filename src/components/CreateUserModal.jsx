@@ -348,10 +348,10 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
 
           <button
             onClick={handleSubmit}
-            disabled={updateLoading}
+            disabled={updateLoading || loading}
             className="w-full mt-4 bg-indigo-600 text-white py-2 rounded-lg font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {updateLoading
+            {updateLoading || loading
               ? "Updating..."
               : isEditMode
                 ? "Update user"

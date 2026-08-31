@@ -2,10 +2,9 @@ import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { HotTable } from '@handsontable/react-wrapper';
 import { registerAllModules } from 'handsontable/registry';
 import { useDispatch, useSelector } from 'react-redux';
-import autoTable from 'jspdf-autotable';   // ← Changed import
 import EditOrderDetailModal from './EditOrderDetailModal';
 import Handsontable from 'handsontable';
-import { fetchOrdersAdmin, fetchOrders, postOrderFiles, updateOrderFiles, createGenerateId, postSyncOrder, importOrderFiles, fetchOrderOptions } from '../store/usersSlice';
+import { fetchOrdersAdmin, postOrderFiles, updateOrderFiles, createGenerateId, postSyncOrder, importOrderFiles, fetchOrderOptions, updateFinanceOrderCheck } from '../store/usersSlice';
 import {
   columnsOfSheet,
   getFieldChecked,
@@ -13,11 +12,11 @@ import {
   getFieldHighlight,
   getIsAdmin,
   CHECKBOX_FIELDS,
-  applySavedCheckboxState,
-  saveCheckboxState,
+  cloneOrders,
+  setCheckboxChangeHandler,
+  flattenOrderValues,
 } from "../utils/constant";
 import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
 import 'handsontable/styles/handsontable.min.css';
 import 'handsontable/styles/ht-theme-main.min.css';
 import OrderDetailModal from './OrderDetailModal';
@@ -33,159 +32,7 @@ const formatCurrency = (value) => {
   }).format(value);
 };
 
-const Orders = [
-  {
-    "Order#": 12,
-    "Charged Date": "",
-    "Lead Source": "",
-    "Procured By": "",
-    "Order Date": "08/14/2026",
-    "Refund Date": "",
-    "Sales Agent": "",
-    "Invoice#": "",
-    "Invoice Link": "",
-    "Order Source": "",
-    "Payment Status": "",
-    "Brands": "APC",
-    "Category": "SC620I | APC | Smart-UPS Line-Interactive 230V 0.62 kVA 390 W 4 AC outlet(s)",
-    "Part#": "SC620I",
-    "Qty": "2",
-    "Condition": "",
-    "Shipping A/C": "",
-    "Bill to address": "601 E Main Ave",
-    "Ship to address": "601 E Main Ave",
-    "City": "Myerstown",
-    "State": "Pennsylvania",
-    "Country": "United States",
-    "Carrier": "",
-    "Tracking": "",
-    "Status": "",
-    "Reasons (IF any)": "",
-    "Customer": "Art Muzzy",
-    "Customer Company": "Saveway USA",
-    "Email": "savewayam@aol.com",
-    "Phone": "6104510825",
-    "Customer PO#": "",
 
-    // 1
-    "Price": { "value": 640, "isTrue": false, "isHighlight": false, "colorCode": "" },
-    "Shipping": { "value": 0, "isTrue": false, "isHighlight": false, "colorCode": "" },
-    "Tax": { "value": 0, "isTrue": false, "isHighlight": false, "colorCode": "" },
-    "Vendor": "",
-    "Vendor order#": "",
-    "Vendor Part#": "",
-
-    // 2
-    "CC/Paypal 4%": { "value": 25.6, "isTrue": false, "isHighlight": false, "colorCode": "" },
-    "Charged Vendor": "",
-    "Paid Via": "Credit Card (via Stripe)",
-
-    // 3
-    "Cost": { "value": 0, "isTrue": false, "isHighlight": false, "colorCode": "" },
-    "Vendor Shipping": { "value": 0, "isTrue": false, "isHighlight": false, "colorCode": "" },
-    "Vendor Tax": { "value": 0, "isTrue": false, "isHighlight": false, "colorCode": "" },
-
-    // 4
-    "Courier Charges": { "value": 0, "isTrue": false, "isHighlight": false, "colorCode": "" },
-    "Sales Tax": { "value": 0, "isTrue": false, "isHighlight": false, "colorCode": "" },
-    "Warehouse Charges": { "value": 0, "isTrue": false, "isHighlight": false, "colorCode": "" },
-    "Custom Duties": { "value": 0, "isTrue": false, "isHighlight": false, "colorCode": "" },
-
-    "Card Payment": { "value": 0, "isHighlight": false },
-    "Total Price": {
-      value: 640,
-      isHighlight: false,    // true because Price is on
-      "colorCode": "green"
-    },
-    "Total Cost": { "value": 0, "isHighlight": false },
-    "Total Cost+4%": { "value": 25.6, "isHighlight": false },
-
-    "Gross Profit": 640,
-    "Gross Profit-4%": 614.4,
-    "Profit %": 96,
-    "Check/Invoice": "",
-    "Entry Check": "",
-    "Attached To Order": "",
-    "Entry Reason": "",
-    "Comment": "",
-    "order_type": "rma"
-  },
-  {
-    "Order#": 2,
-    "Charged Date": "",
-    "Lead Source": "",
-    "Procured By": "",
-    "Order Date": "08/14/2026",
-    "Refund Date": "",
-    "Sales Agent": "",
-    "Invoice#": "",
-    "Invoice Link": "",
-    "Order Source": "",
-    "Payment Status": "",
-    "Brands": "APC",
-    "Category": "SC620I | APC | Smart-UPS Line-Interactive 230V 0.62 kVA 390 W 4 AC outlet(s)",
-    "Part#": "SC620I",
-    "Qty": "2",
-    "Condition": "",
-    "Shipping A/C": "",
-    "Bill to address": "601 E Main Ave",
-    "Ship to address": "601 E Main Ave",
-    "City": "Myerstown",
-    "State": "Pennsylvania",
-    "Country": "United States",
-    "Carrier": "",
-    "Tracking": "",
-    "Status": "",
-    "Reasons (IF any)": "",
-    "Customer": "Art Muzzy",
-    "Customer Company": "Saveway USA",
-    "Email": "savewayam@aol.com",
-    "Phone": "6104510825",
-    "Customer PO#": "",
-
-    // 1
-    "Price": { "value": 640, "isTrue": false, "isHighlight": false, },
-    "Shipping": { "value": 0, "isTrue": false, "isHighlight": false, },
-    "Tax": { "value": 0, "isTrue": false, "isHighlight": false, "colorCode": "" },
-    "Vendor": "",
-    "Vendor order#": "",
-    "Vendor Part#": "",
-
-    // 2
-    "CC/Paypal 4%": { "value": 25.6, "isTrue": false, "isHighlight": false, "colorCode": "" },
-    "Charged Vendor": "",
-    "Paid Via": "Credit Card (via Stripe)",
-
-    // 3
-    "Cost": { "value": 0, "isTrue": false, "isHighlight": false, "colorCode": "" },
-    "Vendor Shipping": { "value": 0, "isTrue": false, "isHighlight": false, "colorCode": "" },
-    "Vendor Tax": { "value": 0, "isTrue": false, "isHighlight": false, "colorCode": "" },
-
-    // 4
-    "Courier Charges": { "value": 0, "isTrue": false, "isHighlight": false, "colorCode": "" },
-    "Sales Tax": { "value": 0, "isTrue": false, "isHighlight": false, "colorCode": "" },
-    "Warehouse Charges": { "value": 0, "isTrue": false, "isHighlight": false, "colorCode": "" },
-    "Custom Duties": { "value": 0, "isTrue": false, "isHighlight": false, "colorCode": "" },
-
-    "Card Payment": { "value": 0, "isHighlight": false },
-    "Total Price": {
-      value: 640,
-      isHighlight: false,    // true because Price is on
-    },
-    "Total Cost": { "value": 0, "isHighlight": false },
-    "Total Cost+4%": { "value": 25.6, "isHighlight": false },
-
-    "Gross Profit": 640,
-    "Gross Profit-4%": 614.4,
-    "Profit %": 96,
-    "Check/Invoice": "",
-    "Entry Check": "",
-    "Attached To Order": "",
-    "Entry Reason": "",
-    "Comment": "",
-    "order_type": ""
-  }
-];
 const resolveCellColor = (order, column) => {
   if (!order || !column) return "";
 
@@ -220,14 +67,13 @@ const resolveCellColor = (order, column) => {
   return "";
 };
 
-
-function OrderListTable({ }) {
+function OrderListTable({ Orders }) {
   const dispatch = useDispatch();
   const hotRef = useRef(null);
   const isRightClickRef = useRef(false);
   const isContextMenuOpen = useRef(false);
-  const [tableOrders, setTableOrders] = useState(() => applySavedCheckboxState(Orders));
-  const { orderloading, syncLoading } = useSelector((state) => state.users);
+  const [tableOrders, setTableOrders] = useState(() => cloneOrders(Orders));
+  const { orderloading, syncLoading, orderCheckLoading } = useSelector((state) => state.users);
   const { token, storeId, user: authUser } = useSelector((state) => state.auth);
   const { user } = useSelector((state) => state?.auth);
   const { userPermissions } = useSelector((state) => state?.permissions);
@@ -243,6 +89,7 @@ function OrderListTable({ }) {
   const [selectionSummary, setSelectionSummary] = useState({
     sum: 0,
     count: 0,
+    avg: 0,
     visible: false,
   });
   const roleId = user?.role_id;
@@ -253,20 +100,35 @@ function OrderListTable({ }) {
     return permissions?.some((p) => p.slug === slug);
   };
 
+  useEffect(() => {
+    setTableOrders(cloneOrders(Orders));
+  }, [Orders]);
+  useEffect(() => {
+    setCheckboxChangeHandler((orderId, fieldName, nextField) => {
+      setTableOrders((prev) =>
+        prev.map((order) => {
+          if (String(order["Order#"]) !== String(orderId)) return order;
 
-  // const filteredOrders = useMemo(() => {
-  //   if (!Orders) return [];
+          const next = { ...order, [fieldName]: nextField };
 
-  //   if (orderTypeFilter === "all") return Orders;
+          const priceGroupOn = ["Price", "Shipping", "Tax"].some(
+            (key) => getFieldHighlight(next[key]) || getFieldChecked(next[key])
+          );
 
-  //   return Orders.filter((order) => {
-  //     const type = String(order.order_type || "").toLowerCase();
-  //     const status = String(order.Status || "").toLowerCase();
-  //     if (orderTypeFilter === "cancelled") return status === "cancelled";
-  //     if (orderTypeFilter === "delivered") return status === "delivered";
-  //     return type === orderTypeFilter;
-  //   });
-  // }, [Orders, orderTypeFilter]);
+          next["Total Price"] = {
+            value: getFieldValue(next["Total Price"]) || 0,
+            isTrue: getFieldChecked(next["Total Price"]),
+            isHighlight: priceGroupOn,
+            colorCode: next["Total Price"]?.colorCode || "",
+          };
+
+          return next;
+        })
+      );
+    });
+
+    return () => setCheckboxChangeHandler(null);
+  }, []);
 
 
   const filteredOrders = useMemo(() => {
@@ -331,13 +193,6 @@ function OrderListTable({ }) {
       return false;
     }
   };
-  const handleBeforeOnCellContextMenu = (event) => {
-    event.stopImmediatePropagation();
-    // Also hide the sum badge
-    setSelectionSummary({ sum: 0, count: 0, visible: false });
-  };
-
-
 
   const handleAfterGetColHeader = (col, TH, headerLevel) => {
     // Only for the first data columns or any column you want
@@ -386,6 +241,7 @@ function OrderListTable({ }) {
       TH.classList.add("htGrossProfit4");
     }
   };
+
   const updateSelectionSummary = useCallback(() => {
     if (isRightClickRef.current) return;
 
@@ -395,35 +251,43 @@ function OrderListTable({ }) {
     const selected = hot.getSelected();
     if (!selected || selected.length === 0) {
       setSelectionSummary((prev) =>
-        prev.visible ? { sum: 0, count: 0, visible: false } : prev
+        prev.visible ? { sum: 0, count: 0, avg: 0, visible: false } : prev
       );
       return;
     }
 
     let sum = 0;
     let count = 0;
-    const [r1, c1, r2, c2] = selected[0];
 
-    for (let r = Math.min(r1, r2); r <= Math.max(r1, r2); r++) {
-      for (let c = Math.min(c1, c2); c <= Math.max(c1, c2); c++) {
-        const val = parseFloat(hot.getDataAtCell(r, c));
-        if (!isNaN(val)) {
-          sum += val;
-          count++;
+    selected.forEach(([r1, c1, r2, c2]) => {
+      for (let r = Math.min(r1, r2); r <= Math.max(r1, r2); r++) {
+        for (let c = Math.min(c1, c2); c <= Math.max(c1, c2); c++) {
+          const raw = hot.getDataAtCell(r, c);
+          const extracted = getFieldValue(raw);
+
+          if (extracted === "" || extracted === null || extracted === undefined) continue;
+
+          const val = parseFloat(String(extracted).replace(/[^0-9.-]/g, ""));
+          if (!isNaN(val)) {
+            sum += val;
+            count++;
+          }
         }
       }
-    }
+    });
+
+    const avg = count > 0 ? sum / count : 0;
 
     setSelectionSummary((prev) => {
-      // Only update state if values actually changed
-      if (prev.sum === sum && prev.count === count && prev.visible === count > 1) {
+      if (
+        prev.sum === sum &&
+        prev.count === count &&
+        prev.avg === avg &&
+        prev.visible === count > 1
+      ) {
         return prev;
       }
-      return {
-        sum,
-        count,
-        visible: count > 1,
-      };
+      return { sum, count, avg, visible: count > 1 };
     });
   }, []);
   const exportToExcel = () => {
@@ -441,66 +305,7 @@ function OrderListTable({ }) {
     })
   };
 
-  const exportToPDF = () => {
-    if (!filteredOrders || filteredOrders.length === 0) {
-      return alert("No data to export");
-    }
 
-    const doc = new jsPDF({
-      orientation: 'landscape',
-      unit: 'mm',
-      format: 'a1'
-    });
-
-    doc.setFontSize(14);
-    doc.text("CTS Dashboard - Order Sheet", 14, 20);
-
-    const tableColumn = columnsOfSheet.map(col => col.title);
-    const tableRows = filteredOrders.map(order =>
-      columnsOfSheet.map(col => {
-        let value = order[col.data];
-        if (value === null || value === undefined) return "";
-        return String(value); // full value, no truncation
-      })
-    );
-
-    autoTable(doc, {
-      head: [tableColumn],
-      body: tableRows,
-      startY: 30,
-      styles: {
-        fontSize: 6,
-        cellPadding: 1.5,
-        overflow: 'linebreak',   // wraps long text instead of cutting it
-        valign: 'top'
-      },
-      headStyles: {
-        fillColor: [27, 81, 239],
-        fontSize: 7,
-        textColor: 255,
-        overflow: 'linebreak'
-      },
-      alternateRowStyles: { fillColor: [245, 245, 245] },
-      margin: { top: 25, right: 10, bottom: 15, left: 10 },
-      tableWidth: 'wrap',
-      columnStyles: {
-        0: { cellWidth: 22 },
-        17: { cellWidth: 45 },
-        18: { cellWidth: 45 },
-        28: { cellWidth: 40 }
-      },
-      didDrawPage: (data) => {
-        doc.setFontSize(8);
-        doc.text(
-          `Page ${doc.internal.getNumberOfPages()}`,
-          data.settings.margin.left,
-          doc.internal.pageSize.getHeight() - 8
-        );
-      }
-    });
-
-    doc.save(`Orders_${new Date().toISOString().slice(0, 10)}.pdf`);
-  };
   // Add this handler
   const handleOrderClick = (rowIndex) => {
     // rowIndex from Handsontable is 0-based (header is row 0)
@@ -540,8 +345,7 @@ function OrderListTable({ }) {
 
   const handleSaveCheckedFields = async () => {
     const isAdmin = getIsAdmin();
-    const hot = hotRef.current?.hotInstance;
-    const liveOrders = hot ? hot.getSourceData() : filteredOrders;
+    const liveOrders = tableOrders;
 
     const payload = (liveOrders || [])
       .map((order) => {
@@ -557,7 +361,7 @@ function OrderListTable({ }) {
             value: getFieldValue(order[field]),
             isTrue: checked,
             isHighlight: checked,
-            colorCode: user?.colour_code
+            // colorCode: user?.colour_code || "",
           };
         });
 
@@ -570,33 +374,20 @@ function OrderListTable({ }) {
       })
       .filter(Boolean);
 
-    console.log("isAdmin:", isAdmin);
-    console.log("SAVE PAYLOAD:", payload);
-
     if (payload.length === 0) {
       alert("Nothing to save");
       return;
     }
 
-    saveCheckboxState(payload);
-    setTableOrders(applySavedCheckboxState(Orders));
-    alert(`Saved ${payload.length} order(s)`);
+    dispatch(updateFinanceOrderCheck(payload))
+      .unwrap()
+      .then(() => {
+        dispatch(fetchOrdersAdmin(storeId?.id));
+      })
+      .catch((error) => {
+        console.error("Finance order check failed:", error);
+      });
   };
-  // const ensureColorClass = (color) => {
-  //   const safe = String(color).replace(/[^a-zA-Z0-9#-]/g, "");
-  //   const className = `dyn-color-${safe}`;
-  //   const styleId = `style-${className}`;
-
-  //   if (!document.getElementById(styleId)) {
-  //     const style = document.createElement("style");
-  //     style.id = styleId;
-  //     style.innerHTML = `.handsontable td.${className} { background-color: ${color} !important; }`;
-  //     document.head.appendChild(style);
-  //   }
-
-  //   return className;
-  // };
-
   const ensureColorClass = (color) => {
     // const safe = String(color).replace(/[^a-zA-Z0-9#-]/g, "");
     // Remove # and any invalid characters
@@ -726,10 +517,10 @@ function OrderListTable({ }) {
       background-color: ${orderTypesMap?.po} !important;
     }
     .handsontable td.rma-row {
-      background-color: ${orderTypesMap?.rma || "#e5c13e"} !important;
+      background-color: ${orderTypesMap?.rma} !important;
     }
     .handsontable td.cancelled-row {
-      background-color: ${orderTypesMap?.cancelled || "#ea8b81"} !important;
+      background-color: ${orderTypesMap?.cancelled} !important;
     }
     .handsontable td.delivered-row {
       background-color: #86bd93 !important;
@@ -779,7 +570,6 @@ function OrderListTable({ }) {
       </div>
     );
   }
-
   return (
     <React.Fragment>
       {/* ========== Custom Color Filter Menu ========== */}
@@ -860,7 +650,7 @@ function OrderListTable({ }) {
       )}
       {selectedOrder && (
         <EditOrderDetailModal
-          order={selectedOrder}
+          order={flattenOrderValues(selectedOrder)}
           onClose={() => setSelectedOrder(null)}
           onSave={(updatedOrderPayload) => {
 
@@ -976,8 +766,9 @@ function OrderListTable({ }) {
                 borderRadius: "6px",
                 cursor: "pointer",
               }}
+              disabled={orderCheckLoading}
             >
-              Save
+              {orderCheckLoading ? "Save..." : "Save"}
             </button>}
             {hasPermission("view_sheet.sync_orders") && (<button
               onClick={handleSyncOrders}
@@ -1024,8 +815,7 @@ function OrderListTable({ }) {
 
           <HotTable
             ref={hotRef}
-            // data={Orders || []}
-            data={filteredOrders}                 // ← important
+            data={filteredOrders || []}                 // ← important
             columns={columnsOfSheet}
             style={{ zIndex: 10 }}
             colHeaders={true}
@@ -1069,7 +859,7 @@ function OrderListTable({ }) {
 
             afterDeselect={() => {
               setSelectionSummary((prev) =>
-                prev.visible ? { sum: 0, count: 0, visible: false } : prev
+                prev.visible ? { sum: 0, count: 0, avg: 0, visible: false } : prev
               );
             }}
 
@@ -1097,44 +887,17 @@ function OrderListTable({ }) {
             outsideClickDeselects={false}
 
             afterGetColHeader={handleAfterGetColHeader}
-            // afterGetColHeader={(col, TH, headerLevel) => {
-            //   if (headerLevel !== 0) return;
-
-            //   // col index starts from 0 for the first data column (Sno)
-            //   const column = columnsOfSheet[col];
-            //   if (!column) return;
-
-            //   // Clean previous classes
-            //   TH.classList.remove(
-            //     "htOrderCount",
-            //     "htTotalPrice",
-            //     "htTotalCost",
-            //     "htTotalCost4",
-            //     "htGrossProfit",
-            //     "htGrossProfit4"
-            //   );
-
-            //   if (column.data === "Order#") {
-            //     TH.classList.add("htOrderCount");
-            //   } else if (column.data === "Total Price") {
-            //     TH.classList.add("htTotalPrice");
-            //   } else if (column.data === "Total Cost") {
-            //     TH.classList.add("htTotalCost");
-            //   } else if (column.data === "Total Cost+4%") {
-            //     TH.classList.add("htTotalCost4");
-            //   } else if (column.data === "Gross Profit") {
-            //     TH.classList.add("htGrossProfit");
-            //   } else if (column.data === "Gross Profit-4%") {
-            //     TH.classList.add("htGrossProfit4");
-            //   }
-            // }}
             nestedHeaders={nestedHeaders}
             contextMenu={{
               items: {
                 edit: {
                   name: 'Edit',
                   hidden: function () {
-                    // Hide if user doesn't have permission
+                    // // Hide if user doesn't have permission
+                    // if (!hasPermission("view_sheet.edit_order")) return true;
+                    // return false;
+                    const selected = this.getSelectedLast();
+                    if (!selected || selected[0] < 0) return true;
                     if (!hasPermission("view_sheet.edit_order")) return true;
                     return false;
                   },
@@ -1146,18 +909,19 @@ function OrderListTable({ }) {
                 create_part: {
                   name: 'Create part order',
                   hidden: function () {
-
+                    const selected = this.getSelectedLast();
+                    if (!selected || selected[0] < 0) return true;
                     // Hide if no permission
                     if (!hasPermission("view_sheet.po")) return true;
 
-                    const selected = this.getSelectedLast();
                     if (!selected) return true;
 
                     const row = selected[0];
                     const order = filteredOrders?.[row];
                     const type = String(order?.order_type || '').toLowerCase();
+                    const status = String(order?.Status || '').toLowerCase();
 
-                    return type === 'po' || type === 'rma';
+                    return type === 'po' || type === 'rma' || status === "cancelled";;
                   },
                   callback: async (key, selection) => {
                     const row = selection[0].start.row;
@@ -1189,16 +953,18 @@ function OrderListTable({ }) {
                 rma: {
                   name: 'RMA',
                   hidden: function () {
+                    const selected = this.getSelectedLast();
+                    if (!selected || selected[0] < 0) return true;
                     if (!hasPermission("view_sheet.rma")) return true;
 
-                    const selected = this.getSelectedLast();
                     if (!selected) return true;
 
                     const row = selected[0];
                     const order = filteredOrders?.[row];
                     const type = String(order?.order_type || '').toLowerCase();
+                    const status = String(order?.Status || '').toLowerCase();
 
-                    return type === 'rma';
+                    return type === 'rma' || status == "cancelled";
                   },
                   callback: async (key, selection) => {
                     const row = selection[0].start.row;
@@ -1232,12 +998,11 @@ function OrderListTable({ }) {
             emptyDataMessage="No orders found"
           />
           {/* Selection Summary Badge */}
-          {selectionSummary.visible && (
+          {selectionSummary?.visible && (
             <div
               style={{
-                // position: "fixed",
-                // bottom: "24px",
-                // right: "30px",
+                position: "absolute",
+                right: "12px",
                 background: "#e8f5e9",
                 border: "1px solid #81c784",
                 borderRadius: "6px",
@@ -1250,11 +1015,20 @@ function OrderListTable({ }) {
                 display: "flex",
                 gap: "10px",
                 alignItems: "center",
+                pointerEvents: "none",
               }}
             >
               <span>
                 Sum:{" "}
                 {selectionSummary.sum.toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </span>
+              <span style={{ opacity: 0.5 }}>|</span>
+              <span>
+                Avg:{" "}
+                {selectionSummary.avg.toLocaleString("en-US", {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 })}

@@ -67,15 +67,15 @@ const OrderDetails = () => {
     customerEmail: singleOrder.data["Email"],
     customerPhone: singleOrder.data["Phone"],
     paidVia: singleOrder.data["Paid Via"],
-    ccPaypal: toNumber(singleOrder.data["CC/Paypal 4%"]),
+    ccPaypal: toNumber(singleOrder?.data["CC/Paypal 4%"]?.value),
     qty: singleOrder.data["Qty"],
-    price: toNumber(singleOrder.data["Price"]),
-    shipping: toNumber(singleOrder.data["Shipping"]),
-    tax: toNumber(singleOrder.data["Tax"]),
-    cost: toNumber(singleOrder.data["Cost"]),
-    vendorShipping: toNumber(singleOrder.data["Vendor Shipping"]),
-    vendorTax: toNumber(singleOrder.data["Vendor Tax"]),
-    totalPriceValue: toNumber(singleOrder.data["Total Price"]),
+    price: toNumber(singleOrder.data["Price"]?.value),
+    shipping: toNumber(singleOrder.data["Shipping"]?.value),
+    tax: toNumber(singleOrder.data["Tax"]?.value),
+    cost: toNumber(singleOrder.data["Cost"]?.value),
+    vendorShipping: toNumber(singleOrder.data["Vendor Shipping"]?.value),
+    vendorTax: toNumber(singleOrder.data["Vendor Tax"]?.value),
+    totalPriceValue: toNumber(singleOrder.data["Total Price"]?.value),
     vendor: singleOrder.data["Vendor"],
     vendorOrder: singleOrder.data["Vendor order"],
     vendorPart: singleOrder.data["Vendor Part"],
@@ -88,14 +88,14 @@ const OrderDetails = () => {
     totalPrice: singleOrder.total_price?.total_price,
     totalPricePrice: singleOrder.total_price?.price,
     totalPriceTax: singleOrder.total_price?.tax,
-    totalCost: toNumber(singleOrder.data["Total Cost"]),
+    totalCost: toNumber(singleOrder.data["Total Cost"]?.value),
     // totalCost: singleOrder.total_cost?.total_cost,
 
     totalCostValue: singleOrder.total_cost?.Cost,
     totalCostVendorTax: singleOrder.total_cost?.["Vendor Tax"],
 
     totalCostWith4Percent: singleOrder["total_cost + 4%"]?.total_cost_4,
-    totalCost4Percent: toNumber(singleOrder?.data["Total Cost+4%"]),
+    totalCost4Percent: toNumber(singleOrder?.data["Total Cost+4%"]?.value),
     // totalCost4Percent: singleOrder?.data["Gross Profit"],
     // totalCost4Percent: singleOrder["total_cost + 4%"]?.total_Cost,
     ccPaypal4Percent: singleOrder["total_cost + 4%"]?.["CC/Paypal 4%"],
@@ -147,12 +147,7 @@ const OrderDetails = () => {
 
   // Fetch order on mount
   useEffect(() => {
-    if (authUser?.role_id === 1 || authUser?.role_id === 2) {
-      dispatch(fetchSingleOrderAdmin({ orderId: orderId, role_id: storeId?.id }));
-    }
-    else {
-      dispatch(fetchSingleOrderAdmin({ orderId: orderId, role_id: storeId?.id }));
-    }
+    dispatch(fetchSingleOrderAdmin({ orderId: orderId, role_id: storeId?.id }));
   }, [authUser?.role_id, dispatch, orderId]);
 
 
@@ -221,6 +216,8 @@ const OrderDetails = () => {
     const tabKey = tabPath === "total-price-profit" ? "total price & profit" : tabPath;
     setActiveTab(tabKey);
   };
+
+  console.log("formattedOrder", formattedOrder);
 
   return (
     <>

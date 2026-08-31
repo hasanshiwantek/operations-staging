@@ -28,6 +28,7 @@ const initialState = {
     status: [],
   },
   optionsLoading: false,
+  orderCheckLoading: false,
 };
 
 // Fetch users async thunk
@@ -330,6 +331,26 @@ export const fetchOrderOptions = createAsyncThunk(
     }
   }
 );
+
+export const updateFinanceOrderCheck = createAsyncThunk(
+  "users/updateFinanceOrderCheck",
+  async (data, { rejectWithValue }) => {
+    try {
+      const response = await axiosInstance.put(
+        "/finance-order-checks",
+        data
+      );
+
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to update finance order check"
+      );
+    }
+  }
+);
 const usersSlice = createSlice({
   name: 'users',
   initialState,
@@ -523,6 +544,20 @@ const usersSlice = createSlice({
       })
       .addCase(fetchOrderOptions.rejected, (state, action) => {
         state.optionsLoading = false;
+        state.error = action.payload;
+      })
+
+      
+      // ===== Order Options =====
+      .addCase(updateFinanceOrderCheck.pending, (state) => {
+        state.orderCheckLoading = true;
+        state.error = null;
+      })
+      .addCase(updateFinanceOrderCheck.fulfilled, (state, action) => {
+        state.orderCheckLoading = false;
+      })
+      .addCase(updateFinanceOrderCheck.rejected, (state, action) => {
+        state.orderCheckLoading = false;
         state.error = action.payload;
       })
 

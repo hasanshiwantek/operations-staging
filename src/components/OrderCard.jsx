@@ -1,7 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import orderIcon from "../assets/totalorders-icon.svg";
-import { AlertTriangle } from "lucide-react";
 
 const statusStyles = {
   delivered: "bg-green-50 text-green-700",

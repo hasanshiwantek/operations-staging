@@ -17,104 +17,7 @@ import { OrderCardSkeleton } from "../components/Utils";
 import { toNumber } from "../utils/constant";
 import { useNavigate } from "react-router-dom";
 import OrderDetailModal from "../components/OrderDetailModal";
-import OrderListTable from "../components/OrderListTable";
-import { getPermissionsByStoreId } from "../store/permissionsSlice";
-const tabs = [
-  {
-    label: "Dashboard",
-    value: "dashboard",
-  },
-  {
-    label: "View Sheet",
-    value: "view-sheet",
-  },
-];
-const staticDashboardData = {
-  order_value: 235000,
-  gross_profit: 42000,
-  orders: [
-    {
-      order_id: 1001,
-      brand: "Acme Gear",
-      category: "Electronics",
-      status: "Delivered",
-      price: 12500,
-      qty: 12,
-      procured_by: "Sarah Wilson",
-      order_date: "2024-10-01",
-    },
-    {
-      order_id: 1002,
-      brand: "Nova Foods",
-      category: "Grocery",
-      status: "Intransit",
-      price: 8450,
-      qty: 30,
-      procured_by: "Mark Patel",
-      order_date: "2024-10-05",
-    },
-    {
-      order_id: 1003,
-      brand: "Urban Threads",
-      category: "Apparel",
-      status: "Delayed",
-      price: 5400,
-      qty: 18,
-      procured_by: "Olivia Chen",
-      order_date: "2024-09-28",
-    },
-    {
-      order_id: 1004,
-      brand: "Zen Living",
-      category: "Home",
-      status: "Cancel",
-      price: 2999,
-      qty: 6,
-      procured_by: "James Carter",
-      order_date: "2024-09-20",
-    },
-    {
-      order_id: 1005,
-      brand: "Bright Labs",
-      category: "Health",
-      status: "Partial",
-      price: 7600,
-      qty: 10,
-      procured_by: "Sarah Wilson",
-      order_date: "2024-09-15",
-    },
-    {
-      order_id: 1006,
-      brand: "PixelPlay",
-      category: "Gaming",
-      status: "Refunded",
-      price: 15600,
-      qty: 8,
-      procured_by: "Mark Patel",
-      order_date: "2024-08-18",
-    },
-    {
-      order_id: 1007,
-      brand: "EcoDrive",
-      category: "Automotive",
-      status: "Delivered",
-      price: 22000,
-      qty: 4,
-      procured_by: "Olivia Chen",
-      order_date: "2024-08-10",
-    },
-    {
-      order_id: 1008,
-      brand: "Skyline Tech",
-      category: "Electronics",
-      status: "Delivered",
-      price: 18999,
-      qty: 7,
-      procured_by: "James Carter",
-      order_date: "2024-07-30",
-    },
-  ],
-};
+import OrderListTable from "../components/OrderListTable"
 
 const Dashboard = () => {
   const dispatch = useDispatch();
@@ -183,9 +86,9 @@ const Dashboard = () => {
     brand: order["Brands"],
     category: order["Category"],
     qty: Number(toNumber(order["Qty"])),
-    price: Number(toNumber(order["Price"])),
+    price: Number(toNumber(order["Price"]?.value)),
     grossProfit: Number(toNumber(order["Gross Profit-4%"])),
-    totalPrice: Number(toNumber(order["Total Price"])),
+    totalPrice: Number(toNumber(order["Total Price"]?.value)),
     status: order["Status"],
     procured_by: order["Procured By"],
     order_date: order["Order Date"],
@@ -250,7 +153,7 @@ const Dashboard = () => {
     return <p className="text-center mt-10 text-red-500">Failed to load data.</p>;
 
   // === Filter logic ===
-  const filteredOrders = orderData.filter(order => {
+  const filteredOrders = orderData?.filter(order => {
     const matchStatus =
       selectedFilter === "All" ||
       order.status?.toLowerCase().replace(/\s+/g, "") === selectedFilter.toLowerCase().replace(/\s+/g, "");
@@ -483,9 +386,6 @@ const Dashboard = () => {
                 </div>
               )}
             </div>
-
-
-
 
             {/* Pagination */}
             <Pagination
