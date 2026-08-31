@@ -33,6 +33,41 @@ const formatCurrency = (value) => {
 };
 
 
+// const resolveCellColor = (order, column) => {
+//   if (!order || !column) return "";
+
+//   const getColor = (key) => String(order[key]?.colorCode || "").trim();
+//   const isOn = (key) =>
+//     getFieldHighlight(order[key]) || getFieldChecked(order[key]);
+
+//   const priceGroup = ["Price", "Shipping", "Tax"];
+//   const cardGroup = ["Cost", "Vendor Shipping", "Vendor Tax"];
+//   const costGroup = ["Courier Charges", "Sales Tax", "Warehouse Charges", "Custom Duties"];
+
+//   if (priceGroup.includes(column) && isOn(column)) return getColor(column);
+//   if (column === "Total Price" && priceGroup.some(isOn)) {
+//     return priceGroup.map(getColor).find(Boolean) || getColor("Total Price");
+//   }
+
+//   if (cardGroup.includes(column) && isOn(column)) return getColor(column);
+//   if (column === "Card Payment" && cardGroup.some(isOn)) {
+//     return cardGroup.map(getColor).find(Boolean) || "";
+//   }
+
+//   if (costGroup.includes(column) && isOn(column)) return getColor(column);
+//   if (column === "Total Cost" && costGroup.some(isOn)) {
+//     return costGroup.map(getColor).find(Boolean) || "";
+//   }
+
+//   if (column === "CC/Paypal 4%" && isOn(column)) return getColor(column);
+//   if (column === "Total Cost+4%" && isOn("CC/Paypal 4%")) {
+//     return getColor("CC/Paypal 4%");
+//   }
+
+//   return "";
+// };
+
+
 const resolveCellColor = (order, column) => {
   if (!order || !column) return "";
 
@@ -45,28 +80,17 @@ const resolveCellColor = (order, column) => {
   const costGroup = ["Courier Charges", "Sales Tax", "Warehouse Charges", "Custom Duties"];
 
   if (priceGroup.includes(column) && isOn(column)) return getColor(column);
-  if (column === "Total Price" && priceGroup.some(isOn)) {
-    return priceGroup.map(getColor).find(Boolean) || getColor("Total Price");
-  }
-
   if (cardGroup.includes(column) && isOn(column)) return getColor(column);
-  if (column === "Card Payment" && cardGroup.some(isOn)) {
-    return cardGroup.map(getColor).find(Boolean) || "";
-  }
-
   if (costGroup.includes(column) && isOn(column)) return getColor(column);
-  if (column === "Total Cost" && costGroup.some(isOn)) {
-    return costGroup.map(getColor).find(Boolean) || "";
-  }
-
   if (column === "CC/Paypal 4%" && isOn(column)) return getColor(column);
-  if (column === "Total Cost+4%" && isOn("CC/Paypal 4%")) {
-    return getColor("CC/Paypal 4%");
-  }
+
+  if (column === "Total Price") return getColor("Total Price");
+  if (column === "Card Payment") return getColor("Card Payment");
+  if (column === "Total Cost") return getColor("Total Cost");
+  if (column === "Total Cost+4%") return getColor("Total Cost+4%");
 
   return "";
 };
-
 function OrderListTable({ Orders }) {
   const dispatch = useDispatch();
   const hotRef = useRef(null);
@@ -423,6 +447,67 @@ function OrderListTable({ Orders }) {
     }
     return className;
   };
+  // const cells = useCallback((row, col) => {
+  //   const order = filteredOrders?.[row];
+  //   const cellProperties = {};
+  //   if (!order) return cellProperties;
+
+  //   const status = String(order.Status || "").toLowerCase();
+  //   const type = String(order.order_type || "").toLowerCase();
+
+  //   if (status === "delivered") cellProperties.className = "delivered-row";
+  //   else if (status === "cancelled") cellProperties.className = "cancelled-row";
+  //   else if (type === "po") cellProperties.className = "po-row";
+  //   else if (type === "rma") cellProperties.className = "rma-row";
+
+  //   const column = columnsOfSheet[col]?.data;
+  //   if (!column) return cellProperties;
+
+  //   const isOn = (key) =>
+  //     getFieldHighlight(order[key]) || getFieldChecked(order[key]);
+
+  //   const getColor = (key) => String(order[key]?.colorCode || "").trim();
+
+  //   const priceGroup = ["Price", "Shipping", "Tax"];
+  //   const cardGroup = ["Cost", "Vendor Shipping", "Vendor Tax"];
+  //   const costGroup = ["Courier Charges", "Sales Tax", "Warehouse Charges", "Custom Duties"];
+
+  //   const isPriceGroupOn = priceGroup.some(isOn);
+  //   const isCardGroupOn = cardGroup.some(isOn);
+  //   const isCostGroupOn = costGroup.some(isOn);
+  //   const isCcOn = isOn("CC/Paypal 4%");
+
+  //   const shouldColor =
+  //     (priceGroup.includes(column) && isOn(column)) ||
+  //     (column === "Total Price" && isPriceGroupOn) ||
+  //     (cardGroup.includes(column) && isOn(column)) ||
+  //     (column === "Card Payment" && isCardGroupOn) ||
+  //     (costGroup.includes(column) && isOn(column)) ||
+  //     (column === "Total Cost" && isCostGroupOn) ||
+  //     (column === "CC/Paypal 4%" && isCcOn) ||
+  //     (column === "Total Cost+4%" && isCcOn);
+
+  //   if (!shouldColor) return cellProperties;
+
+  //   let color = getColor(column);
+
+  //   if (column === "Total Price") {
+  //     color = priceGroup.map(getColor).find(Boolean) || color;
+  //   } else if (column === "Card Payment") {
+  //     color = cardGroup.map(getColor).find(Boolean) || color;
+  //   } else if (column === "Total Cost") {
+  //     color = costGroup.map(getColor).find(Boolean) || color;
+  //   } else if (column === "Total Cost+4%") {
+  //     color = getColor("CC/Paypal 4%");
+  //   }
+
+  //   if (color) {
+  //     cellProperties.className = `${cellProperties.className || ""} ${ensureColorClass(color)}`.trim();
+  //   }
+
+  //   return cellProperties;
+  // }, [filteredOrders]);
+
   const cells = useCallback((row, col) => {
     const order = filteredOrders?.[row];
     const cellProperties = {};
@@ -448,34 +533,16 @@ function OrderListTable({ Orders }) {
     const cardGroup = ["Cost", "Vendor Shipping", "Vendor Tax"];
     const costGroup = ["Courier Charges", "Sales Tax", "Warehouse Charges", "Custom Duties"];
 
-    const isPriceGroupOn = priceGroup.some(isOn);
-    const isCardGroupOn = cardGroup.some(isOn);
-    const isCostGroupOn = costGroup.some(isOn);
-    const isCcOn = isOn("CC/Paypal 4%");
+    let color = "";
 
-    const shouldColor =
-      (priceGroup.includes(column) && isOn(column)) ||
-      (column === "Total Price" && isPriceGroupOn) ||
-      (cardGroup.includes(column) && isOn(column)) ||
-      (column === "Card Payment" && isCardGroupOn) ||
-      (costGroup.includes(column) && isOn(column)) ||
-      (column === "Total Cost" && isCostGroupOn) ||
-      (column === "CC/Paypal 4%" && isCcOn) ||
-      (column === "Total Cost+4%" && isCcOn);
-
-    if (!shouldColor) return cellProperties;
-
-    let color = getColor(column);
-
-    if (column === "Total Price") {
-      color = priceGroup.map(getColor).find(Boolean) || color;
-    } else if (column === "Card Payment") {
-      color = cardGroup.map(getColor).find(Boolean) || color;
-    } else if (column === "Total Cost") {
-      color = costGroup.map(getColor).find(Boolean) || color;
-    } else if (column === "Total Cost+4%") {
-      color = getColor("CC/Paypal 4%");
-    }
+    if (priceGroup.includes(column) && isOn(column)) color = getColor(column);
+    else if (cardGroup.includes(column) && isOn(column)) color = getColor(column);
+    else if (costGroup.includes(column) && isOn(column)) color = getColor(column);
+    else if (column === "CC/Paypal 4%" && isOn(column)) color = getColor(column);
+    else if (column === "Total Price") color = getColor("Total Price");
+    else if (column === "Card Payment") color = getColor("Card Payment");
+    else if (column === "Total Cost") color = getColor("Total Cost");
+    else if (column === "Total Cost+4%") color = getColor("Total Cost+4%");
 
     if (color) {
       cellProperties.className = `${cellProperties.className || ""} ${ensureColorClass(color)}`.trim();
@@ -483,6 +550,7 @@ function OrderListTable({ Orders }) {
 
     return cellProperties;
   }, [filteredOrders]);
+
   const nestedHeaders = useMemo(() => {
     return [
       // Top row (summary)
