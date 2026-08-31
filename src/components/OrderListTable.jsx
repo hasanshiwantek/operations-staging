@@ -103,6 +103,8 @@ function OrderListTable({ Orders }) {
   useEffect(() => {
     setTableOrders(cloneOrders(Orders));
   }, [Orders]);
+
+
   useEffect(() => {
     setCheckboxChangeHandler((orderId, fieldName, nextField) => {
       setTableOrders((prev) =>
@@ -291,9 +293,17 @@ function OrderListTable({ Orders }) {
     });
   }, []);
   const exportToExcel = () => {
-    if (!filteredOrders || filteredOrders.length === 0) return alert("No data to export");
+    if (!filteredOrders || filteredOrders?.length === 0) return alert("No data to export");
+    const exportRows = filteredOrders?.map(({ order_type, ...order }) => {
+      const row = { ...order };
 
-    const ws = XLSX.utils.json_to_sheet(filteredOrders);
+      Object.keys(row).forEach((key) => {
+        row[key] = getFieldValue(row[key]);
+      });
+
+      return row;
+    });
+    const ws = XLSX.utils.json_to_sheet(exportRows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Orders");
     XLSX.writeFile(wb, `Orders_${new Date().toISOString().slice(0, 10)}.xlsx`);
@@ -536,7 +546,15 @@ function OrderListTable({ Orders }) {
       dispatch(fetchOrderTypesMap(storeId.id));
     }
   }, [storeId?.id]);
-
+  const hasPendingChecks = useMemo(() => {
+    return (tableOrders || []).some((order) =>
+      CHECKBOX_FIELDS.some((field) => {
+        const checked = getFieldChecked(order[field]);
+        const highlighted = getFieldHighlight(order[field]);
+        return checked !== highlighted;
+      })
+    );
+  }, [tableOrders]);
 
   if (orderloading) {
     return (
@@ -756,7 +774,7 @@ function OrderListTable({ Orders }) {
           <h2>Dashboard - Order Sheet</h2>
 
           <div style={{ display: 'flex', gap: '12px' }}>
-            {permissionOfSaveBtn && <button
+            {permissionOfSaveBtn && hasPendingChecks && <button
               onClick={handleSaveCheckedFields}
               style={{
                 padding: "8px 16px",
