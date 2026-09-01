@@ -45,7 +45,7 @@ const OrderDetails = () => {
     orderDate: singleOrder.data["Order Date"],
     refundDate: singleOrder.data["Refund Date"],
     salesAgent: singleOrder.data["Sales Agent"],
-    invoiceNo: singleOrder.data["Invoice"],
+    invoiceNo: singleOrder.data["Invoice#"],
     orderSource: singleOrder.data["Order Source"],
     paymentStatus: singleOrder.data["Payment Status"],
     brand: singleOrder.data["Brands"],
