@@ -91,6 +91,7 @@ const resolveCellColor = (order, column) => {
 
   return "";
 };
+
 function OrderListTable({ Orders }) {
   const dispatch = useDispatch();
   const hotRef = useRef(null);

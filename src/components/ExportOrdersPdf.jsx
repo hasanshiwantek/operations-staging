@@ -65,7 +65,51 @@ const FIELD_GROUPS = [
 // Value ko display-ready string banao
 const formatValue = (val) => {
     if (val === null || val === undefined || val === "") return "—";
-    if (typeof val === "number") return String(val);
+    if (typeof val === "boolean") return val ? "Yes" : "No";
+    if (typeof val === "number") return Number.isFinite(val) ? String(val) : "—";
+    if (typeof val === "string") return val.trim() === "" ? "—" : val;
+
+    if (typeof val === "object") {
+        if (Array.isArray(val)) {
+            const parts = val.map(formatValue).filter((v) => v !== "—");
+            return parts.length ? parts.join(", ") : "—";
+        }
+
+        // Mongo Decimal128
+        if (val.$numberDecimal != null) return formatValue(val.$numberDecimal);
+
+        // Common money shapes: { amount }, { value }, { price }, { total }
+        const money =
+            val.amount ?? val.value ?? val.price ?? val.total ?? val.formatted;
+        if (money != null && typeof money !== "object") {
+            const currency = val.currency ?? val.symbol ?? val.code ?? "";
+            return currency ? `${currency} ${money}` : String(money);
+        }
+
+        // Decimal.js / similar
+        if (typeof val.toNumber === "function") {
+            try {
+                return String(val.toNumber());
+            } catch (_) {}
+        }
+        if (typeof val.toFixed === "function" && typeof val !== "number") {
+            try {
+                return val.toFixed(2);
+            } catch (_) {}
+        }
+
+        // Single-key wrapper: { Price: 120 } or { data: "..." }
+        const keys = Object.keys(val);
+        if (keys.length === 1) return formatValue(val[keys[0]]);
+
+        // Last resort so you can see the real shape instead of [object Object]
+        try {
+            return JSON.stringify(val);
+        } catch {
+            return "—";
+        }
+    }
+
     return String(val);
 };
 
