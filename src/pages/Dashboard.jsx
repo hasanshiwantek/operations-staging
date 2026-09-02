@@ -355,7 +355,7 @@ const Dashboard = () => {
 
 
             <div className="mb-6">
-              <div className="flex items-center gap-2 border rounded-full px-4 py-2 bg-white shadow-sm w-full">
+              {/* <div className="flex items-center gap-2 border rounded-full px-4 py-2 bg-white shadow-sm w-full">
                 <input
                   type="text"
                   placeholder="Enter Order ID..."
@@ -364,7 +364,7 @@ const Dashboard = () => {
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
                 <Search size={16} className="text-gray-400" />
-              </div>
+              </div> */}
             </div>
 
             {/* Orders Grid */}
