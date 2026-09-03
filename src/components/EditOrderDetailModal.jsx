@@ -227,6 +227,7 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
                                 'Tax',
                                 'CC/Paypal 4%',
                                 'Paid Via',
+                                 'Customer',
                             ];
 
                             const isAlwaysDisabled = alwaysDisabledFields.includes(key);
