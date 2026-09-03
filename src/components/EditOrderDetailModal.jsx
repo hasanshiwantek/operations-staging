@@ -215,6 +215,8 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
                                 'Qty',
                                 'Bill to address',
                                 'Ship to address',
+                                'City',
+                                'State',
                                 'Country',
                                 'Carrier',
                                 'Customer Company',
