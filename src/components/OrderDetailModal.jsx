@@ -5,7 +5,7 @@ import { useSelector, useDispatch } from 'react-redux';
 import { fetchOrderOptions } from '../store/usersSlice';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-
+const lockedFields = ["Refund Date"];
 const OrderDetailModal = ({ order = null, onClose, onSave }) => {
     const isNewOrder = !order;
 
@@ -114,7 +114,8 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
                             const isDropdown = Boolean(normalizedOptions[key]);
 
                             const options = normalizedOptions[key] || [];
-
+                            const isLocked = lockedFields.includes(key);
+                            const fieldDisabled = !isEditing || optionsLoading || isLocked;
                             return (
                                 <div
                                     key={key}
@@ -190,7 +191,7 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
                                                 name={key}
                                                 value={formData[key] ?? ''}
                                                 onChange={handleChange}
-                                                disabled={!isEditing || optionsLoading}
+                                                disabled={!isEditing || optionsLoading || fieldDisabled}
                                                 className={`
                                                     w-full
                                                     min-w-0
@@ -235,22 +236,13 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
                                                 }}
                                                 dateFormat="dd/MM/yyyy"
                                                 placeholderText="DD/MM/YYYY"
-                                                disabled={!isEditing}
+                                                disabled={!isEditing || fieldDisabled}
                                                 wrapperClassName="w-full"
                                                 className={`
-                                                    !w-full
-                                                    !border-0
-                                                    !bg-transparent
-                                                    !p-0
-                                                    !outline-none
-                                                    !shadow-none
-                                                    text-[10px]
-                                                    sm:text-[11px]
-                                                    ${isEditing
-                                                        ? 'text-gray-800'
-                                                        : 'text-gray-500 cursor-not-allowed'
-                                                    }
-                                                `}
+          !w-full !border-0 !bg-transparent !p-0 !outline-none !shadow-none
+          text-[10px] sm:text-[11px]
+          ${fieldDisabled ? "text-gray-500 cursor-not-allowed" : "text-gray-800"}
+        `}
                                             />
 
                                         ) : (
@@ -261,7 +253,7 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
                                                 name={key}
                                                 value={formData[key] ?? ''}
                                                 onChange={handleChange}
-                                                disabled={!isEditing}
+                                                disabled={!isEditing || fieldDisabled}
                                                 className={`
                                                     w-full
                                                     min-w-0
