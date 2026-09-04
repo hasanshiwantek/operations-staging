@@ -708,7 +708,7 @@ function OrderListTable({ Orders }) {
               // ========== CREATE API ==========
               dispatch(
                 postOrderFiles({
-                  payload: { ...updatedOrder, order_type: "po" },
+                  payload: { ...updatedOrder, order_type: "po","Order Status": null },
                   role_id: storeId?.id,
                 })
               ).unwrap()
