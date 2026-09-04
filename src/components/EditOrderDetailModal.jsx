@@ -278,37 +278,50 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
                             //     ? key !== "Charged Date"
                             //     : isAlwaysDisabled ||
                             //     (isUnlockable && !unlockedFields.has(key) && !isEditing);
+                
                             // const isDisabled = (() => {
                             //     if (alwaysDisabledFields.includes(key)) return true;
 
-                            //     // RMA: only Refund Date is editable
-                            //     // if (isRma && !isFinance) return key !== "Refund Date";
+                            //     const isRmaOrder = String(order?.order_type || "").toLowerCase() === "rma";
 
-                            //     // Finance: Charged Date + Paid Via
+                            //     // RMA + finance → lock everything
+                            //     if (isRmaOrder && isFinance) return true;
+
+                            //     // RMA → only Refund Date
+                            //     if (isRmaOrder) return key !== "Refund Date";
+
+                            //     // Finance on normal order → Charged Date + Paid Via
                             //     if (isFinance) {
                             //         return key !== "Charged Date" && key !== "Paid Via";
                             //     }
 
                             //     return isUnlockable && !unlockedFields.has(key) && !isEditing;
                             // })();
-                            const isDisabled = (() => {
-                                if (alwaysDisabledFields.includes(key)) return true;
 
-                                const isRmaOrder = String(order?.order_type || "").toLowerCase() === "rma";
+            const isDisabled = (() => {
+  if (alwaysDisabledFields.includes(key)) return true;
 
-                                // RMA + finance → lock everything
-                                if (isRmaOrder && isFinance) return true;
+  const isRmaOrder = String(order?.order_type || "").toLowerCase() === "rma";
 
-                                // RMA → only Refund Date
-                                if (isRmaOrder) return key !== "Refund Date";
+  // Refund Date: only on RMA, and not for finance
+  if (key === "Refund Date") {
+    return !isRmaOrder || isFinance;
+  }
 
-                                // Finance on normal order → Charged Date + Paid Via
-                                if (isFinance) {
-                                    return key !== "Charged Date" && key !== "Paid Via";
-                                }
+  // RMA + finance → lock everything
+  if (isRmaOrder && isFinance) return true;
 
-                                return isUnlockable && !unlockedFields.has(key) && !isEditing;
-                            })();
+  // RMA → only Refund Date (already handled above)
+  if (isRmaOrder) return true;
+
+  // Finance on normal order → Charged Date + Paid Via
+  if (isFinance) {
+    return key !== "Charged Date" && key !== "Paid Via";
+  }
+
+  return isUnlockable && !unlockedFields.has(key) && !isEditing;
+})()
+            
                             const dateFields = ['Charged Date', 'Order Date', 'Refund Date'];
                             const isDateField = dateFields.includes(key);
 
