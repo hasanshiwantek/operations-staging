@@ -3,8 +3,35 @@ import { X } from 'lucide-react';
 import { useSelector, useDispatch } from 'react-redux';
 import { fetchOrderById, fetchOrderOptions } from '../store/usersSlice';
 import DatePicker from 'react-datepicker';
-import { normalizeOrderOptions } from '../utils/constant';
+import { getIsFinance, normalizeOrderOptions } from '../utils/constant';
 import 'react-datepicker/dist/react-datepicker.css';
+// Always locked fields
+
+
+// Unlockable fields
+const unlockableFields = [
+    'Order Date',
+    'Payment Status',
+    'Category',
+    'Brands',
+    'Part#',
+    'Qty',
+    'Bill to address',
+    'Ship to address',
+    'City',
+    'State',
+    'Country',
+    'Carrier',
+    'Customer Company',
+    'Phone',
+    'Email',
+    'Price',
+    'Shipping',
+    'Tax',
+    'CC/Paypal 4%',
+    'Paid Via',
+    'Customer',
+];
 
 const EditOrderDetailModal = ({ order, onClose, onSave }) => {
     const dispatch = useDispatch();
@@ -14,12 +41,32 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
     const [unlockedFields, setUnlockedFields] = useState(new Set());
     const [fetching, setFetching] = useState(false);
     const [baseOrder, setBaseOrder] = useState(null);
-    const { user: authUser, storeId } = useSelector((state) => state.auth);
+    const { storeId } = useSelector((state) => state.auth);
     const { pending, orderOptions, optionsLoading } = useSelector((state) => state.users);
-
+    const isFinance = getIsFinance();
     const normalizedOptions = normalizeOrderOptions(orderOptions);
     const debounceRef = useRef(null);
     const lastFetchedId = useRef(null);
+    // const { order_type, ...order } = order;
+    const isRma = String(order?.order_type || "").toLowerCase() === "rma";
+    const alwaysDisabledFields = [
+        'Order#',
+        'Total Price',
+        'Total Cost',
+        'Total Cost+4%',
+        'Gross Profit',
+        'Gross Profit-4%',
+        'Profit %',
+        'Card Payment',
+
+        (!isRma ? 'Refund Date' : null),
+    ];
+    const isFieldLocked = (fieldName) => {
+        if (alwaysDisabledFields.includes(fieldName)) return true;
+        if (isFinance && fieldName !== "Charged Date") return true;
+        return false;
+    };
+    console.log("order?.order_type ", order);
 
     // ========== CALCULATION FUNCTION ==========
     const calculateFields = (data) => {
@@ -69,6 +116,7 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
             'Profit %': profitPercent,
         };
     };
+
     // // Set form data when order changes
     // useEffect(() => {
     //     if (order) {
@@ -81,8 +129,9 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
     useEffect(() => {
         if (order) {
             const calculated = calculateFields({ ...order });
-            setFormData(calculated);
-            setBaseOrder(calculated);
+            const { Status, ...rest } = calculated; // Exclude order_type from formData
+            setFormData(rest);
+            setBaseOrder(rest);
             lastFetchedId.current = order['Order#'];
         }
     }, [order]);
@@ -92,7 +141,8 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
         // setFormData((prev) => ({ ...prev, [name]: value }));
         setFormData((prev) => {
             const updated = { ...prev, [name]: value };
-            return calculateFields(updated); // ← auto calculate
+            const { Status, ...rest } = updated; // Exclude order_type from formData
+            return calculateFields(rest); // ← auto calculate
         });
         if (name === 'Order#') {
             if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -105,7 +155,6 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
             }, 900);
         }
     };
-
     const fetchOrderByIdFun = async (orderId) => {
         try {
             setFetching(true);
@@ -119,8 +168,9 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
                 // setBaseOrder({ ...fetchedOrder });
                 // lastFetchedId.current = String(orderId);
                 const calculated = calculateFields(fetchedOrder);
-                setFormData(calculated);
-                setBaseOrder(calculated);
+                const { Status, ...rest } = calculated;
+                setFormData(rest);
+                setBaseOrder(rest);
                 lastFetchedId.current = String(orderId);
             }
         } catch (err) {
@@ -158,84 +208,76 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
     if (!order) return null;
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[100] p-4">
-            <div className="bg-white rounded-2xl w-full max-w-5xl max-h-[92vh] overflow-hidden flex flex-col shadow-xl">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-2 sm:p-3">
+            <div className="bg-white rounded-lg w-full max-w-[1500px] h-auto max-h-[98vh] overflow-hidden flex flex-col shadow-2xl">
                 {/* Header */}
-                <div className="px-6 py-4 border-b flex justify-between items-center bg-gray-50">
-                    <h2 className="text-xl font-semibold text-gray-800">
+                <div className="px-4 py-2.5 border-b flex justify-between items-center bg-gray-50 shrink-0">
+                    <h2 className="text-lg sm:text-xl font-semibold text-gray-800">
                         Order Details -{' '}
                         <span className="text-indigo-600">
                             #{formData['Order#'] ?? order['Order#']}
                         </span>
                         {fetching && (
-                            <span className="ml-3 text-sm font-normal text-gray-400">
+                            <span className="ml-3 text-xs sm:text-sm font-normal text-gray-400">
                                 Loading...
                             </span>
                         )}
                     </h2>
                     <button
                         onClick={handleCloseAttempt}
-                        className="text-gray-500 hover:text-red-600"
+                        className="p-1 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+
                     >
                         <X size={28} />
                     </button>
                 </div>
 
                 {/* Body */}
-                <div className="flex-1 overflow-auto p-6 relative">
+                <div className="flex-1 overflow-y-auto xl:overflow-hidden p-3 sm:p-4 relative bg-white">
                     {fetching && (
-                        <div className="absolute inset-0 bg-white bg-opacity-60 flex items-center justify-center z-10">
-                            <span className="text-indigo-600 font-medium">
+                        <div className="absolute inset-0 bg-white/70 flex items-center justify-center z-10">
+                            <span className="text-indigo-600 font-medium text-sm">
                                 Fetching order data...
                             </span>
                         </div>
                     )}
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
+                    <div className="
+                        flex
+                        flex-wrap
+                        justify-center
+                        items-start
+                        gap-x-1.5
+                        gap-y-1.5
+                        w-full
+                    ">
                         {Object.entries(formData).map(([key, value]) => {
-                            // Always locked fields
-                            const alwaysDisabledFields = [
-                                'Order#',
-                                'Total Price',
-                                'Total Cost',
-                                'Total Cost+4%',
-                                'Gross Profit',
-                                'Gross Profit-4%',
-                                'Profit %',
-                                'Card Payment',
-                            ];
 
-                            // Unlockable fields
-                            const unlockableFields = [
-                                'Order Date',
-                                'Payment Status',
-                                'Category',
-                                'Brands',
-                                'part#',
-                                'Qty',
-                                'Bill to address',
-                                'Ship to address',
-                                'City',
-                                'State',
-                                'Country',
-                                'Carrier',
-                                'Customer Company',
-                                'Phone',
-                                'Email',
-                                'Price',
-                                'Shipping',
-                                'Tax',
-                                'CC/Paypal 4%',
-                                'Paid Via',
-                                 'Customer',
-                            ];
-
+                            if (key === 'order_type') return null; // Skip rendering order_type field
+                            const locked = isFieldLocked(key);
                             const isAlwaysDisabled = alwaysDisabledFields.includes(key);
                             const isUnlockable = unlockableFields.includes(key);
 
-                            const isDisabled =
-                                isAlwaysDisabled ||
-                                (isUnlockable && !unlockedFields.has(key) && !isEditing);
+                            // const isDisabled =
+                            //     isAlwaysDisabled ||
+                            //     (isUnlockable && !unlockedFields.has(key) && !isEditing);
+                            // const isDisabled = isFinance
+                            //     ? key !== "Charged Date"
+                            //     : isAlwaysDisabled ||
+                            //     (isUnlockable && !unlockedFields.has(key) && !isEditing);
+                            const isDisabled = (() => {
+                                if (alwaysDisabledFields.includes(key)) return true;
+
+                                // RMA: only Refund Date is editable
+                                // if (isRma) return key !== "Refund Date";
+
+                                // Finance: Charged Date + Paid Via
+                                if (isFinance) {
+                                    return key !== "Charged Date" && key !== "Paid Via";
+                                }
+
+                                return isUnlockable && !unlockedFields.has(key) && !isEditing;
+                            })();
 
                             const dateFields = ['Charged Date', 'Order Date', 'Refund Date'];
                             const isDateField = dateFields.includes(key);
@@ -273,18 +315,54 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
                             };
 
                             return (
-                                <div key={key} className="space-y-1">
+                                <div key={key} className="
+        flex-none
+        w-full
+        sm:w-[calc(50%-6px)]
+        md:w-[calc((100%_-_42px)_/_8)]
+        min-w-0
+        border
+        border-gray-300
+        rounded-sm
+        overflow-hidden
+        bg-white
+    ">
                                     {/* Label + Pen Icon */}
-                                    <div className="flex items-center justify-between">
-                                        <label className="block text-sm font-medium text-gray-600">
+                                    <div className="
+                                        min-h-[22px]
+                                        px-1
+                                        py-[3px]
+                                        bg-[#c00000]
+                                        flex
+                                        items-center
+                                        justify-center
+                                        gap-1
+                                    ">
+                                        <label className="
+                                            text-[10px]
+                                            sm:text-[11px]
+                                            font-bold
+                                            text-white
+                                            text-center
+                                            leading-tight
+                                            truncate
+                                        ">
                                             {key.replace(/([A-Z])/g, ' $1').trim()}
                                         </label>
 
-                                        {isUnlockable && isDisabled && (
+                                        {!isRma && !isFinance && isUnlockable && isDisabled && (
                                             <button
                                                 type="button"
                                                 onClick={() => unlockField(key)}
-                                                className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                                                className="
+                                                shrink-0
+                                                p-0.5
+                                                text-white/80
+                                                hover:text-white
+                                                hover:bg-white/10
+                                                rounded
+                                                transition-colors
+                                            "
                                                 title="Click to edit this field"
                                             >
                                                 <svg
@@ -306,66 +384,114 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
                                     </div>
 
                                     {/* DROPDOWN */}
-                                    {isDropdown ? (
-                                        <select
-                                            name={key}
-                                            value={formData[key] ?? ''}
-                                            onChange={handleChange}
-                                            disabled={isDisabled || optionsLoading}
-                                            className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all
-            ${isDisabled || optionsLoading
-                                                    ? 'border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed'
-                                                    : 'border-indigo-300 bg-white'
-                                                }`}
-                                        >
-                                            <option value="">
-                                                {optionsLoading ? 'Loading...' : `Select ${key}`}
-                                            </option>
 
-                                            {options.map((opt) => (
-                                                <option key={opt} value={opt}>
-                                                    {opt}
+                                    <div className={`
+                                        min-h-[30px]
+                                        flex
+                                        items-center
+                                        px-1.5
+                                        py-1
+                                        text-[10px]
+                                        sm:text-[11px]
+                                        ${isDisabled || optionsLoading
+                                            ? "bg-[#dcebd6] text-gray-700"
+                                            : "bg-white text-gray-800"
+                                        }
+                                    `}>
+                                        {isDropdown ? (
+                                            <select
+                                                name={key}
+                                                value={formData[key] ?? ''}
+                                                onChange={handleChange}
+                                                disabled={isDisabled || optionsLoading}
+                                                //                                     className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all
+                                                // ${isDisabled || optionsLoading
+                                                //                                             ? 'border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed'
+                                                //                                             : 'border-indigo-300 bg-white'
+                                                //                                         }`}
+                                                className={`
+                                                w-full
+                                                min-w-0
+                                                bg-transparent
+                                                border-0
+                                                outline-none
+                                                p-0
+                                                text-[10px]
+                                                sm:text-[11px]
+                                                
+                                                ${isDisabled || optionsLoading
+                                                        ? "text-gray-700 cursor-not-allowed"
+                                                        : "text-gray-800 cursor-pointer"
+                                                    }
+                                            `}
+                                            >
+                                                <option value="">
+                                                    {optionsLoading ? 'Loading...' : `Select ${key}`}
                                                 </option>
-                                            ))}
-                                        </select>
-                                    ) : isDateField ? (
-                                        /* DATE PICKER */
-                                        <DatePicker
-                                            selected={parseDate(formData[key])}
-                                            onChange={(date) => {
-                                                setFormData((prev) => {
-                                                    const updated = {
-                                                        ...prev,
-                                                        [key]: formatDate(date),
-                                                    };
-                                                    return calculateFields(updated);
-                                                });
-                                            }}
-                                            dateFormat="dd/MM/yyyy"
-                                            placeholderText="DD/MM/YYYY"
-                                            disabled={isDisabled}
-                                            wrapperClassName="w-full"
-                                            className={`!w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all
-                        ${isDisabled
-                                                    ? 'border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed'
-                                                    : 'border-indigo-300 bg-white'
-                                                }`}
-                                        />
-                                    ) : (
-                                        /* NORMAL INPUT */
-                                        <input
-                                            type="text"
-                                            name={key}
-                                            value={formData[key] ?? ''}
-                                            onChange={handleChange}
-                                            disabled={isDisabled}
-                                            className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all
-                        ${isDisabled
-                                                    ? 'border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed'
-                                                    : 'border-indigo-300 bg-white'
-                                                }`}
-                                        />
-                                    )}
+
+                                                {options.map((opt) => (
+                                                    <option key={opt} value={opt}>
+                                                        {opt}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        ) : isDateField ? (
+                                            /* DATE PICKER */
+                                            <DatePicker
+                                                selected={parseDate(formData[key])}
+                                                onChange={(date) => {
+                                                    setFormData((prev) => {
+                                                        const updated = {
+                                                            ...prev,
+                                                            [key]: formatDate(date),
+                                                        };
+                                                        return calculateFields(updated);
+                                                    });
+                                                }}
+                                                dateFormat="dd/MM/yyyy"
+                                                placeholderText="DD/MM/YYYY"
+                                                disabled={isDisabled}
+                                                wrapperClassName="w-full"
+                                                className={`
+                                                !w-full
+                                                !border-0
+                                                !bg-transparent
+                                                !outline-none
+                                                !shadow-none
+                                                !p-0
+                                                text-[10px]
+                                                sm:text-[11px]
+                                                ${isDisabled
+                                                        ? "text-gray-700 cursor-not-allowed"
+                                                        : "text-gray-800"
+                                                    }
+                                            `}
+                                            />
+                                        ) : (
+                                            /* NORMAL INPUT */
+                                            <input
+                                                type="text"
+                                                name={key}
+                                                value={formData[key] ?? ''}
+                                                onChange={handleChange}
+                                                disabled={isDisabled}
+                                                className={`
+                                                w-full
+                                                min-w-0
+                                                border-0
+                                                outline-none
+                                                bg-transparent
+                                                p-0
+                                                text-[10px]
+                                                sm:text-[11px]
+                                                ${isDisabled
+                                                        ? "text-gray-700 cursor-not-allowed"
+                                                        : "text-gray-800"
+                                                    }
+                                            `}
+                                            />
+                                        )}
+                                    </div>
                                 </div>
                             );
                         })}
@@ -373,7 +499,90 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
                 </div>
 
                 {/* Footer */}
-                <div className="border-t p-6 flex gap-3 bg-gray-50">
+                {/* ========================= FOOTER ========================= */}
+                <div
+                    className="
+    border-t
+    px-4
+    py-2.5
+    flex
+    flex-col
+    sm:flex-row
+    justify-center
+    items-center
+    gap-3
+    bg-gray-50
+    shrink-0
+  "
+                >
+                    {/* Cancel */}
+                    <button
+                        type="button"
+                        onClick={handleCloseAttempt}
+                        className="
+      w-full
+      sm:w-[150px]
+      py-1.5
+      px-4
+      border
+      border-gray-300
+      rounded-none
+      bg-white
+      hover:bg-gray-100
+      font-medium
+      text-sm
+      text-gray-700
+      transition-colors
+    "
+                    >
+                        Cancel
+                    </button>
+
+                    {/* Save Changes */}
+                    <button
+                        onClick={handleSubmit}
+                        disabled={pending}
+                        className="
+      w-full
+      sm:w-[150px]
+      py-1.5
+      px-4
+      rounded-none
+      bg-[#06245f]
+      hover:bg-[#041b4a]
+      text-white
+      font-medium
+      text-sm
+      transition-colors
+      disabled:opacity-60
+      disabled:cursor-not-allowed
+    "
+                    >
+                        {pending ? "Loading..." : "Save Changes"}
+                    </button>
+
+                    {/* Print */}
+                    <button
+                        type="button"
+                        onClick={() => window.print()}
+                        className="
+      w-full
+      sm:w-[150px]
+      py-1.5
+      px-4
+      rounded-none
+      bg-[#06245f]
+      hover:bg-[#041b4a]
+      text-white
+      font-medium
+      text-sm
+      transition-colors
+    "
+                    >
+                        Print
+                    </button>
+                </div>
+                {/* <div className="border-t p-6 flex gap-3 bg-gray-50">
                     <button
                         type="button"
                         onClick={handleCloseAttempt}
@@ -389,7 +598,7 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
                     >
                         {pending ? 'Loading...' : 'Save Changes'}
                     </button>
-                </div>
+                </div> */}
             </div>
 
             {/* Confirmation Modal */}

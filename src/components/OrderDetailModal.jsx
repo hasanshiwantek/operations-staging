@@ -7,11 +7,9 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
 const OrderDetailModal = ({ order = null, onClose, onSave }) => {
-    const dispatch = useDispatch();
     const isNewOrder = !order;
 
     const { pending, orderOptions, optionsLoading } = useSelector((state) => state.users);
-    const { user: authUser } = useSelector((state) => state.auth);
     const normalizedOptions = normalizeOrderOptions(orderOptions);
     const [formData, setFormData] = useState({});
     const [isEditing, setIsEditing] = useState(isNewOrder);
@@ -45,7 +43,7 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
 
         if (parts.length === 3) {
             if (dateStr.includes('/')) {
-                return new Date(+parts[2], +parts[1] - 1, +parts[0]); // DD/MM/YYYY
+                return new Date(+parts[2], +parts[1] - 1, +parts[0]);
             } else {
                 return new Date(+parts[0], +parts[1] - 1, +parts[2]);
             }
@@ -65,105 +63,267 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
     const dateFields = ['Charged Date', 'Order Date', 'Refund Date'];
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[100] p-4">
-            <div className="bg-white rounded-2xl w-full max-w-5xl max-h-[92vh] overflow-hidden flex flex-col shadow-xl">
-                {/* Header */}
-                <div className="px-6 py-4 border-b flex justify-between items-center bg-gray-50">
-                    <h2 className="text-xl font-semibold text-gray-800">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-2 sm:p-3">
+
+            <div className="bg-white rounded-lg w-full max-w-[1500px] max-h-[98vh] overflow-hidden flex flex-col shadow-2xl">
+
+                {/* ================= HEADER ================= */}
+                <div className="px-4 py-2.5 border-b flex justify-between items-center bg-gray-50 shrink-0">
+
+                    <h2 className="text-lg sm:text-xl font-semibold text-gray-800">
                         {isNewOrder ? 'Create New Order' : 'Order Details'}
                     </h2>
-                    <button onClick={onClose} className="text-gray-500 hover:text-red-600">
-                        <X size={28} />
+
+                    <button
+                        onClick={onClose}
+                        className="
+                            p-1
+                            text-gray-500
+                            hover:text-red-600
+                            hover:bg-red-50
+                            rounded-md
+                            transition-colors
+                        "
+                    >
+                        <X size={24} />
                     </button>
+
                 </div>
 
-                {/* Body */}
-                <div className="flex-1 overflow-auto p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
+
+                {/* ================= BODY ================= */}
+                <div className="flex-1 overflow-y-auto xl:overflow-hidden p-3 sm:p-4 bg-white">
+
+                    {/* ================= FIELDS ================= */}
+                    <div
+                        className="
+                            flex
+                            flex-wrap
+                            justify-center
+                            items-start
+                            gap-x-1.5
+                            gap-y-1.5
+                            w-full
+                        "
+                    >
+
                         {Object.keys(formData).map((key) => {
+
                             const isDateField = dateFields.includes(key);
-                            const isDropdown = Boolean(normalizedOptions[key]); // ← fully dynamic
+
+                            const isDropdown = Boolean(normalizedOptions[key]);
+
                             const options = normalizedOptions[key] || [];
 
                             return (
-                                <div key={key} className="space-y-1">
-                                    <label className="block text-sm font-medium text-gray-600">
-                                        {key.replace(/([A-Z])/g, ' $1').trim()}
-                                    </label>
+                                <div
+                                    key={key}
+                                    className="
+                                        flex-none
+                                        w-full
+                                        sm:w-[calc(50%-6px)]
+                                        md:w-[calc((100%_-_42px)_/_8)]
+                                        min-w-0
+                                        border
+                                        border-gray-300
+                                        rounded-sm
+                                        overflow-hidden
+                                        bg-white
+                                    "
+                                >
 
-                                    {/* DROPDOWN */}
-                                    {isDropdown ? (
-                                        <select
-                                            name={key}
-                                            value={formData[key] ?? ''}
-                                            onChange={handleChange}
-                                            disabled={!isEditing || optionsLoading}
-                                            className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all
-                        ${isEditing && !optionsLoading
-                                                    ? 'border-indigo-300 bg-white'
-                                                    : 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed'
-                                                }`}
+                                    {/* ================= FIELD HEADER ================= */}
+                                    <div
+                                        className="
+                                            min-h-[22px]
+                                            px-1
+                                            py-[3px]
+                                            bg-[#c00000]
+                                            flex
+                                            items-center
+                                            justify-center
+                                        "
+                                    >
+                                        <label
+                                            className="
+                                                text-[10px]
+                                                sm:text-[11px]
+                                                font-bold
+                                                text-white
+                                                text-center
+                                                leading-tight
+                                                truncate
+                                            "
+                                            title={key}
                                         >
-                                            <option value="">
-                                                {optionsLoading ? 'Loading...' : `Select ${key}`}
-                                            </option>
-                                            {options?.map((opt) => (
-                                                <option key={opt} value={opt}>
-                                                    {opt}
+                                            {key
+                                                .replace(
+                                                    /([A-Z])/g,
+                                                    ' $1'
+                                                )
+                                                .trim()}
+                                        </label>
+                                    </div>
+
+
+                                    {/* ================= FIELD VALUE ================= */}
+                                    <div
+                                        className={`
+                                            min-h-[30px]
+                                            flex
+                                            items-center
+                                            px-1.5
+                                            py-1
+                                            text-[10px]
+                                            sm:text-[11px]
+                                            ${!isEditing || optionsLoading
+                                                ? 'bg-[#dcebd6]'
+                                                : 'bg-white'
+                                            }
+                                        `}
+                                    >
+
+                                        {/* ================= DROPDOWN ================= */}
+                                        {isDropdown ? (
+
+                                            <select
+                                                name={key}
+                                                value={formData[key] ?? ''}
+                                                onChange={handleChange}
+                                                disabled={!isEditing || optionsLoading}
+                                                className={`
+                                                    w-full
+                                                    min-w-0
+                                                    bg-transparent
+                                                    border-0
+                                                    outline-none
+                                                    p-0
+                                                    text-[10px]
+                                                    sm:text-[11px]
+                                                    ${isEditing && !optionsLoading
+                                                        ? 'text-gray-800 cursor-pointer'
+                                                        : 'text-gray-500 cursor-not-allowed'
+                                                    }
+                                                `}
+                                            >
+                                                <option value="">
+                                                    {optionsLoading
+                                                        ? 'Loading...'
+                                                        : `Select ${key}`}
                                                 </option>
-                                            ))}
-                                        </select>
-                                    ) : isDateField ? (
-                                        /* DATE PICKER */
-                                        <DatePicker
-                                            selected={parseDate(formData[key])}
-                                            onChange={(date) => {
-                                                setFormData((prev) => ({
-                                                    ...prev,
-                                                    [key]: formatDate(date),
-                                                }));
-                                            }}
-                                            dateFormat="dd/MM/yyyy"
-                                            placeholderText="DD/MM/YYYY"
-                                            disabled={!isEditing}
-                                            wrapperClassName="w-full"
-                                            className={`!w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all
-                        ${isEditing
-                                                    ? 'border-indigo-300 bg-white'
-                                                    : 'border-gray-200 bg-gray-50 text-gray-500 cursor-not-allowed'
-                                                }`}
-                                        />
-                                    ) : (
-                                        /* NORMAL INPUT */
-                                        <input
-                                            type="text"
-                                            name={key}
-                                            value={formData[key] ?? ''}
-                                            onChange={handleChange}
-                                            disabled={!isEditing}
-                                            className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all
-                        ${isEditing
-                                                    ? 'border-indigo-300 bg-white'
-                                                    : 'border-gray-200 bg-gray-50'
-                                                }`}
-                                        />
-                                    )}
+
+                                                {options?.map((opt) => (
+                                                    <option
+                                                        key={opt}
+                                                        value={opt}
+                                                    >
+                                                        {opt}
+                                                    </option>
+                                                ))}
+                                            </select>
+
+                                        ) : isDateField ? (
+
+                                            /* ================= DATE PICKER ================= */
+                                            <DatePicker
+                                                selected={parseDate(formData[key])}
+                                                onChange={(date) => {
+                                                    setFormData((prev) => ({
+                                                        ...prev,
+                                                        [key]: formatDate(date),
+                                                    }));
+                                                }}
+                                                dateFormat="dd/MM/yyyy"
+                                                placeholderText="DD/MM/YYYY"
+                                                disabled={!isEditing}
+                                                wrapperClassName="w-full"
+                                                className={`
+                                                    !w-full
+                                                    !border-0
+                                                    !bg-transparent
+                                                    !p-0
+                                                    !outline-none
+                                                    !shadow-none
+                                                    text-[10px]
+                                                    sm:text-[11px]
+                                                    ${isEditing
+                                                        ? 'text-gray-800'
+                                                        : 'text-gray-500 cursor-not-allowed'
+                                                    }
+                                                `}
+                                            />
+
+                                        ) : (
+
+                                            /* ================= NORMAL INPUT ================= */
+                                            <input
+                                                type="text"
+                                                name={key}
+                                                value={formData[key] ?? ''}
+                                                onChange={handleChange}
+                                                disabled={!isEditing}
+                                                className={`
+                                                    w-full
+                                                    min-w-0
+                                                    border-0
+                                                    outline-none
+                                                    bg-transparent
+                                                    p-0
+                                                    text-[10px]
+                                                    sm:text-[11px]
+                                                    ${isEditing
+                                                        ? 'text-gray-800'
+                                                        : 'text-gray-500'
+                                                    }
+                                                `}
+                                            />
+                                        )}
+
+                                    </div>
                                 </div>
                             );
                         })}
+
                     </div>
                 </div>
 
-                {/* Footer */}
-                <div className="border-t p-6 flex gap-3 bg-gray-50">
+
+                {/* ================= FOOTER ================= */}
+                <div
+                    className="
+                        border-t
+                        px-4
+                        py-2.5
+                        flex
+                        justify-center
+                        items-center
+                        bg-gray-50
+                        shrink-0
+                    "
+                >
                     <button
                         onClick={handleSubmit}
                         disabled={pending}
-                        className="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-medium hover:bg-indigo-700 disabled:opacity-70"
+                        className="
+                            w-full
+                            sm:w-[170px]
+                            py-1.5
+                            px-4
+                            rounded-md
+                          bg-[#06245f]
+      hover:bg-[#041b4a]
+                            text-white
+                            font-medium
+                            text-sm
+                            transition-colors
+                            disabled:opacity-70
+                            disabled:cursor-not-allowed
+                        "
                     >
                         {pending ? 'Loading...' : 'Create Order'}
                     </button>
                 </div>
+
             </div>
         </div>
     );

@@ -89,7 +89,7 @@ const Dashboard = () => {
     price: Number(toNumber(order["Price"]?.value)),
     grossProfit: Number(toNumber(order["Gross Profit-4%"])),
     totalPrice: Number(toNumber(order["Total Price"]?.value)),
-    status: order["Status"],
+    status: order["Order Status"],
     procured_by: order["Procured By"],
     order_date: order["Order Date"],
     sales_agent: order["Sales Agent"],

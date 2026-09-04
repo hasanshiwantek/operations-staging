@@ -104,6 +104,7 @@ function OrderListTable({ Orders }) {
   const { userPermissions } = useSelector((state) => state?.permissions);
   const permissions = userPermissions || [];
   const { orderTypesMap } = useSelector((state) => state.orderTypes);
+  const [isFullScreen, setIsFullScreen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isRMAMode, setIsRMAMode] = useState(false);
   const [isCreatePartMode, setIsCreatePartMode] = useState(false);
@@ -165,7 +166,7 @@ function OrderListTable({ Orders }) {
 
     return tableOrders.filter((order) => {
       const type = String(order.order_type || "").toLowerCase();
-      const status = String(order.Status || "").toLowerCase();
+      const status = String(order?.["Order Status"] || "").toLowerCase();
       if (orderTypeFilter === "cancelled") return status === "cancelled";
       if (orderTypeFilter === "delivered") return status === "delivered";
       return type === orderTypeFilter;
@@ -346,12 +347,13 @@ function OrderListTable({ Orders }) {
     // rowIndex from Handsontable is 0-based (header is row 0)
     const actualDataIndex = rowIndex;
 
-    const { order_type, ...clickedOrder } = filteredOrders[actualDataIndex];
+    // const { order_type, ...clickedOrder } = filteredOrders[actualDataIndex];
+    const currentOrder = filteredOrders[actualDataIndex];
 
-    if (clickedOrder) {
+    if (currentOrder) {
       setIsCreatePartMode(false);
       setIsRMAMode(false);
-      setSelectedOrder(clickedOrder);
+      setSelectedOrder(currentOrder);
     }
   };
   const importExcel = () => {
@@ -448,74 +450,14 @@ function OrderListTable({ Orders }) {
     }
     return className;
   };
-  // const cells = useCallback((row, col) => {
-  //   const order = filteredOrders?.[row];
-  //   const cellProperties = {};
-  //   if (!order) return cellProperties;
-
-  //   const status = String(order.Status || "").toLowerCase();
-  //   const type = String(order.order_type || "").toLowerCase();
-
-  //   if (status === "delivered") cellProperties.className = "delivered-row";
-  //   else if (status === "cancelled") cellProperties.className = "cancelled-row";
-  //   else if (type === "po") cellProperties.className = "po-row";
-  //   else if (type === "rma") cellProperties.className = "rma-row";
-
-  //   const column = columnsOfSheet[col]?.data;
-  //   if (!column) return cellProperties;
-
-  //   const isOn = (key) =>
-  //     getFieldHighlight(order[key]) || getFieldChecked(order[key]);
-
-  //   const getColor = (key) => String(order[key]?.colorCode || "").trim();
-
-  //   const priceGroup = ["Price", "Shipping", "Tax"];
-  //   const cardGroup = ["Cost", "Vendor Shipping", "Vendor Tax"];
-  //   const costGroup = ["Courier Charges", "Sales Tax", "Warehouse Charges", "Custom Duties"];
-
-  //   const isPriceGroupOn = priceGroup.some(isOn);
-  //   const isCardGroupOn = cardGroup.some(isOn);
-  //   const isCostGroupOn = costGroup.some(isOn);
-  //   const isCcOn = isOn("CC/Paypal 4%");
-
-  //   const shouldColor =
-  //     (priceGroup.includes(column) && isOn(column)) ||
-  //     (column === "Total Price" && isPriceGroupOn) ||
-  //     (cardGroup.includes(column) && isOn(column)) ||
-  //     (column === "Card Payment" && isCardGroupOn) ||
-  //     (costGroup.includes(column) && isOn(column)) ||
-  //     (column === "Total Cost" && isCostGroupOn) ||
-  //     (column === "CC/Paypal 4%" && isCcOn) ||
-  //     (column === "Total Cost+4%" && isCcOn);
-
-  //   if (!shouldColor) return cellProperties;
-
-  //   let color = getColor(column);
-
-  //   if (column === "Total Price") {
-  //     color = priceGroup.map(getColor).find(Boolean) || color;
-  //   } else if (column === "Card Payment") {
-  //     color = cardGroup.map(getColor).find(Boolean) || color;
-  //   } else if (column === "Total Cost") {
-  //     color = costGroup.map(getColor).find(Boolean) || color;
-  //   } else if (column === "Total Cost+4%") {
-  //     color = getColor("CC/Paypal 4%");
-  //   }
-
-  //   if (color) {
-  //     cellProperties.className = `${cellProperties.className || ""} ${ensureColorClass(color)}`.trim();
-  //   }
-
-  //   return cellProperties;
-  // }, [filteredOrders]);
 
   const cells = useCallback((row, col) => {
     const order = filteredOrders?.[row];
     const cellProperties = {};
     if (!order) return cellProperties;
 
-    const status = String(order.Status || "").toLowerCase();
-    const type = String(order.order_type || "").toLowerCase();
+    const status = String(order?.["Order Status"] || "").toLowerCase();
+    const type = String(order?.order_type || "").toLowerCase();
 
     if (status === "delivered") cellProperties.className = "delivered-row";
     else if (status === "cancelled") cellProperties.className = "cancelled-row";
@@ -602,7 +544,7 @@ function OrderListTable({ Orders }) {
       background-color: ${orderTypesMap?.cancelled} !important;
     }
     .handsontable td.delivered-row {
-      background-color: #86bd93 !important;
+      background-color: #d9ead3 !important;
     }
   `;
   }, [orderTypesMap?.po,
@@ -615,6 +557,13 @@ function OrderListTable({ Orders }) {
       dispatch(fetchOrderTypesMap(storeId.id));
     }
   }, [storeId?.id]);
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") setIsFullScreen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const hasPendingChecks = useMemo(() => {
     return (tableOrders || []).some((order) =>
       CHECKBOX_FIELDS.some((field) => {
@@ -748,8 +697,12 @@ function OrderListTable({ Orders }) {
               "Total Cost+4%": totalCostPlus4,
               "Gross Profit": grossProfit,
               "Gross Profit-4%": grossProfitMinus4,
-              "Profit %": profitPercent, ...updatedOrder
+              "Profit %": profitPercent, order_type, ...updatedOrder
             } = updatedOrderPayload;
+
+
+            console.log(order_type);
+
             if (isCreatePartMode) {
 
               // ========== CREATE API ==========
@@ -770,7 +723,7 @@ function OrderListTable({ Orders }) {
             } else if (isRMAMode) {
               dispatch(
                 postOrderFiles({
-                  payload: { ...updatedOrder, order_type: "rma" },
+                  payload: { ...updatedOrder, order_type: "rma", "Order Status": null },
                   role_id: storeId?.id,
                 })
               ).unwrap()
@@ -786,7 +739,7 @@ function OrderListTable({ Orders }) {
               // ========== UPDATE API ==========
               dispatch(updateOrderFiles({
                 id: updatedOrder["Order#"],
-                data: updatedOrder,
+                data: order_type == "rma" ? { ...updatedOrder, "Order Status": null } : updatedOrder,
                 role_id: storeId?.id,
               }))
                 .unwrap()
@@ -898,8 +851,16 @@ function OrderListTable({ Orders }) {
         {/* Summary Bar */}
 
         {/* ← Add this div with higher z-index control */}
-        <div style={{ position: 'relative', zIndex: 10 }}>
-
+        {/* <div style={{ position: 'relative', zIndex: 10 }}> */}
+        <div
+          style={{
+            position: isFullScreen ? "fixed" : "relative",
+            inset: isFullScreen ? 0 : "auto",
+            zIndex: isFullScreen ? 80 : 10,
+            background: "#fff",
+            padding: isFullScreen ? "12px 16px 56px" : "0 0 48px",
+          }}
+        >
           <HotTable
             ref={hotRef}
             data={filteredOrders || []}                 // ← important
@@ -954,7 +915,7 @@ function OrderListTable({ Orders }) {
               isRightClickRef.current = false;
             }}
             stretchH="all"
-            height="calc(100vh - 180px)"
+            height={isFullScreen ? "calc(100vh - 70px)" : "calc(100vh - 180px)"}
             width="100%"
             licenseKey="non-commercial-and-evaluation"
             filters={false}
@@ -1006,7 +967,7 @@ function OrderListTable({ Orders }) {
                     const row = selected[0];
                     const order = filteredOrders?.[row];
                     const type = String(order?.order_type || '').toLowerCase();
-                    const status = String(order?.Status || '').toLowerCase();
+                    const status = String(order?.["Order Status"] || '').toLowerCase();
 
                     return type === 'po' || type === 'rma' || status === "cancelled";;
                   },
@@ -1049,7 +1010,7 @@ function OrderListTable({ Orders }) {
                     const row = selected[0];
                     const order = filteredOrders?.[row];
                     const type = String(order?.order_type || '').toLowerCase();
-                    const status = String(order?.Status || '').toLowerCase();
+                    const status = String(order?.["Order Status"] || '').toLowerCase();
 
                     return type === 'rma' || status == "cancelled";
                   },
@@ -1084,6 +1045,28 @@ function OrderListTable({ Orders }) {
 
             emptyDataMessage="No orders found"
           />
+          {!isFullScreen && <button
+            type="button"
+            onClick={() => setIsFullScreen((v) => !v)}
+            style={{
+              position: "absolute",
+              left: "50%",
+              bottom: "10px",
+              transform: "translateX(-50%)",
+              zIndex: 20,
+              padding: "8px 16px",
+              borderRadius: "999px",
+              border: "1px solid #c7d2fe",
+              background: "#4f46e5",
+              color: "#fff",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+              boxShadow: "0 4px 12px rgba(79,70,229,0.25)",
+            }}
+          >
+            {isFullScreen ? "Exit full screen" : "Full screen"}
+          </button>}
           {/* Selection Summary Badge */}
           {selectionSummary?.visible && (
             <div

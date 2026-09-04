@@ -60,7 +60,7 @@ const OrderDetails = () => {
     country: singleOrder.data["Country"],
     carrier: singleOrder.data["Carrier"],
     tracking: singleOrder.data["Tracking"],
-    status: singleOrder.data["Status"],
+    status: singleOrder.data["Order Status"],
     reason: singleOrder.data["Reasons (IF any)"],
     customerName: singleOrder.data["Customer"],
     customerCompany: singleOrder.data["Customer Company"],
