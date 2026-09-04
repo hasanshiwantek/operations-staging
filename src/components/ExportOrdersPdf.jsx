@@ -10,7 +10,7 @@ const FIELD_GROUPS = [
         fields: [
             "Order#", "Order Date", "Charged Date", "Refund Date",
             "Lead Source", "Order Source", "Procured By", "Sales Agent",
-            "Invoice#", "Payment Status", "Status", "Reasons (IF any)",
+            "Invoice#", "Payment Status", "Order Status", "Reasons (IF any)",
         ],
     },
     {
@@ -146,7 +146,7 @@ const ExportOrdersPdf = ({ orders = [], fileName = "orders-export.pdf", label = 
             doc.setFont("helvetica", "normal");
             doc.setFontSize(9);
             doc.text(
-                `Order Date: ${formatValue(order["Order Date"])}   |   Status: ${formatValue(order["Status"])}`,
+                `Order Date: ${formatValue(order["Order Date"])}   |   Order Status: ${formatValue(order["Order Status"])}`,
                 marginX,
                 55
             );
