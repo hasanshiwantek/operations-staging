@@ -60,6 +60,8 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
         'Card Payment',
 
         (!isRma ? 'Refund Date' : null),
+        (isRma && isFinance ? 'Charged Date' : null),
+        (isRma && isFinance ? 'Paid Via' : null),
     ];
     const isFieldLocked = (fieldName) => {
         if (alwaysDisabledFields.includes(fieldName)) return true;
@@ -269,12 +271,12 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
                                 if (alwaysDisabledFields.includes(key)) return true;
 
                                 // RMA: only Refund Date is editable
+                                // if (isRma && !isFinance) return key !== "Refund Date";
 
                                 // Finance: Charged Date + Paid Via
                                 if (isFinance) {
                                     return key !== "Charged Date" && key !== "Paid Via";
                                 }
-                                if (isRma) return key !== "Refund Date";
 
                                 return isUnlockable && !unlockedFields.has(key) && !isEditing;
                             })();
