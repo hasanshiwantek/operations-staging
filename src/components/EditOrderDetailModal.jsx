@@ -269,7 +269,7 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
                                 if (alwaysDisabledFields.includes(key)) return true;
 
                                 // RMA: only Refund Date is editable
-                                // if (isRma) return key !== "Refund Date";
+                                if (isRma) return key !== "Refund Date";
 
                                 // Finance: Charged Date + Paid Via
                                 if (isFinance) {
