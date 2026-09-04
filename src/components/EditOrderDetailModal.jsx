@@ -33,7 +33,7 @@ const unlockableFields = [
     'Customer',
 ];
 const FINANCE_EDITABLE = ["Charged Date", "Paid Via"];
-const EditOrderDetailModal = ({ order, onClose, onSave }) => {
+const EditOrderDetailModal = ({ order, onClose, onSave, isRMAMode }) => {
     const dispatch = useDispatch();
     const [formData, setFormData] = useState({});
     const [isEditing, setIsEditing] = useState(false);
@@ -48,7 +48,7 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
     const debounceRef = useRef(null);
     const lastFetchedId = useRef(null);
     // const { order_type, ...order } = order;
-    const isRma = String(order?.order_type || "").toLowerCase() === "rma";
+    // const isRma = String(order?.order_type || "").toLowerCase() === "rma";
     // const alwaysDisabledFields = [
     //     'Order#',
     //     'Total Price',
@@ -79,7 +79,6 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
         if (isFinance && fieldName !== "Charged Date") return true;
         return false;
     };
-    console.log("order?.order_type ", order);
 
     // ========== CALCULATION FUNCTION ==========
     const calculateFields = (data) => {
@@ -278,50 +277,25 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
                             //     ? key !== "Charged Date"
                             //     : isAlwaysDisabled ||
                             //     (isUnlockable && !unlockedFields.has(key) && !isEditing);
-                
-                            // const isDisabled = (() => {
-                            //     if (alwaysDisabledFields.includes(key)) return true;
+                            const isRmaOrder =
+                                Boolean(isRMAMode) ||
+                                String(order?.order_type || "").toLowerCase() === "rma";
 
-                            //     const isRmaOrder = String(order?.order_type || "").toLowerCase() === "rma";
+                            const isDisabled = (() => {
+                                if (alwaysDisabledFields.includes(key)) return true;
 
-                            //     // RMA + finance → lock everything
-                            //     if (isRmaOrder && isFinance) return true;
+                                // Finance: ONLY Charged Date + Paid Via
+                                if (isFinance) {
+                                    return key !== "Charged Date" && key !== "Paid Via";
+                                }
 
-                            //     // RMA → only Refund Date
-                            //     if (isRmaOrder) return key !== "Refund Date";
+                                // Normal user: Refund Date only on RMA
+                                if (key === "Refund Date") {
+                                    return !isRmaOrder;
+                                }
 
-                            //     // Finance on normal order → Charged Date + Paid Via
-                            //     if (isFinance) {
-                            //         return key !== "Charged Date" && key !== "Paid Via";
-                            //     }
-
-                            //     return isUnlockable && !unlockedFields.has(key) && !isEditing;
-                            // })();
-
-            const isDisabled = (() => {
-  if (alwaysDisabledFields.includes(key)) return true;
-
-  const isRmaOrder = String(order?.order_type || "").toLowerCase() === "rma";
-
-  // Refund Date: only on RMA, and not for finance
-  if (key === "Refund Date") {
-    return !isRmaOrder || isFinance;
-  }
-
-  // RMA + finance → lock everything
-  if (isRmaOrder && isFinance) return true;
-
-  // RMA → only Refund Date (already handled above)
-  if (isRmaOrder) return true;
-
-  // Finance on normal order → Charged Date + Paid Via
-  if (isFinance) {
-    return key !== "Charged Date" && key !== "Paid Via";
-  }
-
-  return isUnlockable && !unlockedFields.has(key) && !isEditing;
-})()
-            
+                                return isUnlockable && !unlockedFields.has(key) && !isEditing;
+                            })();
                             const dateFields = ['Charged Date', 'Order Date', 'Refund Date'];
                             const isDateField = dateFields.includes(key);
 
@@ -393,7 +367,7 @@ const EditOrderDetailModal = ({ order, onClose, onSave }) => {
                                             {key.replace(/([A-Z])/g, ' $1').trim()}
                                         </label>
 
-                                        {!isRma && !isFinance && isUnlockable && isDisabled && (
+                                        {!isFinance && isUnlockable && isDisabled && (
                                             <button
                                                 type="button"
                                                 onClick={() => unlockField(key)}

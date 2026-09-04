@@ -688,6 +688,8 @@ function OrderListTable({ Orders }) {
         <EditOrderDetailModal
           order={flattenOrderValues(selectedOrder)}
           onClose={() => setSelectedOrder(null)}
+          isRMAMode={isRMAMode}
+          isCreatePartMode={isCreatePartMode}
           onSave={(updatedOrderPayload) => {
 
             const {
@@ -708,7 +710,7 @@ function OrderListTable({ Orders }) {
               // ========== CREATE API ==========
               dispatch(
                 postOrderFiles({
-                  payload: { ...updatedOrder, order_type: "po","Order Status": null },
+                  payload: { ...updatedOrder, order_type: "po", "Order Status": null },
                   role_id: storeId?.id,
                 })
               ).unwrap()
