@@ -761,21 +761,24 @@ function OrderListTable({ Orders }) {
             setIsAddMode(false);
           }}
           onSave={(data, isNew) => {
-            if (isNew) {
+            if (!isNew) return Promise.resolve();
 
-              dispatch(
-                postOrderFiles({
-                  payload: data,
-                  role_id: storeId?.id,
-                })
-              ).unwrap()
-                .then(() => {
-                  dispatch(fetchOrdersAdmin(storeId?.id))
-                  setSelectedOrder(null)
-                }).catch((err) => {
-                  console.error("Update failed:", err);
-                });
-            }
+            const payload = {
+              ...data,
+              "Charged Vendor": data["Charged Vendor"] ? data["Charged Vendor"] : "No",
+            };
+
+            return dispatch(
+              postOrderFiles({
+                payload,
+                role_id: storeId?.id,
+              })
+            )
+              .unwrap()
+              .then(() => {
+                dispatch(fetchOrdersAdmin(storeId?.id));
+                setSelectedOrder(null);
+              });
           }}
         />
       )}
