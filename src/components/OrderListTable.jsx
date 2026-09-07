@@ -96,6 +96,7 @@ function OrderListTable({ Orders }) {
   const dispatch = useDispatch();
   const hotRef = useRef(null);
   const isRightClickRef = useRef(false);
+  const expandingRef = useRef(false);
   const isContextMenuOpen = useRef(false);
   const [tableOrders, setTableOrders] = useState(() => cloneOrders(Orders));
   const { orderloading, syncLoading, orderCheckLoading } = useSelector((state) => state.users);
@@ -760,21 +761,24 @@ function OrderListTable({ Orders }) {
             setIsAddMode(false);
           }}
           onSave={(data, isNew) => {
-            if (isNew) {
+            if (!isNew) return Promise.resolve();
 
-              dispatch(
-                postOrderFiles({
-                  payload: data,
-                  role_id: storeId?.id,
-                })
-              ).unwrap()
-                .then(() => {
-                  dispatch(fetchOrdersAdmin(storeId?.id))
-                  setSelectedOrder(null)
-                }).catch((err) => {
-                  console.error("Update failed:", err);
-                });
-            }
+            const payload = {
+              ...data,
+              "Charged Vendor": data["Charged Vendor"] ? data["Charged Vendor"] : "No",
+            };
+
+            return dispatch(
+              postOrderFiles({
+                payload,
+                role_id: storeId?.id,
+              })
+            )
+              .unwrap()
+              .then(() => {
+                dispatch(fetchOrdersAdmin(storeId?.id));
+                setSelectedOrder(null);
+              });
           }}
         />
       )}
@@ -911,20 +915,8 @@ function OrderListTable({ Orders }) {
               }
             }}
             fragmentSelection={false}
-            // afterOnCellMouseDown={(event, coords) => {
-            //   // coords.row === -1 means header was clicked
-            //   if (coords.row === -1) {
-            //     event.stopImmediatePropagation();
-            //   }
-            // }}
-            afterOnCellMouseDown={(event, coords, td) => {
-              if (coords.row === -1) {
-                event.stopImmediatePropagation();
-                return;
-              }
-              const hot = hotRef.current?.hotInstance;
-              if (!hot) return;
-              hot.selectRows(coords.row);
+            afterOnCellMouseDown={(event, coords) => {
+              if (coords.row === -1) event.stopImmediatePropagation();
             }}
             beforeOnCellMouseDown={(event) => {
               isRightClickRef.current = event.button === 2;
@@ -935,8 +927,17 @@ function OrderListTable({ Orders }) {
               isRightClickRef.current = true; // reset right-click flag
             }}
 
-            afterSelectionEnd={() => {
-              // Delay slightly so context menu can open first
+            // afterSelectionEnd={() => {
+            //   // Delay slightly so context menu can open first
+            //   setTimeout(() => {
+            //     if (isRightClickRef.current) {
+            //       isRightClickRef.current = false;
+            //       return;
+            //     }
+            //     updateSelectionSummary();
+            //   }, 50);
+            // }}
+            afterSelectionEnd={(r1, c1, r2, c2) => {
               setTimeout(() => {
                 if (isRightClickRef.current) {
                   isRightClickRef.current = false;
@@ -944,8 +945,29 @@ function OrderListTable({ Orders }) {
                 }
                 updateSelectionSummary();
               }, 50);
-            }}
 
+              if (expandingRef.current) return;
+              if (r1 < 0 || c1 < 0) return;
+
+              const startCol = Math.min(c1, c2);
+              const endCol = Math.max(c1, c2);
+
+              // only when the selection is inside S.no
+              if (startCol !== 0 || endCol !== 0) return;
+
+              const hot = hotRef.current?.hotInstance;
+              if (!hot) return;
+
+              expandingRef.current = true;
+              hot.selectCell(
+                Math.min(r1, r2),
+                0,
+                Math.max(r1, r2),
+                hot.countCols() - 1,
+                false
+              );
+              expandingRef.current = false;
+            }}
             afterDeselect={() => {
               setSelectionSummary((prev) =>
                 prev.visible ? { sum: 0, count: 0, avg: 0, visible: false } : prev
@@ -1117,7 +1139,8 @@ function OrderListTable({ Orders }) {
             <div
               style={{
                 position: "absolute",
-                right: "12px",
+                left: "70%",
+                bottom: "10px",
                 background: "#e8f5e9",
                 border: "1px solid #81c784",
                 borderRadius: "6px",

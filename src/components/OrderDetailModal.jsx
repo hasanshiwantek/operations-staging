@@ -9,7 +9,7 @@ const lockedFields = ["Refund Date"];
 const OrderDetailModal = ({ order = null, onClose, onSave }) => {
     const isNewOrder = !order;
 
-    const { pending, orderOptions, optionsLoading } = useSelector((state) => state.users);
+    const { pending, orderOptions, optionsLoading, } = useSelector((state) => state.users);
     const normalizedOptions = normalizeOrderOptions(orderOptions);
     const [formData, setFormData] = useState({});
     const [isEditing, setIsEditing] = useState(isNewOrder);
@@ -28,12 +28,16 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
         setFormData((prev) => ({ ...prev, [name]: value }));
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        onSave(formData, isNewOrder);
-        onClose();
+        try {
+            await onSave(formData, isNewOrder);
+            onClose();
+        } catch (err) {
+            console.error("Save failed:", err);
+            // stay open
+        }
     };
-
     // Date helpers
     const parseDate = (dateStr) => {
         if (!dateStr) return null;
