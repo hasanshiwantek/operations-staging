@@ -574,38 +574,38 @@ function OrderListTable({ Orders }) {
     );
   }, [tableOrders]);
 
-  if (orderloading) {
-    return (
-      <div style={{ padding: '40px', textAlign: 'center' }}>
-        <h2>Dashboard - Order Sheet</h2>
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '16px',
-          marginTop: '60px'
-        }}>
-          <div style={{
-            width: '50px',
-            height: '50px',
-            border: '5px solid #f3f3f3',
-            borderTop: '5px solid #1b51ef',
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite',
-          }} />
-          <p style={{ fontSize: '16px', color: '#666' }}>Loading orders...</p>
-        </div>
+  // if (orderloading) {
+  //   return (
+  //     <div style={{ padding: '40px', textAlign: 'center' }}>
+  //       <h2>Dashboard - Order Sheet</h2>
+  //       <div style={{
+  //         display: 'flex',
+  //         flexDirection: 'column',
+  //         alignItems: 'center',
+  //         justifyContent: 'center',
+  //         gap: '16px',
+  //         marginTop: '60px'
+  //       }}>
+  //         <div style={{
+  //           width: '50px',
+  //           height: '50px',
+  //           border: '5px solid #f3f3f3',
+  //           borderTop: '5px solid #1b51ef',
+  //           borderRadius: '50%',
+  //           animation: 'spin 1s linear infinite',
+  //         }} />
+  //         <p style={{ fontSize: '16px', color: '#666' }}>Loading orders...</p>
+  //       </div>
 
-        <style jsx>{`
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        `}</style>
-      </div>
-    );
-  }
+  //       <style jsx>{`
+  //         @keyframes spin {
+  //           0% { transform: rotate(0deg); }
+  //           100% { transform: rotate(360deg); }
+  //         }
+  //       `}</style>
+  //     </div>
+  //   );
+  // }
   return (
     <React.Fragment>
       {/* ========== Custom Color Filter Menu ========== */}
@@ -701,9 +701,6 @@ function OrderListTable({ Orders }) {
               "Gross Profit-4%": grossProfitMinus4,
               "Profit %": profitPercent, order_type, ...updatedOrder
             } = updatedOrderPayload;
-
-
-            console.log(order_type);
 
             if (isCreatePartMode) {
 
@@ -810,7 +807,7 @@ function OrderListTable({ Orders }) {
               }}
               disabled={orderCheckLoading}
             >
-              {orderCheckLoading ? "Save..." : "Save"}
+              {orderCheckLoading ? "Loading..." : "Save"}
             </button>}
             {hasPermission("view_sheet.sync_orders") && (<button
               onClick={handleSyncOrders}
@@ -853,16 +850,48 @@ function OrderListTable({ Orders }) {
         {/* Summary Bar */}
 
         {/* ← Add this div with higher z-index control */}
-        {/* <div style={{ position: 'relative', zIndex: 10 }}> */}
         <div
           style={{
             position: isFullScreen ? "fixed" : "relative",
             inset: isFullScreen ? 0 : "auto",
             zIndex: isFullScreen ? 80 : 10,
             background: "#fff",
-            padding: isFullScreen ? "12px 16px 56px" : "0 0 48px",
+            display: "flex",
+            flexDirection: "column",
+            padding: isFullScreen ? "8px 12px 12px" : "0 0 48px",
           }}
         >
+          {isFullScreen && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                height: 44,
+                flexShrink: 0,
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setIsFullScreen(false)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "8px 14px",
+                  borderRadius: 8,
+                  border: "1px solid #d1d5db",
+                  background: "#fff",
+                  color: "#111827",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+                }}
+              >
+                ← Back
+              </button>
+            </div>
+          )}
           <HotTable
             ref={hotRef}
             data={filteredOrders || []}                 // ← important
@@ -871,6 +900,7 @@ function OrderListTable({ Orders }) {
             colHeaders={true}
             rowHeaders={false}
             columnSorting={true}
+            selectionMode="multiple"
             afterRenderer={(td, row, col) => {
               const order = filteredOrders?.[row];
               const column = columnsOfSheet[col]?.data;
@@ -881,11 +911,20 @@ function OrderListTable({ Orders }) {
               }
             }}
             fragmentSelection={false}
-            afterOnCellMouseDown={(event, coords) => {
-              // coords.row === -1 means header was clicked
+            // afterOnCellMouseDown={(event, coords) => {
+            //   // coords.row === -1 means header was clicked
+            //   if (coords.row === -1) {
+            //     event.stopImmediatePropagation();
+            //   }
+            // }}
+            afterOnCellMouseDown={(event, coords, td) => {
               if (coords.row === -1) {
                 event.stopImmediatePropagation();
+                return;
               }
+              const hot = hotRef.current?.hotInstance;
+              if (!hot) return;
+              hot.selectRows(coords.row);
             }}
             beforeOnCellMouseDown={(event) => {
               isRightClickRef.current = event.button === 2;
@@ -1047,28 +1086,32 @@ function OrderListTable({ Orders }) {
 
             emptyDataMessage="No orders found"
           />
-          {!isFullScreen && <button
-            type="button"
-            onClick={() => setIsFullScreen((v) => !v)}
-            style={{
-              position: "absolute",
-              left: "50%",
-              bottom: "10px",
-              transform: "translateX(-50%)",
-              zIndex: 20,
-              padding: "8px 16px",
-              borderRadius: "999px",
-              border: "1px solid #c7d2fe",
-              background: "#4f46e5",
-              color: "#fff",
-              fontSize: "13px",
-              fontWeight: 600,
-              cursor: "pointer",
-              boxShadow: "0 4px 12px rgba(79,70,229,0.25)",
-            }}
-          >
-            {isFullScreen ? "Exit full screen" : "Full screen"}
-          </button>}
+
+
+          {!isFullScreen && (
+            <button
+              type="button"
+              onClick={() => setIsFullScreen(true)}
+              style={{
+                position: "absolute",
+                left: "50%",
+                bottom: "10px",
+                transform: "translateX(-50%)",
+                zIndex: 20,
+                padding: "8px 16px",
+                borderRadius: "999px",
+                border: "1px solid #c7d2fe",
+                background: "#4f46e5",
+                color: "#fff",
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: "pointer",
+                boxShadow: "0 4px 12px rgba(79,70,229,0.25)",
+              }}
+            >
+              Full screen
+            </button>
+          )}
           {/* Selection Summary Badge */}
           {selectionSummary?.visible && (
             <div

@@ -208,3 +208,6 @@ body {
 /* .handsontable td.highlight-price-row {
   background-color: red !important;
 } */
+.handsontable .ht-current-row td {
+  background: #eef2ff !important;
+}
