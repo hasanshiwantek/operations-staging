@@ -39,28 +39,55 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
         }
     };
     // Date helpers
+    // const parseDate = (dateStr) => {
+    //     if (!dateStr) return null;
+    //     const parts = dateStr.includes('/')
+    //         ? dateStr.split('/')
+    //         : dateStr.split('-');
+
+    //     if (parts.length === 3) {
+    //         if (dateStr.includes('/')) {
+    //             return new Date(+parts[2], +parts[1] - 1, +parts[0]);
+    //         } else {
+    //             return new Date(+parts[0], +parts[1] - 1, +parts[2]);
+    //         }
+    //     }
+    //     return null;
+    // };
+
     const parseDate = (dateStr) => {
         if (!dateStr) return null;
-        const parts = dateStr.includes('/')
-            ? dateStr.split('/')
-            : dateStr.split('-');
+
+        const parts = dateStr.includes("/")
+            ? dateStr.split("/")
+            : dateStr.split("-");
 
         if (parts.length === 3) {
-            if (dateStr.includes('/')) {
-                return new Date(+parts[2], +parts[1] - 1, +parts[0]);
-            } else {
-                return new Date(+parts[0], +parts[1] - 1, +parts[2]);
+            if (dateStr.includes("/")) {
+                // MM/DD/YYYY
+                return new Date(
+                    +parts[2],
+                    +parts[0] - 1,
+                    +parts[1]
+                );
             }
+
+            // YYYY-MM-DD
+            return new Date(
+                +parts[0],
+                +parts[1] - 1,
+                +parts[2]
+            );
         }
+
         return null;
     };
-
     const formatDate = (date) => {
         if (!date) return '';
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
         const year = date.getFullYear();
-        return `${day}/${month}/${year}`;
+        return `${month}/${day}/${year}`;
     };
 
 
@@ -238,8 +265,8 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
                                                         [key]: formatDate(date),
                                                     }));
                                                 }}
-                                                dateFormat="dd/MM/yyyy"
-                                                placeholderText="DD/MM/YYYY"
+                                                dateFormat="MM/dd/yyyy"
+                                                placeholderText="MM/DD/YYYY"
                                                 disabled={!isEditing || fieldDisabled}
                                                 wrapperClassName="w-full"
                                                 className={`
