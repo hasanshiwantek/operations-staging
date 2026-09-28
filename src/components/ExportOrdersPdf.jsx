@@ -113,8 +113,10 @@ const formatValue = (val) => {
     return String(val);
 };
 
-const ExportOrdersPdf = ({ orders = [], fileName = "orders-export.pdf", label = "Export PDF" }) => {
+const ExportOrdersPdf = ({ orders: ordersProp = [], getOrders, fileName = "orders-export.pdf", label = "Export PDF" }) => {
     const handleExport = () => {
+        // getOrders (optional) is read at click time, e.g. the grid's visible rows
+        const orders = getOrders ? getOrders() : ordersProp;
         if (!orders || orders.length === 0) {
             alert("No orders to export.");
             return;
