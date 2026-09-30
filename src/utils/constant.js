@@ -148,7 +148,12 @@ export const getIsFinance = () => {
 };
 
 const makeCheckboxRenderer = (fieldName) => {
-  return function (instance, td, row, col, prop, value) {
+  return function (instance, td, row, col, prop, cellValue) {
+    // Read the raw { value, isTrue, ... } object from the source row, since the
+    // column's valueGetter (used by filters/sorting) may pass a flattened value.
+    const value =
+      instance.getSourceDataAtRow(instance.toPhysicalRow(row))?.[fieldName] ??
+      cellValue;
     const val = getFieldValue(value);
     const checked = getFieldChecked(value);
     const highlighted = getFieldHighlight(value);
@@ -215,7 +220,7 @@ const makeCheckboxRenderer = (fieldName) => {
 };
 const makeValueRenderer = (fieldName) => {
   return function (instance, td, row) {
-    const raw = instance.getSourceDataAtRow(row)?.[fieldName];
+    const raw = instance.getSourceDataAtRow(instance.toPhysicalRow(row))?.[fieldName];
     td.innerHTML = getFieldValue(raw);
     return td;
   };
@@ -370,7 +375,7 @@ export const defaultOrder = {
   "Entry Reason": "",
   "Comment": ""
 };
-const FLAT_VALUE_FIELDS = ["Price", "Shipping", "Tax", "CC/Paypal 4%", "Cost", "Vendor Shipping", "Vendor Tax", "Courier Charges", "Sales Tax", "Warehouse Charges", "Custom Duties", "Card Payment", "Total Price", "Total Cost", "Total Cost+4%"];
+export const FLAT_VALUE_FIELDS = ["Price", "Shipping", "Tax", "CC/Paypal 4%", "Cost", "Vendor Shipping", "Vendor Tax", "Courier Charges", "Sales Tax", "Warehouse Charges", "Custom Duties", "Card Payment", "Total Price", "Total Cost", "Total Cost+4%"];
 export const flattenOrderValues = (order) => {
   if (!order || typeof order !== "object") return order;
 
