@@ -204,10 +204,10 @@ const Dashboard = () => {
   const matchedOrders = Orders?.filter((order) =>
     selectedOrderIds?.includes(String(order?.["Order#"]))
   );
-  const totalOrders = filteredOrders.length;
-  const orderValue = filteredOrders.reduce((sum, order) => sum + (order?.totalPrice || 0), 0);
-  const grossProfit = filteredOrders.reduce((sum, order) => sum + (order?.grossProfit || 0), 0);
-  const deliveredCount = filteredOrders.filter(
+  const totalOrders = filteredOrders?.length;
+  const orderValue = filteredOrders?.reduce((sum, order) => sum + (order?.totalPrice || 0), 0);
+  const grossProfit = filteredOrders?.reduce((sum, order) => sum + (order?.grossProfit || 0), 0);
+  const deliveredCount = filteredOrders?.filter(
     o => o.status?.toLowerCase() === "delivered"
   ).length;
 

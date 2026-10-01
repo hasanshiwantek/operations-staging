@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "react-toastify";
-import { LogOut, X, Plus, UserCircle, Sheet } from "lucide-react";
+import { LogOut, X, Plus, UserCircle, Logs } from "lucide-react";
 import { useForm } from "react-hook-form"; // ✅ import react-hook-form
 import logo from "../assets/header-logo.svg";
 import { logoutManual } from "../store/authSlice";
@@ -15,16 +15,13 @@ const Header = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { user, storeId } = useSelector((state) => state.auth);
+  const allAuth = useSelector((state) => state.auth);
   const { storeloading, error } = useSelector((state) => state.users);
   const [showUserModal, setShowUserModal] = React.useState(false);
   const [showLogoutModal, setShowLogoutModal] = React.useState(false);
   const [showProfileModal, setShowProfileModal] = React.useState(false);
   const roleId = user?.role_id;
-
   const {
-    register,
-    handleSubmit,
-    reset,
     formState: { errors },
   } = useForm();
 
@@ -37,19 +34,26 @@ const Header = () => {
   const handleLogout = () => {
     dispatch(logoutManual());
     setShowLogoutModal(false);
-    toast.success("Logged out successfully", { style: { fontSize: "12px", fontWeight: "bold" } });
+    toast.success("Logged out successfully", {
+      style: { fontSize: "12px", fontWeight: "bold" },
+    });
     navigate("/");
   };
   useEffect(() => {
-    dispatch(getPermissionsByStoreId(storeId?.id))
-  }, [])
+    dispatch(getPermissionsByStoreId(storeId?.id));
+  }, []);
 
   return (
     <>
       <header className="flex items-center justify-between mb-10 relative bg-[#FFFFFF] px-6 md:px-10 py-6">
         <div className="flex items-center gap-3">
-          <Link to={"/dashboard"} >
-            <img src={logo} alt="Shiwantek" className="h-11" onError={(e) => (e.target.style.display = "none")} />
+          <Link to={"/dashboard"}>
+            <img
+              src={logo}
+              alt="Shiwantek"
+              className="h-11"
+              onError={(e) => (e.target.style.display = "none")}
+            />
           </Link>
         </div>
 
@@ -58,11 +62,22 @@ const Header = () => {
             {user?.name[0] || "U"}
           </div>
           <div className="flex flex-col">
-            <span className="font-medium text-gray-800 text-sm">{user?.name || "User"}</span>
+            <span className="font-medium text-gray-800 text-sm">
+              {user?.name || "User"}
+            </span>
+            {storeId?.roleName && (
+              <span className="text-xs text-gray-500">{storeId?.roleName}</span>
+            )}
             <span className="text-xs text-gray-500">{storeId?.name}</span>
           </div>
           {[1].includes(roleId) && (
             <>
+              <button
+                onClick={() => navigate("/storeroles")}
+                className="p-2 hover:bg-gray-100 rounded-full transition"
+              >
+                <Plus size={20} className="text-gray-600" />
+              </button>
               <button
                 onClick={() => setShowProfileModal(true)}
                 className="p-2 hover:bg-gray-100 rounded-full transition"
@@ -71,10 +86,10 @@ const Header = () => {
                 <UserCircle size={20} className="text-gray-600" />
               </button>
               <button
-                onClick={() => navigate("/storeroles")}
+                onClick={() => navigate("/user-logs")}
                 className="p-2 hover:bg-gray-100 rounded-full transition"
               >
-                <Plus size={20} className="text-gray-600" />
+                <Logs size={20} className="text-gray-600" />
               </button>
             </>
           )}
@@ -88,7 +103,9 @@ const Header = () => {
         </div>
       </header>
 
-      {showUserModal && <CreateUserModal onClose={() => setShowUserModal(false)} />}
+      {showUserModal && (
+        <CreateUserModal onClose={() => setShowUserModal(false)} />
+      )}
       {showProfileModal && (
         <SuperAdminProfileModal onClose={() => setShowProfileModal(false)} />
       )}
@@ -103,7 +120,9 @@ const Header = () => {
               <X size={20} />
             </button>
             <div className="text-center py-4">
-              <h2 className="text-lg font-semibold text-gray-800 mb-2">Want to logout?</h2>
+              <h2 className="text-lg font-semibold text-gray-800 mb-2">
+                Want to logout?
+              </h2>
             </div>
             <div className="flex justify-between gap-3 mt-6">
               <button

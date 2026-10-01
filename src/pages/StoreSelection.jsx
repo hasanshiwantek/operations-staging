@@ -5,25 +5,20 @@ import { useNavigate } from "react-router-dom";
 import { setStoreId } from "../store/authSlice";
 export const getRolesByStoreId = async (token, storeId) => {
   try {
-    const response = await fetch(
-      `${BASEURL}/auth/get-role-by-store-id`,
-      {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          "store-id": storeId,
-        },
-      }
-    );
+    const response = await fetch(`${BASEURL}/auth/get-role-by-store-id`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "store-id": storeId,
+      },
+    });
 
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(
-        data?.message || "Failed to fetch roles"
-      );
+      throw new Error(data?.message || "Failed to fetch roles");
     }
 
     return data;
@@ -38,7 +33,7 @@ const StoreSelection = () => {
   const [store, setStore] = useState("");
   const [loading, setLoading] = useState(false); // ✅ loading state
   const { user, storeId, token } = useSelector((state) => state.auth);
-  const stores = user?.stores
+  const stores = user?.stores;
 
   // Redirect to dashboard on successful login
   useEffect(() => {
@@ -50,7 +45,7 @@ const StoreSelection = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    const selectedStore = stores?.find((s) => s?.id === Number(store));
+    const selectedStore = stores?.find((s) => s?.id == Number(store));
     if (selectedStore) {
       setLoading(true);
       try {
@@ -59,21 +54,18 @@ const StoreSelection = () => {
         const roleData = {
           ...user,
           role_id: result?.role?.id,
-          role_name: result?.role?.name
-        }
-        let persistedAuth = JSON.parse(
-          localStorage.getItem("persist:auth")
-        );
+          role_name: result?.role?.name,
+        };
+
+        let persistedAuth = JSON.parse(localStorage.getItem("persist:auth"));
 
         if (persistedAuth?.user && roleData) {
           persistedAuth.user = JSON.stringify(roleData);
-
-          localStorage.setItem(
-            "persist:auth",
-            JSON.stringify(persistedAuth)
-          );
+          localStorage.setItem("persist:auth", JSON.stringify(persistedAuth));
         }
-        dispatch(setStoreId(selectedStore));
+        dispatch(
+          setStoreId({ ...selectedStore, roleName: roleData?.role_name }),
+        );
       } catch (error) {
         console.error("Failed to fetch roles:", error);
       } finally {
@@ -95,9 +87,7 @@ const StoreSelection = () => {
         <h2 className="text-2xl font-semibold text-gray-800 mb-2">
           Select Store
         </h2>
-        <p className="text-gray-500 mb-8">
-          Please select a store to continue
-        </p>
+        <p className="text-gray-500 mb-8">Please select a store to continue</p>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Dropdown */}
@@ -125,7 +115,6 @@ const StoreSelection = () => {
           <button
             type="submit"
             disabled={!store || loading}
-
             className="w-full bg-indigo-600 text-white py-2 rounded-lg font-semibold hover:bg-indigo-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? "Loading..." : "Submit"}
