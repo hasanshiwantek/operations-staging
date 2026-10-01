@@ -144,14 +144,7 @@ const EditOrderDetailModal = ({
     };
   };
 
-  // // Set form data when order changes
-  // useEffect(() => {
-  //     if (order) {
-  //         setFormData({ ...order });
-  //         setBaseOrder({ ...order });
-  //         lastFetchedId.current = order['Order#'];
-  //     }
-  // }, [order]);
+
   // Set form data when order changes
   useEffect(() => {
     if (order) {
@@ -328,22 +321,7 @@ const EditOrderDetailModal = ({
               const isDropdown = Boolean(normalizedOptions[key]); // ← fully dynamic
               const options = normalizedOptions[key] || [];
 
-              // const parseDate = (dateStr) => {
-              //     if (!dateStr) return null;
-              //     const parts = dateStr.includes('/')
-              //         ? dateStr.split('/')
-              //         : dateStr.split('-');
-
-              //     if (parts.length === 3) {
-              //         if (dateStr.includes('/')) {
-              //             return new Date(+parts[2], +parts[1] - 1, +parts[0]);
-              //         } else {
-              //             return new Date(+parts[0], +parts[1] - 1, +parts[2]);
-              //         }
-              //     }
-              //     return null;
-              // };
-
+      
               const parseDate = (dateStr) => {
                 if (!dateStr) return null;
 
