@@ -72,15 +72,22 @@ const isoToDisplayDate = (value) => {
 };
 
 const toFilterNumber = (value) => {
-  const raw =
-    value && typeof value === "object" ? value.value : value;
+  const raw = value && typeof value === "object" ? value.value : value;
   if (raw === "" || raw === null || raw === undefined) return "";
   const num = Number(String(raw).replace(/[$,\s]/g, ""));
   return Number.isFinite(num) ? num : raw;
 };
 
 // Renders the untouched source value (not the valueGetter output)
-function sourceTextRenderer(instance, td, row, col, prop, value, cellProperties) {
+function sourceTextRenderer(
+  instance,
+  td,
+  row,
+  col,
+  prop,
+  value,
+  cellProperties,
+) {
   const raw = instance.getSourceDataAtRow(instance.toPhysicalRow(row))?.[prop];
   textRenderer(instance, td, row, col, prop, raw ?? "", cellProperties);
 }
@@ -88,7 +95,15 @@ function sourceTextRenderer(instance, td, row, col, prop, value, cellProperties)
 // Date cells hold ISO values in the grid (see toTableRow) but show MM/DD/YYYY
 function usDateRenderer(instance, td, row, col, prop, value, cellProperties) {
   const raw = instance.getSourceDataAtRow(instance.toPhysicalRow(row))?.[prop];
-  textRenderer(instance, td, row, col, prop, isoToDisplayDate(raw ?? ""), cellProperties);
+  textRenderer(
+    instance,
+    td,
+    row,
+    col,
+    prop,
+    isoToDisplayDate(raw ?? ""),
+    cellProperties,
+  );
 }
 
 // The "intl-date" type expects ISO dates in the data itself, so the grid gets
@@ -144,8 +159,10 @@ const getMenuColumn = (hot) => hot.getSelectedRangeLast()?.highlight?.col ?? -1;
 
 const getSortLabels = (hot) => {
   const type = hotColumns[hot.toPhysicalColumn(getMenuColumn(hot))]?.type;
-  if (type === "numeric") return ["Sort Smallest to Largest", "Sort Largest to Smallest"];
-  if (type === "intl-date") return ["Sort Oldest to Newest", "Sort Newest to Oldest"];
+  if (type === "numeric")
+    return ["Sort Smallest to Largest", "Sort Largest to Smallest"];
+  if (type === "intl-date")
+    return ["Sort Oldest to Newest", "Sort Newest to Oldest"];
   return ["Sort A to Z", "Sort Z to A"];
 };
 
@@ -174,40 +191,6 @@ const formatCurrency = (value) => {
     minimumFractionDigits: 2,
   }).format(value);
 };
-
-// const resolveCellColor = (order, column) => {
-//   if (!order || !column) return "";
-
-//   const getColor = (key) => String(order[key]?.colorCode || "").trim();
-//   const isOn = (key) =>
-//     getFieldHighlight(order[key]) || getFieldChecked(order[key]);
-
-//   const priceGroup = ["Price", "Shipping", "Tax"];
-//   const cardGroup = ["Cost", "Vendor Shipping", "Vendor Tax"];
-//   const costGroup = ["Courier Charges", "Sales Tax", "Warehouse Charges", "Custom Duties"];
-
-//   if (priceGroup.includes(column) && isOn(column)) return getColor(column);
-//   if (column === "Total Price" && priceGroup.some(isOn)) {
-//     return priceGroup.map(getColor).find(Boolean) || getColor("Total Price");
-//   }
-
-//   if (cardGroup.includes(column) && isOn(column)) return getColor(column);
-//   if (column === "Card Payment" && cardGroup.some(isOn)) {
-//     return cardGroup.map(getColor).find(Boolean) || "";
-//   }
-
-//   if (costGroup.includes(column) && isOn(column)) return getColor(column);
-//   if (column === "Total Cost" && costGroup.some(isOn)) {
-//     return costGroup.map(getColor).find(Boolean) || "";
-//   }
-
-//   if (column === "CC/Paypal 4%" && isOn(column)) return getColor(column);
-//   if (column === "Total Cost+4%" && isOn("CC/Paypal 4%")) {
-//     return getColor("CC/Paypal 4%");
-//   }
-
-//   return "";
-// };
 
 const resolveCellColor = (order, column) => {
   if (!order || !column) return "";
@@ -458,8 +441,10 @@ function OrderListTable({ Orders }) {
     const current = hot.getSelectedRangeLast()?.highlight;
     const curRow = current?.row ?? -1;
     const curCol = current?.col ?? -1;
-    const isAfter = (m) => m.row > curRow || (m.row === curRow && m.col > curCol);
-    const isBefore = (m) => m.row < curRow || (m.row === curRow && m.col < curCol);
+    const isAfter = (m) =>
+      m.row > curRow || (m.row === curRow && m.col > curCol);
+    const isBefore = (m) =>
+      m.row < curRow || (m.row === curRow && m.col < curCol);
 
     let index =
       direction > 0
@@ -479,7 +464,11 @@ function OrderListTable({ Orders }) {
   // Ctrl+F / Cmd+F opens the sheet's find bar instead of the browser's
   useEffect(() => {
     const onKey = (e) => {
-      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "f") {
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        !e.altKey &&
+        e.key.toLowerCase() === "f"
+      ) {
         e.preventDefault();
         openFind();
       }
@@ -589,7 +578,8 @@ function OrderListTable({ Orders }) {
         clear_column_filter: {
           name() {
             const column = getMenuColumn(this);
-            const title = hotColumns[this.toPhysicalColumn(column)]?.title || "";
+            const title =
+              hotColumns[this.toPhysicalColumn(column)]?.title || "";
             return `Clear Filter From "${title}"`;
           },
           disabled() {
@@ -633,16 +623,23 @@ function OrderListTable({ Orders }) {
         grossProfit: 0,
         grossProfitMinus4: 0,
         count: 0,
+        //
+        price: 0,
+        shipping: 0,
+        tax: 0,
+        cost: 0,
+        vendorShipping: 0,
+        vendorTax: 0,
+        courierCharges: 0,
+        salesTax: 0,
+        warehouseCharges: 0,
+        customDuties: 0,
+        ccPaypal4Percent: 0,
       };
     }
 
     return summaryOrders.reduce(
       (acc, order) => {
-        // acc.totalPrice += Number(order["Total Price"] || 0);
-        // acc.totalCost += Number(order["Total Cost"] || 0);
-        // acc.totalCostPlus4 += Number(order["Total Cost+4%"] || 0);
-        // acc.grossProfit += Number(order["Gross Profit"] || 0);
-        // acc.grossProfitMinus4 += Number(order["Gross Profit-4%"] || 0);
         acc.totalPrice += Number(getFieldValue(order["Total Price"]) || 0);
         acc.totalCost += Number(getFieldValue(order["Total Cost"]) || 0);
         acc.totalCostPlus4 += Number(
@@ -652,6 +649,27 @@ function OrderListTable({ Orders }) {
         acc.grossProfitMinus4 += Number(
           getFieldValue(order["Gross Profit-4%"]) || 0,
         );
+        //
+        acc.price += Number(getFieldValue(order["Price"]) || 0);
+        acc.shipping += Number(getFieldValue(order["Shipping"]) || 0);
+        acc.tax += Number(getFieldValue(order["Tax"]) || 0);
+        acc.cost += Number(getFieldValue(order["Cost"]) || 0);
+        acc.vendorShipping += Number(
+          getFieldValue(order["Vendor Shipping"]) || 0,
+        );
+        acc.vendorTax += Number(getFieldValue(order["Vendor Tax"]) || 0);
+        acc.courierCharges += Number(
+          getFieldValue(order["Courier Charges"]) || 0,
+        );
+        acc.salesTax += Number(getFieldValue(order["Sales Tax"]) || 0);
+        acc.warehouseCharges += Number(
+          getFieldValue(order["Warehouse Charges"]) || 0,
+        );
+        acc.customDuties += Number(getFieldValue(order["Custom Duties"]) || 0);
+        acc.ccPaypal4Percent += Number(
+          getFieldValue(order["CC/Paypal 4%"]) || 0,
+        );
+
         acc.count += 1;
         return acc;
       },
@@ -662,6 +680,18 @@ function OrderListTable({ Orders }) {
         grossProfit: 0,
         grossProfitMinus4: 0,
         count: 0,
+        //
+        price: 0,
+        shipping: 0,
+        tax: 0,
+        cost: 0,
+        vendorShipping: 0,
+        vendorTax: 0,
+        courierCharges: 0,
+        salesTax: 0,
+        warehouseCharges: 0,
+        customDuties: 0,
+        ccPaypal4Percent: 0,
       },
     );
   }, [filteredOrders, visibleOrders]);
@@ -689,7 +719,11 @@ function OrderListTable({ Orders }) {
       "htTotalCost4",
       "htGrossProfit",
       "htGrossProfit4",
+      //
+      "htPriceRelated",
+      "htCostRelated",
     );
+
     if (column.data === "Order#") {
       TH.classList.add("htOrderCount");
     } else if (column.data === "Total Price") {
@@ -702,9 +736,25 @@ function OrderListTable({ Orders }) {
       TH.classList.add("htGrossProfit");
     } else if (column.data === "Gross Profit-4%") {
       TH.classList.add("htGrossProfit4");
+    } else if (
+      column.data === "Price" ||
+      column.data === "Shipping" ||
+      column.data === "Tax" ||
+      column.data === "Vendor Shipping" ||
+      column.data === "Vendor Tax" ||
+      column.data === "CC/Paypal 4%"
+    ) {
+      TH.classList.add("htPriceRelated");
+    } else if (
+      column.data === "Courier Charges" ||
+      column.data === "Sales Tax" ||
+      column.data === "Warehouse Charges" ||
+      column.data === "Custom Duties" ||
+      column.data === "Cost"
+    ) {
+      TH.classList.add("htCostRelated");
     }
   };
-
   const updateSelectionSummary = useCallback(() => {
     if (isRightClickRef.current) return;
 
@@ -966,6 +1016,48 @@ function OrderListTable({ Orders }) {
         if (col.data === "Gross Profit") {
           return { label: formatCurrency(summary.grossProfit), colspan: 1 };
         }
+        if (col.data === "Price") {
+          return { label: formatCurrency(summary.price), colspan: 1 };
+        }
+        if (col.data === "Shipping") {
+          return { label: formatCurrency(summary.shipping), colspan: 1 };
+        }
+        if (col.data === "Tax") {
+          return { label: formatCurrency(summary.tax), colspan: 1 };
+        }
+        if (col.data === "Cost") {
+          return { label: formatCurrency(summary.cost), colspan: 1 };
+        }
+        if (col.data === "Vendor Shipping") {
+          return { label: formatCurrency(summary.vendorShipping), colspan: 1 };
+        }
+        if (col.data === "Vendor Tax") {
+          return { label: formatCurrency(summary.vendorTax), colspan: 1 };
+        }
+        if (col.data === "Courier Charges") {
+          return { label: formatCurrency(summary.courierCharges), colspan: 1 };
+        }
+        if (col.data === "Courier Charges") {
+          return { label: formatCurrency(summary.courierCharges), colspan: 1 };
+        }
+        if (col.data === "Sales Tax") {
+          return { label: formatCurrency(summary.salesTax), colspan: 1 };
+        }
+        if (col.data === "Warehouse Charges") {
+          return {
+            label: formatCurrency(summary.warehouseCharges),
+            colspan: 1,
+          };
+        }
+        if (col.data === "Custom Duties") {
+          return { label: formatCurrency(summary.customDuties), colspan: 1 };
+        }
+        if (col.data === "CC/Paypal 4%") {
+          return {
+            label: formatCurrency(summary.ccPaypal4Percent),
+            colspan: 1,
+          };
+        }
         if (col.data === "Gross Profit-4%") {
           return {
             label: formatCurrency(summary.grossProfitMinus4),
@@ -1028,6 +1120,18 @@ function OrderListTable({ Orders }) {
     );
   }, [tableOrders]);
 
+  useEffect(() => {
+    const hot = hotRef.current?.hotInstance;
+    if (!hot) return;
+
+    const id = setTimeout(() => {
+      hot.refreshDimensions();
+      const row = isFullScreen ? Math.max(hot.countRows() - 1, 0) : 0;
+      hot.scrollViewportTo(row, 0);
+    }, 60);
+
+    return () => clearTimeout(id);
+  }, [isFullScreen]);
   // if (orderloading) {
   //   return (
   //     <div style={{ padding: '40px', textAlign: 'center' }}>
@@ -1385,7 +1489,9 @@ function OrderListTable({ Orders }) {
                   outline: "none",
                 }}
               />
-              <span style={{ minWidth: 70, color: "#6b7280", textAlign: "center" }}>
+              <span
+                style={{ minWidth: 70, color: "#6b7280", textAlign: "center" }}
+              >
                 {!findQuery
                   ? ""
                   : findResults.length === 0
@@ -1399,7 +1505,13 @@ function OrderListTable({ Orders }) {
                 title="Find previous (Shift+Enter)"
                 onClick={() => goToMatch(-1)}
                 disabled={findResults.length === 0}
-                style={{ padding: "4px 8px", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", cursor: "pointer" }}
+                style={{
+                  padding: "4px 8px",
+                  border: "1px solid #d1d5db",
+                  borderRadius: 6,
+                  background: "#fff",
+                  cursor: "pointer",
+                }}
               >
                 ↑
               </button>
@@ -1408,11 +1520,24 @@ function OrderListTable({ Orders }) {
                 title="Find next (Enter)"
                 onClick={() => goToMatch(1)}
                 disabled={findResults.length === 0}
-                style={{ padding: "4px 8px", border: "1px solid #d1d5db", borderRadius: 6, background: "#fff", cursor: "pointer" }}
+                style={{
+                  padding: "4px 8px",
+                  border: "1px solid #d1d5db",
+                  borderRadius: 6,
+                  background: "#fff",
+                  cursor: "pointer",
+                }}
               >
                 ↓
               </button>
-              <label style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                  cursor: "pointer",
+                }}
+              >
                 <input
                   type="checkbox"
                   checked={findMatchCase}
@@ -1420,7 +1545,14 @@ function OrderListTable({ Orders }) {
                 />
                 Match case
               </label>
-              <label style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer" }}>
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                  cursor: "pointer",
+                }}
+              >
                 <input
                   type="checkbox"
                   checked={findWholeCell}
@@ -1432,7 +1564,14 @@ function OrderListTable({ Orders }) {
                 type="button"
                 title="Close (Esc)"
                 onClick={closeFind}
-                style={{ padding: "2px 8px", border: "none", background: "transparent", fontSize: 16, cursor: "pointer", color: "#6b7280" }}
+                style={{
+                  padding: "2px 8px",
+                  border: "none",
+                  background: "transparent",
+                  fontSize: 16,
+                  cursor: "pointer",
+                  color: "#6b7280",
+                }}
               >
                 ×
               </button>
@@ -1461,8 +1600,14 @@ function OrderListTable({ Orders }) {
               const hot = hotRef.current?.hotInstance;
               const key =
                 matches.size && hot ? `${hot.toPhysicalRow(row)}:${col}` : "";
-              td.classList.toggle("ht-find-match", Boolean(key) && matches.has(key));
-              td.classList.toggle("ht-find-current", Boolean(key) && key === current);
+              td.classList.toggle(
+                "ht-find-match",
+                Boolean(key) && matches.has(key),
+              );
+              td.classList.toggle(
+                "ht-find-current",
+                Boolean(key) && key === current,
+              );
             }}
             fragmentSelection={false}
             afterOnCellMouseDown={(event, coords) => {
@@ -1585,7 +1730,8 @@ function OrderListTable({ Orders }) {
                   callback: async (key, selection) => {
                     const row = selection[0].start.row;
 
-                    let { order_type, ...originalOrder } = getOrderAtRow(row) || {};
+                    let { order_type, ...originalOrder } =
+                      getOrderAtRow(row) || {};
 
                     if (!originalOrder["Order#"]) return;
 
@@ -1631,7 +1777,8 @@ function OrderListTable({ Orders }) {
                   },
                   callback: async (key, selection) => {
                     const row = selection[0].start.row;
-                    let { order_type, ...originalOrder } = getOrderAtRow(row) || {};
+                    let { order_type, ...originalOrder } =
+                      getOrderAtRow(row) || {};
 
                     if (!originalOrder["Order#"]) return;
 
