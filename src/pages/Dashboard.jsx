@@ -17,7 +17,7 @@ import { OrderCardSkeleton } from "../components/Utils";
 import { toNumber } from "../utils/constant";
 import { useNavigate } from "react-router-dom";
 import OrderDetailModal from "../components/OrderDetailModal";
-import OrderListTable from "../components/OrderListTable"
+import OrderListTable from "../components/OrderListTable";
 
 const Dashboard = () => {
   const dispatch = useDispatch();
@@ -27,7 +27,14 @@ const Dashboard = () => {
     // Get saved tab from localStorage, fallback to "dashboard"
     return localStorage.getItem("activeTab") || "dashboard";
   });
-  const { users, Orders, userloading, orderloading, error: usersError, pending } = useSelector((state) => state.users);
+  const {
+    users,
+    Orders,
+    userloading,
+    orderloading,
+    error: usersError,
+    pending,
+  } = useSelector((state) => state.users);
   const { token, user: authUser } = useSelector((state) => state.auth);
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -46,7 +53,7 @@ const Dashboard = () => {
   const { user, storeId } = useSelector((state) => state?.auth);
   const { userPermissions } = useSelector((state) => state?.permissions);
   const roleId = user?.role_id;
-  const permissions = userPermissions
+  const permissions = userPermissions;
 
   const hasPermission = (slug) => {
     if (roleId === 1 || roleId === 2) return true;
@@ -56,7 +63,7 @@ const Dashboard = () => {
   const hasParentPermission = (parentSlug) => {
     if (roleId === 1 || roleId === 2) return true;
     return permissions?.some(
-      (p) => p.slug === parentSlug || p.slug?.startsWith(parentSlug + ".")
+      (p) => p.slug === parentSlug || p.slug?.startsWith(parentSlug + "."),
     );
   };
   // Available tabs based on permissions
@@ -81,26 +88,30 @@ const Dashboard = () => {
 
   // Backend se aaya hua raw data
   // Agar Orders = backend response
-  const orderData = Orders?.map(order => ({
-    order_id: order["Order#"],
-    brand: order["Brands"],
-    category: order["Category"],
-    qty: Number(toNumber(order["Qty"])),
-    price: Number(toNumber(order["Price"]?.value)),
-    grossProfit: Number(toNumber(order["Gross Profit-4%"])),
-    totalPrice: Number(toNumber(order["Total Price"]?.value)),
-    status: order["Order Status"],
-    procured_by: order["Procured By"],
-    order_date: order["Order Date"],
-    sales_agent: order["Sales Agent"],
-  })) || [];
-  const allStatuses = orderData.map(order => order.status);
+  const orderData =
+    Orders?.map((order) => ({
+      order_id: order["Order#"],
+      brand: order["Brands"],
+      category: order["Category"],
+      qty: Number(toNumber(order["Qty"])),
+      price: Number(toNumber(order["Price"]?.value)),
+      grossProfit: Number(toNumber(order["Gross Profit-4%"])),
+      totalPrice: Number(toNumber(order["Total Price"]?.value)),
+      status: order["Order Status"],
+      procured_by: order["Procured By"],
+      order_date: order["Order Date"],
+      sales_agent: order["Sales Agent"],
+    })) || [];
+  const allStatuses = orderData.map((order) => order.status);
 
-
-  const salesAgents = [...new Set(orderData.map(o => o?.sales_agent).filter(Boolean))];
+  const salesAgents = [
+    ...new Set(orderData.map((o) => o?.sales_agent).filter(Boolean)),
+  ];
   // ["PPC", "Frank", "Emma", "Mike"]
 
-  const procuredByList = [...new Set(orderData.map(o => o?.procured_by).filter(Boolean))];
+  const procuredByList = [
+    ...new Set(orderData.map((o) => o?.procured_by).filter(Boolean)),
+  ];
   // ["Bill Dawson", "Mike"]
   // For status filters (All, Delivered, Intransit, etc.)
   // These belong under "dashboard.home"
@@ -108,13 +119,9 @@ const Dashboard = () => {
     if (roleId === 1 || roleId === 2) return true;
 
     // If user has the parent "dashboard" or specifically "dashboard.home"
-    return (
-      hasPermission("order") ||
-      hasPermission("order")
-    );
+    return hasPermission("order") || hasPermission("order");
   };
-  const toggleUserModal = () => setShowUserModal(prev => !prev);
-
+  const toggleUserModal = () => setShowUserModal((prev) => !prev);
 
   // === Fetch Users Data (wait for token to be saved) ===
   useEffect(() => {
@@ -122,11 +129,13 @@ const Dashboard = () => {
     const timer = setTimeout(() => {
       // Check if token exists in Redux
       if (token && !hasFetchedUsers) {
-        dispatch(fetchUsers()).then(() => {
-          setHasFetchedUsers(true);
-        }).catch(() => {
-          setHasFetchedUsers(true); // Mark as fetched even on error
-        });
+        dispatch(fetchUsers())
+          .then(() => {
+            setHasFetchedUsers(true);
+          })
+          .catch(() => {
+            setHasFetchedUsers(true); // Mark as fetched even on error
+          });
       }
     }, 1500); // 1.5 second delay
 
@@ -134,29 +143,24 @@ const Dashboard = () => {
   }, [dispatch, token, hasFetchedUsers]);
   // === Fetch Dashboard Data ===
   useEffect(() => {
-    dispatch(fetchOrdersAdmin(storeId?.id))
+    dispatch(fetchOrdersAdmin(storeId?.id));
   }, [storeId?.id]);
-  // useEffect(() => {
-  //   if (authUser?.role_id === 1 || authUser?.role_id === 2) {
-  //     dispatch(fetchOrdersAdmin(authUser?.role_id))
-  //     // dispatch(fetchOrdersAdmin(storeId?.sheet_id))
-  //   }
-  //   else {
-  //     dispatch(fetchOrdersAdmin(authUser?.role_id))
-  //     // dispatch(fetchOrders())
-  //   }
-  // }, [authUser?.role_id]);
 
   if (loading)
-    return <p className="text-center mt-10 text-gray-500">Loading dashboard...</p>;
+    return (
+      <p className="text-center mt-10 text-gray-500">Loading dashboard...</p>
+    );
   if (!data)
-    return <p className="text-center mt-10 text-red-500">Failed to load data.</p>;
+    return (
+      <p className="text-center mt-10 text-red-500">Failed to load data.</p>
+    );
 
   // === Filter logic ===
-  const filteredOrders = orderData?.filter(order => {
+  const filteredOrders = orderData?.filter((order) => {
     const matchStatus =
       selectedFilter === "All" ||
-      order.status?.toLowerCase().replace(/\s+/g, "") === selectedFilter.toLowerCase().replace(/\s+/g, "");
+      order.status?.toLowerCase().replace(/\s+/g, "") ===
+        selectedFilter.toLowerCase().replace(/\s+/g, "");
 
     const matchSearch = order?.order_id
       ?.toString()
@@ -174,14 +178,40 @@ const Dashboard = () => {
     const matchProcuredBy =
       selectedProcuredBy === "All" || order.procured_by === selectedProcuredBy;
 
-    return matchStatus && matchSearch && matchDate && matchAgent && matchProcuredBy;
+    return (
+      matchStatus && matchSearch && matchDate && matchAgent && matchProcuredBy
+    );
   });
+  const hasUserFilter =
+    selectedFilter !== "All" ||
+    selectedAgent !== "All" ||
+    selectedProcuredBy !== "All" ||
+    !!startDate ||
+    !!endDate ||
+    !!searchQuery.trim();
 
+  const last30Start = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - 30);
+    return d;
+  }, []);
+
+  const inLast30Days = (order) => {
+    const orderDate = new Date(order.order_date);
+    if (Number.isNaN(orderDate.getTime())) return false;
+    return orderDate >= last30Start;
+  };
+
+  // default: stats = last 30 days, list = all
+  // any filter: stats + list = same filtered set
+  const statsSource = hasUserFilter
+    ? filteredOrders
+    : orderData.filter(inLast30Days);
   const totalPages = Math.ceil(filteredOrders.length / ordersPerPage);
   const startIndex = (currentPage - 1) * ordersPerPage;
   const endIndex = startIndex + ordersPerPage;
   const currentOrders = filteredOrders.slice(startIndex, endIndex);
-
 
   // Filter users from Redux (API data only, no static fallback)
   const filteredUsers = useMemo(() => {
@@ -200,16 +230,42 @@ const Dashboard = () => {
     return userfiltered;
   }, [users, userSearch, authUser.id]);
 
-  const selectedOrderIds = filteredOrders?.map((item) => String(item?.order_id));
-  const matchedOrders = Orders?.filter((order) =>
-    selectedOrderIds?.includes(String(order?.["Order#"]))
+  const selectedOrderIds = filteredOrders?.map((item) =>
+    String(item?.order_id),
   );
-  const totalOrders = filteredOrders?.length;
-  const orderValue = filteredOrders?.reduce((sum, order) => sum + (order?.totalPrice || 0), 0);
-  const grossProfit = filteredOrders?.reduce((sum, order) => sum + (order?.grossProfit || 0), 0);
-  const deliveredCount = filteredOrders?.filter(
-    o => o.status?.toLowerCase() === "delivered"
+  const matchedOrders = Orders?.filter((order) =>
+    selectedOrderIds?.includes(String(order?.["Order#"])),
+  );
+  const totalOrders = statsSource?.length;
+  const orderValue = statsSource?.reduce(
+    (sum, order) => sum + (order?.totalPrice || 0),
+    0,
+  );
+  const grossProfit = statsSource?.reduce(
+    (sum, order) => sum + (order?.grossProfit || 0),
+    0,
+  );
+  const deliveredCount = statsSource?.filter(
+    (o) => o.status?.toLowerCase() === "delivered",
   ).length;
+  const deliveredAmount = statsSource?.reduce(
+    (sum, order) =>
+      order?.status?.toLowerCase() === "delivered"
+        ? sum + (order?.totalPrice || 0)
+        : sum,
+    0,
+  );
+
+  const cancelledCount = statsSource?.filter(
+    (o) => o.status?.toLowerCase() === "cancelled",
+  ).length;
+  const cancelledAmount = statsSource?.reduce(
+    (sum, order) =>
+      order?.status?.toLowerCase() === "cancelled"
+        ? sum + (order?.totalPrice || 0)
+        : sum,
+    0,
+  );
 
   // Helper: check if user has a permission by slug
 
@@ -220,23 +276,22 @@ const Dashboard = () => {
     <>
       {/* Filters */}
       <div className="flex justify-end gap-2 mb-4 w-full">
-        {["All", "Delivered", "Intransit"].map(
-          (filter) => (
-            <button
-              key={filter}
-              className={`px-4 py-2 rounded-full text-sm font-medium ${selectedFilter === filter
+        {["All", "Delivered", "Intransit"].map((filter) => (
+          <button
+            key={filter}
+            className={`px-4 py-2 rounded-full text-sm font-medium ${
+              selectedFilter === filter
                 ? "bg-indigo-600 text-white"
                 : "bg-white text-gray-700 border hover:bg-gray-100"
-                }`}
-              onClick={() => {
-                setSelectedFilter(filter);
-                setCurrentPage(1);
-              }}
-            >
-              {filter}
-            </button>
-          )
-        )}
+            }`}
+            onClick={() => {
+              setSelectedFilter(filter);
+              setCurrentPage(1);
+            }}
+          >
+            {filter}
+          </button>
+        ))}
         {/* Sales Agent Dropdown */}
         <select
           value={selectedAgent}
@@ -249,7 +304,9 @@ const Dashboard = () => {
         >
           <option value="All">All Agents</option>
           {salesAgents.map((agent) => (
-            <option key={agent} value={agent}>{agent}</option>
+            <option key={agent} value={agent}>
+              {agent}
+            </option>
           ))}
         </select>
 
@@ -265,7 +322,9 @@ const Dashboard = () => {
         >
           <option value="All">All Procured By</option>
           {procuredByList.map((name) => (
-            <option key={name} value={name}>{name}</option>
+            <option key={name} value={name}>
+              {name}
+            </option>
           ))}
         </select>
 
@@ -294,36 +353,53 @@ const Dashboard = () => {
       {/* ==== Stats Cards ==== */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
         {[
-          { label: "Total orders", value: totalOrders, icon: totalorders, alt: "Total orders icon" },
-          { label: "Order value", value: `$${orderValue.toLocaleString()}`, icon: ordervalue, alt: "Order value icon" },
-          { label: "Gross profit", value: `$${grossProfit.toLocaleString()}`, icon: grossprofit, alt: "Gross profit icon" },
-          { label: "Orders delivered", value: deliveredCount, icon: totalorders, alt: "Delivered orders icon" },
+          {
+            label: "Total orders",
+            value: totalOrders,
+            icon: totalorders,
+            alt: "Total orders icon",
+          },
+          {
+            label: "Order value",
+            value: `$${orderValue.toLocaleString()}`,
+            icon: ordervalue,
+            alt: "Order value icon",
+          },
+          {
+            label: "Gross profit",
+            value: `$${grossProfit.toLocaleString()}`,
+            icon: grossprofit,
+            alt: "Gross profit icon",
+          },
+          {
+            label: "Orders delivered",
+            value: deliveredCount,
+            icon: totalorders,
+            alt: "Delivered orders icon",
+          },
+          {
+            label: "Amount delivered",
+            value: `${deliveredAmount.toLocaleString()}`,
+            icon: grossprofit,
+            alt: "Delivered orders icon",
+          },
+          //
+          {
+            label: "Orders cancelled",
+            value: cancelledCount,
+            icon: totalorders,
+            alt: "Delivered orders icon",
+          },
+          {
+            label: "Amount cancelled",
+            value: `${cancelledAmount.toLocaleString()}`,
+            icon: ordervalue,
+            alt: "Cancelled orders icon",
+          },
         ].map((stat, i) => (
           <StatsCard key={i} {...stat} />
         ))}
       </div>
-
-      {/* <div className="flex border-b mb-2">
-        <button
-          onClick={() => setActiveTab("dashboard")}
-          className={`px-4 py-2 ${activeTab === "dashboard"
-            ? "border-b-2 border-blue-600 font-semibold"
-            : "text-gray-500"
-            }`}
-        >
-          Dashboard
-        </button>
-
-        <button
-          onClick={() => setActiveTab("view-sheet")}
-          className={`px-4 py-2 ${activeTab === "view-sheet"
-            ? "border-b-2 border-blue-600 font-semibold"
-            : "text-gray-500"
-            }`}
-        >
-          View Sheet
-        </button>
-      </div> */}
       {/* ==== Tabs ==== */}
       {availableTabs.length > 0 && (
         <div className="flex border-b mb-2">
@@ -331,31 +407,32 @@ const Dashboard = () => {
             <button
               key={tab.value}
               onClick={() => setActiveTab(tab.value)}
-              className={`px-4 py-2 ${activeTab === tab.value
-                ? "border-b-2 border-blue-600 font-semibold text-blue-600"
-                : "text-gray-500 hover:text-gray-700"
-                }`}
+              className={`px-4 py-2 ${
+                activeTab === tab.value
+                  ? "border-b-2 border-blue-600 font-semibold text-blue-600"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
             >
               {tab.label}
             </button>
           ))}
         </div>
       )}
-      {activeTab === "dashboard" && hasParentPermission("order") ? <>
-        {/* ==== Orders Section ==== */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8" >
-          {/* === Orders List === */}
-          {/* <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-6"> */}
-          <div className={`${[1, 2].includes(roleId) ? "lg:col-span-2" : "lg:col-span-3"} bg-white rounded-2xl shadow-sm border border-gray-100 p-6`}>
+      {activeTab === "dashboard" && hasParentPermission("order") ? (
+        <>
+          {/* ==== Orders Section ==== */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* === Orders List === */}
+            {/* <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-6"> */}
+            <div
+              className={`${[1, 2].includes(roleId) ? "lg:col-span-2" : "lg:col-span-3"} bg-white rounded-2xl shadow-sm border border-gray-100 p-6`}
+            >
+              <div className="mb-4">
+                <h2 className="font-semibold text-gray-800 text-lg">Orders</h2>
+              </div>
 
-            <div className="mb-4">
-              <h2 className="font-semibold text-gray-800 text-lg">Orders</h2>
-            </div>
-
-
-
-            <div className="mb-6">
-              {/* <div className="flex items-center gap-2 border rounded-full px-4 py-2 bg-white shadow-sm w-full">
+              <div className="mb-6">
+                {/* <div className="flex items-center gap-2 border rounded-full px-4 py-2 bg-white shadow-sm w-full">
                 <input
                   type="text"
                   placeholder="Enter Order ID..."
@@ -365,52 +442,56 @@ const Dashboard = () => {
                 />
                 <Search size={16} className="text-gray-400" />
               </div> */}
-            </div>
+              </div>
 
-            {/* Orders Grid */}
-            {/* ==== Orders Grid (2 cards per row clean layout) ==== */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {orderloading ? (
-                Array.from({ length: 4 }).map((_, i) => <OrderCardSkeleton key={i} />)
-              ) : hasAccess(selectedFilter) ? (
-                currentOrders.length > 0 ? (
-                  currentOrders.map(order => <OrderCard key={order.order_id} order={order} />)
+              {/* Orders Grid */}
+              {/* ==== Orders Grid (2 cards per row clean layout) ==== */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {orderloading ? (
+                  Array.from({ length: 4 }).map((_, i) => (
+                    <OrderCardSkeleton key={i} />
+                  ))
+                ) : hasAccess(selectedFilter) ? (
+                  currentOrders.length > 0 ? (
+                    currentOrders.map((order) => (
+                      <OrderCard key={order.order_id} order={order} />
+                    ))
+                  ) : (
+                    <p className="col-span-full text-center text-gray-500">
+                      No orders found for this filter.
+                    </p>
+                  )
                 ) : (
-                  <p className="col-span-full text-center text-gray-500">
-                    No orders found for this filter.
-                  </p>
-                )
-              ) : (
-                <div className="col-span-full flex justify-center items-center h-40">
-                  <NotAllowed />
-                </div>
-              )}
-            </div>
+                  <div className="col-span-full flex justify-center items-center h-40">
+                    <NotAllowed />
+                  </div>
+                )}
+              </div>
 
-            {/* Pagination */}
-            <Pagination
-              totalPages={totalPages}
-              currentPage={currentPage}
-              onPageChange={setCurrentPage}
-            />
-          </div>
-
-          {/* === Users Section === */}
-          {
-            [1, 2].includes(roleId) && <div>
-              <UsersSection
-                users={filteredUsers}
-                searchValue={userSearch}
-                onSearchChange={setUserSearch}
-                onCreateUserClick={toggleUserModal}
-                loading={userloading || (!hasFetchedUsers && token)}
-                error={usersError}
+              {/* Pagination */}
+              <Pagination
+                totalPages={totalPages}
+                currentPage={currentPage}
+                onPageChange={setCurrentPage}
               />
             </div>
-          }
-        </div>
 
-      </> : activeTab === "view-sheet" && hasParentPermission("view_sheet") ? (
+            {/* === Users Section === */}
+            {[1, 2].includes(roleId) && (
+              <div>
+                <UsersSection
+                  users={filteredUsers}
+                  searchValue={userSearch}
+                  onSearchChange={setUserSearch}
+                  onCreateUserClick={toggleUserModal}
+                  loading={userloading || (!hasFetchedUsers && token)}
+                  error={usersError}
+                />
+              </div>
+            )}
+          </div>
+        </>
+      ) : activeTab === "view-sheet" && hasParentPermission("view_sheet") ? (
         <OrderListTable Orders={matchedOrders} />
       ) : (
         <div className="flex justify-center items-center h-64">
@@ -418,77 +499,75 @@ const Dashboard = () => {
         </div>
       )}
 
-      {
-        showDateFilter && (
-          <div className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex justify-center items-center z-50">
-            <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-lg relative">
-              <button
-                onClick={() => setShowDateFilter(false)}
-                className="absolute right-4 top-4 text-gray-400 hover:text-gray-600"
-              >
-                <X size={20} />
-              </button>
+      {showDateFilter && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex justify-center items-center z-50">
+          <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-lg relative">
+            <button
+              onClick={() => setShowDateFilter(false)}
+              className="absolute right-4 top-4 text-gray-400 hover:text-gray-600"
+            >
+              <X size={20} />
+            </button>
 
-              <h2 className="text-lg font-semibold text-gray-800 mb-3">
-                Select Date Range
-              </h2>
-              <div className="flex flex-col gap-4">
-                <div>
-                  <label className="text-sm text-gray-600 font-medium">
-                    Start Date
-                  </label>
-                  <DatePicker
-                    selected={startDate}
-                    onChange={(date) => setStartDate(date)}
-                    selectsStart
-                    startDate={startDate}
-                    endDate={endDate}
-                    dateFormat="MM/dd/yyyy"
-                    className="w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                    placeholderText="Select start date"
-                  />
-                </div>
+            <h2 className="text-lg font-semibold text-gray-800 mb-3">
+              Select Date Range
+            </h2>
+            <div className="flex flex-col gap-4">
+              <div>
+                <label className="text-sm text-gray-600 font-medium">
+                  Start Date
+                </label>
+                <DatePicker
+                  selected={startDate}
+                  onChange={(date) => setStartDate(date)}
+                  selectsStart
+                  startDate={startDate}
+                  endDate={endDate}
+                  dateFormat="MM/dd/yyyy"
+                  className="w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholderText="Select start date"
+                />
+              </div>
 
-                <div>
-                  <label className="text-sm text-gray-600 font-medium">
-                    End Date
-                  </label>
-                  <DatePicker
-                    selected={endDate}
-                    onChange={(date) => setEndDate(date)}
-                    selectsEnd
-                    startDate={startDate}
-                    endDate={endDate}
-                    minDate={startDate}
-                    dateFormat="MM/dd/yyyy"
-                    className="w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-                    placeholderText="Select end date"
-                  />
-                </div>
+              <div>
+                <label className="text-sm text-gray-600 font-medium">
+                  End Date
+                </label>
+                <DatePicker
+                  selected={endDate}
+                  onChange={(date) => setEndDate(date)}
+                  selectsEnd
+                  startDate={startDate}
+                  endDate={endDate}
+                  minDate={startDate}
+                  dateFormat="MM/dd/yyyy"
+                  className="w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholderText="Select end date"
+                />
+              </div>
 
-                <div className="flex justify-between gap-3 mt-4">
-                  <button
-                    onClick={() => {
-                      setStartDate(null);
-                      setEndDate(null);
-                      setShowDateFilter(false);
-                    }}
-                    className="w-1/2 border py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100"
-                  >
-                    Close
-                  </button>
-                  <button
-                    onClick={() => setShowDateFilter(false)}
-                    className="w-1/2 bg-indigo-600 text-white py-2 rounded-lg text-sm hover:bg-indigo-700"
-                  >
-                    Continue
-                  </button>
-                </div>
+              <div className="flex justify-between gap-3 mt-4">
+                <button
+                  onClick={() => {
+                    setStartDate(null);
+                    setEndDate(null);
+                    setShowDateFilter(false);
+                  }}
+                  className="w-1/2 border py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => setShowDateFilter(false)}
+                  className="w-1/2 bg-indigo-600 text-white py-2 rounded-lg text-sm hover:bg-indigo-700"
+                >
+                  Continue
+                </button>
               </div>
             </div>
           </div>
-        )
-      }
+        </div>
+      )}
     </>
   );
 };

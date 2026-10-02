@@ -66,7 +66,10 @@ const Header = () => {
               {user?.name || "User"}
             </span>
             {storeId?.roleName && (
-              <span className="text-xs text-gray-500">{storeId?.roleName}</span>
+              <span className="text-xs text-gray-500">
+                {storeId?.roleName?.charAt(0).toUpperCase() +
+                  storeId?.roleName.slice(1)}
+              </span>
             )}
             <span className="text-xs text-gray-500">{storeId?.name}</span>
           </div>

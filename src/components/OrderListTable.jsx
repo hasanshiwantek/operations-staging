@@ -1328,20 +1328,7 @@ function OrderListTable({ Orders }) {
                 {syncLoading ? "Sync..." : "Sync Orders"}
               </button>
             )}
-            <button
-              onClick={openFind}
-              title="Find in sheet (Ctrl+F)"
-              style={{
-                padding: "8px 16px",
-                background: "#fff",
-                color: "#111827",
-                border: "1px solid #d1d5db",
-                borderRadius: "6px",
-                cursor: "pointer",
-              }}
-            >
-              Find
-            </button>
+       
             {hasPermission("view_sheet.download_excel") && (
               <button
                 onClick={exportToExcel}
