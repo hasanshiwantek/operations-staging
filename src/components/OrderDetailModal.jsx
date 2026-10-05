@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from "react";
 import { X } from "lucide-react";
-import { defaultOrder, normalizeOrderOptions } from "../utils/constant";
-import { useSelector, useDispatch } from "react-redux";
-import { fetchOrderOptions } from "../store/usersSlice";
+import { useEffect, useState } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import { useSelector } from "react-redux";
+import { defaultOrder, normalizeOrderOptions } from "../utils/constant";
 
 const lockedFields = ["Refund Date"];
 const dateFields = ["Charged Date", "Order Date", "Refund Date"];
@@ -146,8 +145,7 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
                   >
                     <label
                       className="
-                                                text-[10px]
-                                                sm:text-[11px]
+                                                text-sm
                                                 font-bold
                                                 text-white
                                                 text-center

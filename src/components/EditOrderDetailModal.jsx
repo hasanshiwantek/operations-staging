@@ -1,14 +1,15 @@
-import React, { useState, useEffect, useRef } from "react";
 import { X } from "lucide-react";
-import { useSelector, useDispatch } from "react-redux";
-import { fetchOrderById, fetchOrderOptions } from "../store/usersSlice";
+import React, { useEffect, useRef, useState } from "react";
 import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import { toast } from "react-toastify";
+import { useDispatch, useSelector } from "react-redux";
+import { fetchOrderById } from "../store/usersSlice";
 import {
   formatToday,
   getIsFinance,
   normalizeOrderOptions,
 } from "../utils/constant";
-import "react-datepicker/dist/react-datepicker.css";
 // Always locked fields
 
 // Unlockable fields
@@ -36,6 +37,12 @@ const unlockableFields = [
   "Customer",
 ];
 const FINANCE_EDITABLE = ["Charged Date", "Paid Via"];
+const isCancelledStatus = (status) =>
+  ["cancelled", "canceled"].includes(
+    String(status || "")
+      .trim()
+      .toLowerCase(),
+  );
 const EditOrderDetailModal = ({
   order,
   onClose,
@@ -111,7 +118,9 @@ const EditOrderDetailModal = ({
     const cardPayment = cost + vendorShipping + vendorTax;
 
     // Total Price = Shipping + Price + Tax
-    const totalPrice = shipping + price + tax;
+    const totalPrice = isCancelledStatus(data["Order Status"])
+      ? 0
+      : shipping + price + tax;
 
     // Total Cost = Courier Charges + Sales Tax + Warehouse Charges + Custom Duties + Card Payment
     const totalCost =
@@ -143,7 +152,6 @@ const EditOrderDetailModal = ({
       "Profit %": profitPercent,
     };
   };
-
 
   // Set form data when order changes
   useEffect(() => {
@@ -202,6 +210,13 @@ const EditOrderDetailModal = ({
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (
+      isCancelledStatus(formData["Order Status"]) &&
+      !String(formData["Entry Reason"] || "").trim()
+    ) {
+      toast.error("Enter an Entry Reason before cancelling this order.");
+      return;
+    }
     onSave(formData);
   };
 
@@ -263,7 +278,7 @@ const EditOrderDetailModal = ({
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto xl:overflow-hidden p-3 sm:p-4 relative bg-white">
+        <div className="flex-1 no-scrollbar overflow-y-auto p-3 sm:p-4 relative bg-white">
           {fetching && (
             <div className="absolute inset-0 bg-white/70 flex items-center justify-center z-10">
               <span className="text-indigo-600 font-medium text-sm">
@@ -321,7 +336,6 @@ const EditOrderDetailModal = ({
               const isDropdown = Boolean(normalizedOptions[key]); // ← fully dynamic
               const options = normalizedOptions[key] || [];
 
-      
               const parseDate = (dateStr) => {
                 if (!dateStr) return null;
 
@@ -384,8 +398,7 @@ const EditOrderDetailModal = ({
                   >
                     <label
                       className="
-                                            text-[10px]
-                                            sm:text-[11px]
+                                            text-sm
                                             font-bold
                                             text-white
                                             text-center
@@ -394,6 +407,10 @@ const EditOrderDetailModal = ({
                                         "
                     >
                       {key.replace(/([A-Z])/g, " $1").trim()}
+                      {key === "Entry Reason" &&
+                        isCancelledStatus(formData["Order Status"]) && (
+                          <span className="text-red-200"> *</span>
+                        )}
                     </label>
 
                     {!isFinance && isUnlockable && isDisabled && (

@@ -1,23 +1,22 @@
-import React, { useEffect, useState, useMemo } from "react";
-import { useDispatch, useSelector } from "react-redux";
+import { Filter, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { Search, Filter, X } from "lucide-react";
-import totalorders from "../assets/totalorders-icon.svg";
-import ordervalue from "../assets/ordervalue-icon.svg";
+import { useDispatch, useSelector } from "react-redux";
 import grossprofit from "../assets/grossprofit-icon.svg";
-import StatsCard from "../components/StatsCard";
+import ordervalue from "../assets/ordervalue-icon.svg";
+import totalorders from "../assets/totalorders-icon.svg";
 import OrderCard from "../components/OrderCard";
+import StatsCard from "../components/StatsCard";
 import UsersSection from "../components/UsersSection";
 // import CreateUserModal from "../components/CreateUserModal";
-import { fetchOrders, fetchOrdersAdmin, fetchUsers } from "../store/usersSlice";
+import { useNavigate } from "react-router-dom";
 import NotAllowed from "../components/notallowed/NotAllowed";
+import OrderListTable from "../components/OrderListTable";
 import Pagination from "../components/Pagination";
 import { OrderCardSkeleton } from "../components/Utils";
+import { fetchOrdersAdmin, fetchUsers } from "../store/usersSlice";
 import { toNumber } from "../utils/constant";
-import { useNavigate } from "react-router-dom";
-import OrderDetailModal from "../components/OrderDetailModal";
-import OrderListTable from "../components/OrderListTable";
 
 const Dashboard = () => {
   const dispatch = useDispatch();
@@ -50,6 +49,12 @@ const Dashboard = () => {
   const [userSearch, setUserSearch] = useState("");
   const [showUserModal, setShowUserModal] = useState(false);
   const [hasFetchedUsers, setHasFetchedUsers] = useState(false);
+  // Global KPI basis:
+  // "gross" = all orders,
+  // "net" = excludes PO/RMA order types
+  const [orderBasis, setOrderBasis] = useState(
+    () => localStorage.getItem("dashboardOrderBasis") || "gross",
+  );
   const { user, storeId } = useSelector((state) => state?.auth);
   const { userPermissions } = useSelector((state) => state?.permissions);
   const roleId = user?.role_id;
@@ -101,9 +106,9 @@ const Dashboard = () => {
       procured_by: order["Procured By"],
       order_date: order["Order Date"],
       sales_agent: order["Sales Agent"],
+      order_type: order.order_type,
     })) || [];
   const allStatuses = orderData.map((order) => order.status);
-
   const salesAgents = [
     ...new Set(orderData.map((o) => o?.sales_agent).filter(Boolean)),
   ];
@@ -205,9 +210,16 @@ const Dashboard = () => {
 
   // default: stats = last 30 days, list = all
   // any filter: stats + list = same filtered set
-  const statsSource = hasUserFilter
+  const isGrossOrder = (order) => {
+    const type = String(order?.order_type || "").toLowerCase();
+    return !Boolean(type === "rma" || type === "po");
+  };
+
+  const periodOrders = hasUserFilter
     ? filteredOrders
     : orderData.filter(inLast30Days);
+  const statsSource =
+    orderBasis === "gross" ? periodOrders.filter(isGrossOrder) : periodOrders;
   const totalPages = Math.ceil(filteredOrders.length / ordersPerPage);
   const startIndex = (currentPage - 1) * ordersPerPage;
   const endIndex = startIndex + ordersPerPage;
@@ -272,10 +284,37 @@ const Dashboard = () => {
   useEffect(() => {
     localStorage.setItem("activeTab", activeTab);
   }, [activeTab]);
+  useEffect(() => {
+    localStorage.setItem("dashboardOrderBasis", orderBasis);
+  }, [orderBasis]);
   return (
     <>
       {/* Filters */}
       <div className="flex justify-end gap-2 mb-4 w-full">
+        {/* Global KPI basis: Gross / Net orders */}
+        <div className="flex items-center rounded-full border bg-white p-1 shadow-sm mr-auto">
+          {[
+            { key: "net", label: "Net Orders" },
+            { key: "gross", label: "Gross Orders" },
+          ].map(({ key, label }) => (
+            <button
+              key={key}
+              title={
+                key === "net"
+                  ? "Excludes cancelled, refunded and RMA orders"
+                  : "Includes all orders"
+              }
+              className={`px-4 py-1.5 rounded-full text-sm font-medium ${
+                orderBasis === key
+                  ? "bg-indigo-600 text-white"
+                  : "text-gray-700 hover:bg-gray-100"
+              }`}
+              onClick={() => setOrderBasis(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         {["All", "Delivered", "Intransit"].map((filter) => (
           <button
             key={filter}
@@ -372,26 +411,26 @@ const Dashboard = () => {
             alt: "Gross profit icon",
           },
           {
-            label: "Orders delivered",
+            label: "Delivered Orders Count",
             value: deliveredCount,
             icon: totalorders,
             alt: "Delivered orders icon",
           },
           {
-            label: "Amount delivered",
+            label: "Delivered Orders Amount",
             value: `${deliveredAmount.toLocaleString()}`,
             icon: grossprofit,
             alt: "Delivered orders icon",
           },
           //
           {
-            label: "Orders cancelled",
+            label: "Cancelled Orders Count",
             value: cancelledCount,
             icon: totalorders,
             alt: "Delivered orders icon",
           },
           {
-            label: "Amount cancelled",
+            label: "Cancelled Orders Amount",
             value: `${cancelledAmount.toLocaleString()}`,
             icon: ordervalue,
             alt: "Cancelled orders icon",
