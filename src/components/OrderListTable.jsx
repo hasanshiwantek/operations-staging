@@ -184,6 +184,44 @@ const columnHasFilter = (hot, visualColumn) => {
   }
 };
 
+// ========== Excel-style Number Filters (Top 10 / Above / Below Average) ==========
+// Handsontable has no such conditions, so each one is turned into a plain
+// numeric condition (gte / gt / lt) on a threshold worked out from the column.
+const isNumericMenuColumn = (hot) =>
+  hotColumns[hot.toPhysicalColumn(getMenuColumn(hot))]?.type === "numeric";
+
+const getColumnNumbers = (hot, visualColumn) =>
+  hot
+    .getPlugin("filters")
+    .getDataMapAtColumn(hot.toPhysicalColumn(visualColumn))
+    .map(({ value }) => value)
+    .filter((value) => typeof value === "number" && Number.isFinite(value));
+
+const applyNumberFilter = (hot, kind) => {
+  const column = getMenuColumn(hot);
+  if (column < 0) return;
+  const numbers = getColumnNumbers(hot, column);
+  if (!numbers.length) return;
+
+  let condition;
+  if (kind === "top10") {
+    const input = window.prompt("Show the top how many items?", "10");
+    if (input === null) return;
+    const count = Math.max(1, Math.floor(Number(input)) || 10);
+    const sorted = [...numbers].sort((a, b) => b - a);
+    // Like Excel, ties with the last value are kept
+    condition = ["gte", sorted[Math.min(count, sorted.length) - 1]];
+  } else {
+    const average = numbers.reduce((sum, n) => sum + n, 0) / numbers.length;
+    condition = [kind === "above" ? "gt" : "lt", average];
+  }
+
+  const filters = hot.getPlugin("filters");
+  filters.removeConditions(column);
+  filters.addCondition(column, condition[0], [condition[1]]);
+  filters.filter();
+};
+
 const formatCurrency = (value) => {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -311,6 +349,8 @@ function OrderListTable({ Orders }) {
       const status = String(order?.["Order Status"] || "").toLowerCase();
       if (orderTypeFilter === "cancelled") return status === "cancelled";
       if (orderTypeFilter === "delivered") return status === "delivered";
+      if (orderTypeFilter === "incomplete")
+        return status === "incomplete" || type === "incomplete";
       return type === orderTypeFilter;
     });
   }, [tableOrders, orderTypeFilter]);
@@ -524,12 +564,27 @@ function OrderListTable({ Orders }) {
       color: orderTypesMap?.cancelled || "#ea8b81",
     },
     { key: "delivered", label: "Delivered", color: "#86bd93" },
+    {
+      key: "incomplete",
+      label: "Incomplete",
+      color: orderTypesMap?.incomplete || "#ff00dd",
+    },
   ];
   // Menu item labels are evaluated when the menu opens, so read the latest values via a ref
   const colorFilterRef = useRef({ options: colorFilterOptions, active: "all" });
   colorFilterRef.current = {
     options: colorFilterOptions,
     active: orderTypeFilter,
+  };
+
+  // Any filter on the sheet: the color filter or a condition/value filter on any column
+  const anyFilterActive = (hot) => {
+    if (colorFilterRef.current.active !== "all") return true;
+    try {
+      return hot.getPlugin("filters").exportConditions().length > 0;
+    } catch {
+      return false;
+    }
   };
 
   const dropdownMenu = useMemo(
@@ -554,7 +609,7 @@ function OrderListTable({ Orders }) {
         color_filter: {
           name: "Filter by Color",
           submenu: {
-            items: ["all", "po", "rma", "cancelled", "delivered"].map(
+            items: ["all", "rma", "cancelled", "delivered", "incomplete"].map(
               (key) => ({
                 key: `color_filter:${key}`,
                 name() {
@@ -574,22 +629,50 @@ function OrderListTable({ Orders }) {
             ),
           },
         },
+        number_filters: {
+          name: "Number Filters",
+          hidden() {
+            return !isNumericMenuColumn(this);
+          },
+          submenu: {
+            items: [
+              { key: "number_filters:top10", name: "Top 10..." },
+              { key: "number_filters:above", name: "Above Average" },
+              { key: "number_filters:below", name: "Below Average" },
+            ].map((item) => ({
+              ...item,
+              callback() {
+                applyNumberFilter(this, item.key.split(":")[1]);
+              },
+            })),
+          },
+        },
         separator1: { name: "---------" },
         clear_column_filter: {
+          // This column filtered → clear just this column. Otherwise, if any
+          // other filter is applied (color filter or another column), offer to
+          // clear them all, so the option shows for every applied filter.
           name() {
             const column = getMenuColumn(this);
+            if (!columnHasFilter(this, column) && anyFilterActive(this)) {
+              return "Clear All Filters";
+            }
             const title =
               hotColumns[this.toPhysicalColumn(column)]?.title || "";
             return `Clear Filter From "${title}"`;
           },
           disabled() {
-            return !columnHasFilter(this, getMenuColumn(this));
+            return !anyFilterActive(this);
           },
           callback() {
             const column = getMenuColumn(this);
-            if (column < 0) return;
             const filters = this.getPlugin("filters");
-            filters.clearConditions(column);
+            if (columnHasFilter(this, column)) {
+              filters.clearConditions(column);
+            } else {
+              filters.clearConditions();
+              setOrderTypeFilter("all");
+            }
             filters.filter();
           },
         },
@@ -609,7 +692,13 @@ function OrderListTable({ Orders }) {
   useEffect(() => {
     const hot = hotRef.current?.hotInstance;
     if (!hot || hot.isDestroyed) return;
-    hot.updateSettings({ columnSorting: true, filters: true, dropdownMenu });
+    hot.updateSettings({
+      columnSorting: true,
+      // "apply": typing in "Filter by value" checks only the matching values (like
+      // Excel), so OK filters to them. The default "show" only hides the others.
+      filters: { searchMode: "apply" },
+      dropdownMenu,
+    });
   }, [dropdownMenu]);
 
   // Add these calculations inside the component (before the return)
@@ -739,10 +828,7 @@ function OrderListTable({ Orders }) {
     } else if (
       column.data === "Price" ||
       column.data === "Shipping" ||
-      column.data === "Tax" ||
-      column.data === "Vendor Shipping" ||
-      column.data === "Vendor Tax" ||
-      column.data === "CC/Paypal 4%"
+      column.data === "Tax"
     ) {
       TH.classList.add("htPriceRelated");
     } else if (
@@ -750,7 +836,10 @@ function OrderListTable({ Orders }) {
       column.data === "Sales Tax" ||
       column.data === "Warehouse Charges" ||
       column.data === "Custom Duties" ||
-      column.data === "Cost"
+      column.data === "Cost" ||
+      column.data === "Vendor Shipping" ||
+      column.data === "Vendor Tax" ||
+      column.data === "CC/Paypal 4%"
     ) {
       TH.classList.add("htCostRelated");
     }
@@ -930,6 +1019,7 @@ function OrderListTable({ Orders }) {
       style.innerHTML = `
       .handsontable td.cancelled-row.${className},
       .handsontable td.delivered-row.${className},
+      .handsontable td.incomplete-row.${className},
       .handsontable td.po-row.${className},
       .handsontable td.rma-row.${className},
       .handsontable td.${className} {
@@ -953,6 +1043,10 @@ function OrderListTable({ Orders }) {
       if (status === "delivered") cellProperties.className = "delivered-row";
       else if (status === "cancelled")
         cellProperties.className = "cancelled-row";
+      else if (status === "incomplete")
+        cellProperties.className = "incomplete-row";
+      else if (type === "incomplete")
+        cellProperties.className = "incomplete-row";
       else if (type === "po") cellProperties.className = "po-row";
       else if (type === "rma") cellProperties.className = "rma-row";
 
@@ -1091,11 +1185,19 @@ function OrderListTable({ Orders }) {
     .handsontable td.cancelled-row {
       background-color: ${orderTypesMap?.cancelled} !important;
     }
+    .handsontable td.incomplete-row {
+      background-color: ${orderTypesMap?.incomplete} !important;
+    }
     .handsontable td.delivered-row {
       background-color: #d9ead3 !important;
     }
   `;
-  }, [orderTypesMap?.po, orderTypesMap?.rma, orderTypesMap?.cancelled]);
+  }, [
+    orderTypesMap?.po,
+    orderTypesMap?.rma,
+    orderTypesMap?.cancelled,
+    orderTypesMap?.incomplete,
+  ]);
   // Fetch options when modal opens
   useEffect(() => {
     if (storeId?.id) {
@@ -1184,6 +1286,11 @@ function OrderListTable({ Orders }) {
               order_type,
               ...updatedOrder
             } = updatedOrderPayload;
+            const isCancelledOrder = ["cancelled", "canceled"].includes(
+              String(updatedOrder["Order Status"] || "")
+                .trim()
+                .toLowerCase(),
+            );
 
             if (isCreatePartMode) {
               // ========== CREATE API ==========
@@ -1234,7 +1341,9 @@ function OrderListTable({ Orders }) {
                   data:
                     order_type == "rma"
                       ? { ...updatedOrder, "Order Status": null }
-                      : updatedOrder,
+                      : isCancelledOrder
+                        ? { ...updatedOrder, "Total Price": totalPrice }
+                        : updatedOrder,
                   role_id: storeId?.id,
                 }),
               )
@@ -1328,7 +1437,7 @@ function OrderListTable({ Orders }) {
                 {syncLoading ? "Sync..." : "Sync Orders"}
               </button>
             )}
-       
+
             {hasPermission("view_sheet.download_excel") && (
               <button
                 onClick={exportToExcel}
@@ -1659,6 +1768,8 @@ function OrderListTable({ Orders }) {
               isRightClickRef.current = false;
             }}
             stretchH="all"
+            wordWrap={false}
+            autoColumnSize={true}
             height={isFullScreen ? "calc(100vh - 70px)" : "calc(100vh - 180px)"}
             width="100%"
             licenseKey="non-commercial-and-evaluation"

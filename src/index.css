@@ -4,6 +4,17 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer utilities {
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -34,7 +45,6 @@ body {
 } */
 
 /* ORDER LOOKUP SHEET — styling to match the Google Sheets look */
-
 
 /* 2 */
 /* .handsontable td.ols-title {
@@ -153,25 +163,17 @@ body {
   background-color: #9c0720 !important;
 }
 
-.handsontable thead tr:first-child th.htTotalPrice {
-  background-color: #9c0720 !important;
-}
-
-.handsontable thead tr:first-child th.htTotalCost {
-  background-color: #9c0720 !important;
-}
-
+.handsontable thead tr:first-child th.htTotalCost,
 .handsontable thead tr:first-child th.htTotalCost4 {
-  background-color: #1a3a6e !important;
-}
-
-.handsontable thead tr:first-child th.htGrossProfit {
-  background-color: #1a3a6e !important;
-}
-
-.handsontable thead tr:first-child th.htGrossProfit4 {
   background-color: #9c0720 !important;
 }
+
+.handsontable thead tr:first-child th.htTotalPrice,
+.handsontable thead tr:first-child th.htGrossProfit,
+.handsontable thead tr:first-child th.htGrossProfit4 {
+  background-color: #1a3a6e !important;
+}
+
 .handsontable thead tr:first-child th.htPriceRelated {
   background-color: #1a3a6e !important;
 }
@@ -206,7 +208,7 @@ body {
 }
 
 .handsontable thead tr:first-child th.htOrderCount {
-  background-color: #9C1120 !important;
+  background-color: #9c1120 !important;
   color: white !important;
   font-weight: 700 !important;
 }
