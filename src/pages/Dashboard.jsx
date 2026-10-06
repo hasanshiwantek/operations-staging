@@ -91,6 +91,13 @@ const Dashboard = () => {
       : Object.values(user.page_access.page_name) // object → array
     : [];
 
+  const calculateTotalPrice = (order) => {
+    const price = Number(toNumber(order["Price"]?.value));
+    const shipping = Number(toNumber(order["Shipping"]?.value));
+    const tax = Number(toNumber(order["Tax"]?.value));
+    return price + shipping + tax;
+  };
+
   // Backend se aaya hua raw data
   // Agar Orders = backend response
   const orderData =
@@ -101,7 +108,7 @@ const Dashboard = () => {
       qty: Number(toNumber(order["Qty"])),
       price: Number(toNumber(order["Price"]?.value)),
       grossProfit: Number(toNumber(order["Gross Profit-4%"])),
-      totalPrice: Number(toNumber(order["Total Price"]?.value)),
+      totalPrice: calculateTotalPrice(order),
       status: order["Order Status"],
       procured_by: order["Procured By"],
       order_date: order["Order Date"],
@@ -418,7 +425,7 @@ const Dashboard = () => {
           },
           {
             label: "Delivered Orders Amount",
-            value: `${deliveredAmount.toLocaleString()}`,
+            value: `$${deliveredAmount.toLocaleString()}`,
             icon: grossprofit,
             alt: "Delivered orders icon",
           },
@@ -431,7 +438,7 @@ const Dashboard = () => {
           },
           {
             label: "Cancelled Orders Amount",
-            value: `${cancelledAmount.toLocaleString()}`,
+            value: `$${cancelledAmount.toLocaleString()}`,
             icon: ordervalue,
             alt: "Cancelled orders icon",
           },
