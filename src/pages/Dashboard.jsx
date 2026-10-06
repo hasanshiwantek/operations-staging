@@ -425,7 +425,7 @@ const Dashboard = () => {
           },
           {
             label: "Delivered Orders Amount",
-            value: `${deliveredAmount.toLocaleString()}`,
+            value: `$${deliveredAmount.toLocaleString()}`,
             icon: grossprofit,
             alt: "Delivered orders icon",
           },
@@ -438,7 +438,7 @@ const Dashboard = () => {
           },
           {
             label: "Cancelled Orders Amount",
-            value: `${cancelledAmount.toLocaleString()}`,
+            value: `$${cancelledAmount.toLocaleString()}`,
             icon: ordervalue,
             alt: "Cancelled orders icon",
           },
