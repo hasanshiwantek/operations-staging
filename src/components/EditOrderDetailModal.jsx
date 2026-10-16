@@ -2,14 +2,19 @@ import { X } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { toast } from "react-toastify";
 import { useDispatch, useSelector } from "react-redux";
+import { toast } from "react-toastify";
 import { fetchOrderById } from "../store/usersSlice";
 import {
+  ENTRY_CHECK_MAX_LENGTH,
   formatToday,
   getIsFinance,
   normalizeOrderOptions,
+  withDefaultShippingAccount,
+  withMirroredField,
 } from "../utils/constant";
+import ExpandableTextInput from "./ExpandableTextInput";
+import SearchableSelect from "./SearchableSelect";
 // Always locked fields
 
 // Unlockable fields
@@ -168,7 +173,7 @@ const EditOrderDetailModal = ({
     const { name, value } = e.target;
     // setFormData((prev) => ({ ...prev, [name]: value }));
     setFormData((prev) => {
-      const updated = { ...prev, [name]: value };
+      const updated = withMirroredField(prev, name, value);
       const { Status, ...rest } = updated; // Exclude order_type from formData
       return calculateFields(rest); // ← auto calculate
     });
@@ -195,7 +200,9 @@ const EditOrderDetailModal = ({
         // setFormData({ ...fetchedOrder });
         // setBaseOrder({ ...fetchedOrder });
         // lastFetchedId.current = String(orderId);
-        const calculated = calculateFields(fetchedOrder);
+        const calculated = calculateFields(
+          withDefaultShippingAccount(fetchedOrder),
+        );
         const { Status, ...rest } = calculated;
         setFormData(rest);
         setBaseOrder(rest);
@@ -241,10 +248,12 @@ const EditOrderDetailModal = ({
   };
   useEffect(() => {
     if (isCreatePartMode || isRMAMode) {
-      const calculated = calculateFields({
-        ...order,
-        "Order Date": formatToday(),
-      });
+      const calculated = calculateFields(
+        withDefaultShippingAccount({
+          ...order,
+          "Order Date": formatToday(),
+        }),
+      );
       const { Status, ...rest } = calculated;
       setFormData(rest);
       setBaseOrder(rest);
@@ -389,7 +398,7 @@ const EditOrderDetailModal = ({
                                         min-h-[22px]
                                         px-1
                                         py-[3px]
-                                        bg-[#9C1120]
+                                        bg-indigo-600
                                         flex
                                         items-center
                                         justify-center
@@ -465,16 +474,15 @@ const EditOrderDetailModal = ({
                                     `}
                   >
                     {isDropdown ? (
-                      <select
+                      <SearchableSelect
                         name={key}
                         value={formData[key] ?? ""}
+                        options={options}
                         onChange={handleChange}
                         disabled={isDisabled || optionsLoading}
-                        //                                     className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all
-                        // ${isDisabled || optionsLoading
-                        //                                             ? 'border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed'
-                        //                                             : 'border-indigo-300 bg-white'
-                        //                                         }`}
+                        placeholder={
+                          optionsLoading ? "Loading..." : `Select ${key}`
+                        }
                         className={`
                                                 w-full
                                                 min-w-0
@@ -491,17 +499,7 @@ const EditOrderDetailModal = ({
                                                     : "text-gray-800 cursor-pointer"
                                                 }
                                             `}
-                      >
-                        <option value="">
-                          {optionsLoading ? "Loading..." : `Select ${key}`}
-                        </option>
-
-                        {options.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
-                          </option>
-                        ))}
-                      </select>
+                      />
                     ) : isDateField ? (
                       /* DATE PICKER */
                       <DatePicker
@@ -526,6 +524,31 @@ const EditOrderDetailModal = ({
                                                 !outline-none
                                                 !shadow-none
                                                 !p-0
+                                                text-[10px]
+                                                sm:text-[11px]
+                                                ${
+                                                  isDisabled
+                                                    ? "text-gray-700 cursor-not-allowed"
+                                                    : "text-gray-800"
+                                                }
+                                            `}
+                      />
+                    ) : key === "Entry Check" ? (
+                      /* EXPANDABLE TEXT */
+                      <ExpandableTextInput
+                        name={key}
+                        label={key}
+                        value={formData[key]}
+                        onChange={handleChange}
+                        disabled={isDisabled}
+                        maxLength={ENTRY_CHECK_MAX_LENGTH}
+                        className={`
+                                                w-full
+                                                min-w-0
+                                                border-0
+                                                outline-none
+                                                bg-transparent
+                                                p-0
                                                 text-[10px]
                                                 sm:text-[11px]
                                                 ${

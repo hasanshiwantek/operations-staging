@@ -11,6 +11,15 @@ export const formatToday = () => {
   const year = date.getFullYear();
   return `${month}/${day}/${year}`;
 };
+// Charged Date and Order Date are the same; if only one is present, copy it to the other
+export const syncOrderDates = (order) => {
+  if (!order || typeof order !== "object") return order;
+  const orderDate = String(order["Order Date"] || "").trim();
+  const chargedDate = String(order["Charged Date"] || "").trim();
+  if (orderDate && !chargedDate) return { ...order, "Charged Date": orderDate };
+  if (chargedDate && !orderDate) return { ...order, "Order Date": chargedDate };
+  return order;
+};
 export const standFor = {
   rma: "Return Merchandise Authorization",
   po: "Create Part Order",
@@ -28,7 +37,28 @@ export const normalizeOrderOptions = (apiData) => {
     }
   });
 
+  // Mirrored fields share one option list so a copied value is always selectable
+  Object.entries(MIRRORED_FIELDS).forEach(([key, pair]) => {
+    if (map[key] || map[pair]) {
+      map[key] = [...new Set([...(map[key] || []), ...(map[pair] || [])])];
+    }
+  });
+
   return map;
+};
+
+export const ENTRY_CHECK_MAX_LENGTH = 2000;
+
+// Fields that hold the same value; editing one fills the other
+export const MIRRORED_FIELDS = {
+  "Lead Source": "Order Source",
+  "Order Source": "Lead Source",
+};
+export const withMirroredField = (data, name, value) => {
+  const pair = MIRRORED_FIELDS[name];
+  return pair
+    ? { ...data, [name]: value, [pair]: value }
+    : { ...data, [name]: value };
 };
 
 const CHECKBOX_STORAGE_KEY = "orderCheckboxState";
@@ -380,6 +410,13 @@ export const columnsOfSheet = getIsFinance()
   ? allColumnsOfSheet.filter((col) => !FINANCE_HIDDEN_FIELDS.has(col.data))
   : allColumnsOfSheet;
 
+export const DEFAULT_SHIPPING_ACCOUNT = "Our Account";
+// New orders get the default Shipping A/C when none is set
+export const withDefaultShippingAccount = (order) =>
+  String(order?.["Shipping A/C"] || "").trim()
+    ? order
+    : { ...order, "Shipping A/C": DEFAULT_SHIPPING_ACCOUNT };
+
 export const defaultOrder = {
   "Order#": "",
   "Charged Date": "",
@@ -399,7 +436,7 @@ export const defaultOrder = {
   "Part#": "",
   Qty: "",
   Condition: "",
-  "Shipping A/C": "",
+  "Shipping A/C": DEFAULT_SHIPPING_ACCOUNT,
   "Bill to address": "",
   "Ship to address": "",
   City: "",

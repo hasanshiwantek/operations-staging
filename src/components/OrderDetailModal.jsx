@@ -3,7 +3,14 @@ import { useEffect, useState } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { useSelector } from "react-redux";
-import { defaultOrder, normalizeOrderOptions } from "../utils/constant";
+import {
+  defaultOrder,
+  ENTRY_CHECK_MAX_LENGTH,
+  normalizeOrderOptions,
+  withMirroredField,
+} from "../utils/constant";
+import ExpandableTextInput from "./ExpandableTextInput";
+import SearchableSelect from "./SearchableSelect";
 
 const lockedFields = ["Refund Date"];
 const dateFields = ["Charged Date", "Order Date", "Refund Date"];
@@ -28,7 +35,7 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => withMirroredField(prev, name, value));
   };
 
   const handleSubmit = async (e) => {
@@ -137,7 +144,7 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
                                             min-h-[22px]
                                             px-1
                                             py-[3px]
-                                            bg-[#9C1120]
+                                            bg-indigo-600
                                             flex
                                             items-center
                                             justify-center
@@ -177,11 +184,15 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
                   >
                     {/* ================= DROPDOWN ================= */}
                     {isDropdown ? (
-                      <select
+                      <SearchableSelect
                         name={key}
                         value={formData[key] ?? ""}
+                        options={options}
                         onChange={handleChange}
                         disabled={!isEditing || optionsLoading || fieldDisabled}
+                        placeholder={
+                          optionsLoading ? "Loading..." : `Select ${key}`
+                        }
                         className={`
                                                     w-full
                                                     min-w-0
@@ -198,17 +209,7 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
                                                         : "text-gray-500 cursor-not-allowed"
                                                     }
                                                 `}
-                      >
-                        <option value="">
-                          {optionsLoading ? "Loading..." : `Select ${key}`}
-                        </option>
-
-                        {options?.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
-                          </option>
-                        ))}
-                      </select>
+                      />
                     ) : isDateField ? (
                       /* ================= DATE PICKER ================= */
                       <DatePicker
@@ -228,6 +229,31 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
           text-[10px] sm:text-[11px]
           ${fieldDisabled ? "text-gray-500 cursor-not-allowed" : "text-gray-800"}
         `}
+                      />
+                    ) : key === "Entry Check" ? (
+                      /* ================= EXPANDABLE TEXT ================= */
+                      <ExpandableTextInput
+                        name={key}
+                        label={key}
+                        value={formData[key]}
+                        onChange={handleChange}
+                        disabled={!isEditing || fieldDisabled}
+                        maxLength={ENTRY_CHECK_MAX_LENGTH}
+                        className={`
+                                                    w-full
+                                                    min-w-0
+                                                    border-0
+                                                    outline-none
+                                                    bg-transparent
+                                                    p-0
+                                                    text-[10px]
+                                                    sm:text-[11px]
+                                                    ${
+                                                      isEditing
+                                                        ? "text-gray-800"
+                                                        : "text-gray-500"
+                                                    }
+                                                `}
                       />
                     ) : (
                       /* ================= NORMAL INPUT ================= */
