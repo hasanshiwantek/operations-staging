@@ -6,9 +6,13 @@ import { useSelector } from "react-redux";
 import {
   defaultOrder,
   ENTRY_CHECK_MAX_LENGTH,
+  FLAT_VALUE_FIELDS,
+  normalizeNumberFields,
   normalizeOrderOptions,
+  sanitizePriceInput,
   withMirroredField,
 } from "../utils/constant";
+import useBalancedColumns from "../hooks/useBalancedColumns";
 import ExpandableTextInput from "./ExpandableTextInput";
 import SearchableSelect from "./SearchableSelect";
 
@@ -24,6 +28,11 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
   const normalizedOptions = normalizeOrderOptions(orderOptions);
   const [formData, setFormData] = useState({});
   const [isEditing, setIsEditing] = useState(isNewOrder);
+  const columns = useBalancedColumns(Object.keys(formData).length);
+  // 6px = gap-x-1.5 between fields
+  const fieldWidth = {
+    width: `calc((100% - ${(columns - 1) * 6}px) / ${columns})`,
+  };
 
   useEffect(() => {
     if (order) {
@@ -34,14 +43,18 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
   }, [order]);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    let { name, value } = e.target;
+    if (FLAT_VALUE_FIELDS.includes(name)) {
+      value = sanitizePriceInput(value);
+      if (value === null) return; // reject non-numeric input
+    }
     setFormData((prev) => withMirroredField(prev, name, value));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await onSave(formData, isNewOrder);
+      await onSave(normalizeNumberFields(formData), isNewOrder);
       onClose();
     } catch (err) {
       console.error("Save failed:", err);
@@ -77,8 +90,8 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-2 sm:p-3">
-      <div className="bg-white rounded-lg w-full max-w-[1500px] max-h-[98vh] overflow-hidden flex flex-col shadow-2xl">
+    <div className="fixed inset-0 bg-black/60 flex z-[100]">
+      <div className="bg-white w-full h-full overflow-hidden flex flex-col">
         {/* ================= HEADER ================= */}
         <div className="px-4 py-2.5 border-b flex justify-between items-center bg-gray-50 shrink-0">
           <h2 className="text-lg sm:text-xl font-semibold text-gray-800">
@@ -101,7 +114,7 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
         </div>
 
         {/* ================= BODY ================= */}
-        <div className="flex-1 overflow-y-auto xl:overflow-hidden p-3 sm:p-4 bg-white">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 bg-white">
           {/* ================= FIELDS ================= */}
           <div
             className="
@@ -125,11 +138,9 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
               return (
                 <div
                   key={key}
+                  style={fieldWidth}
                   className="
                                         flex-none
-                                        w-full
-                                        sm:w-[calc(50%-6px)]
-                                        md:w-[calc((100%_-_42px)_/_8)]
                                         min-w-0
                                         border
                                         border-gray-300
@@ -141,7 +152,7 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
                   {/* ================= FIELD HEADER ================= */}
                   <div
                     className="
-                                            min-h-[22px]
+                                            min-h-[28px] 2xl:min-h-[34px]
                                             px-1
                                             py-[3px]
                                             bg-indigo-600
@@ -152,7 +163,7 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
                   >
                     <label
                       className="
-                                                text-sm
+                                                text-sm 2xl:text-base
                                                 font-bold
                                                 text-white
                                                 text-center
@@ -168,13 +179,12 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
                   {/* ================= FIELD VALUE ================= */}
                   <div
                     className={`
-                                            min-h-[30px]
+                                            min-h-[38px] 2xl:min-h-[48px]
                                             flex
                                             items-center
                                             px-1.5
                                             py-1
-                                            text-[10px]
-                                            sm:text-[11px]
+                                            text-sm 2xl:text-base
                                             ${
                                               !isEditing || optionsLoading
                                                 ? "bg-[#dcebd6]"
@@ -200,8 +210,7 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
                                                     border-0
                                                     outline-none
                                                     p-0
-                                                    text-[10px]
-                                                    sm:text-[11px]
+                                                    text-sm 2xl:text-base
                                                     ${
                                                       isEditing &&
                                                       !optionsLoading
@@ -226,7 +235,7 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
                         wrapperClassName="w-full"
                         className={`
           !w-full !border-0 !bg-transparent !p-0 !outline-none !shadow-none
-          text-[10px] sm:text-[11px]
+          text-sm 2xl:text-base
           ${fieldDisabled ? "text-gray-500 cursor-not-allowed" : "text-gray-800"}
         `}
                       />
@@ -246,8 +255,7 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
                                                     outline-none
                                                     bg-transparent
                                                     p-0
-                                                    text-[10px]
-                                                    sm:text-[11px]
+                                                    text-sm 2xl:text-base
                                                     ${
                                                       isEditing
                                                         ? "text-gray-800"
@@ -260,6 +268,9 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
                       <input
                         type="text"
                         name={key}
+                        inputMode={
+                          FLAT_VALUE_FIELDS.includes(key) ? "decimal" : undefined
+                        }
                         value={formData[key] ?? ""}
                         onChange={handleChange}
                         disabled={!isEditing || fieldDisabled}
@@ -270,8 +281,7 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
                                                     outline-none
                                                     bg-transparent
                                                     p-0
-                                                    text-[10px]
-                                                    sm:text-[11px]
+                                                    text-sm 2xl:text-base
                                                     ${
                                                       isEditing
                                                         ? "text-gray-800"

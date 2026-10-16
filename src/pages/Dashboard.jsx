@@ -78,7 +78,7 @@ const Dashboard = () => {
       permission: "order", // parent slug
     },
     {
-      label: "View Sheet",
+      label: "Website Sheet",
       value: "view-sheet",
       permission: "view_sheet", // parent slug
     },

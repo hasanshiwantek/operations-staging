@@ -191,6 +191,18 @@ export const getIsFinance = () => {
   return [3].includes(user?.role_id);
 };
 
+// Display a number with thousand separators (1234.5 → "1,234.50"); non-numbers pass through
+export const formatNumberCell = (value, minDecimals = 2, maxDecimals = 2) => {
+  const str = String(value ?? "").trim();
+  if (str === "" || str === "NaN") return "";
+  const num = Number(str.replace(/[$,\s]/g, ""));
+  if (!Number.isFinite(num)) return str;
+  return num.toLocaleString("en-US", {
+    minimumFractionDigits: minDecimals,
+    maximumFractionDigits: maxDecimals,
+  });
+};
+
 const makeCheckboxRenderer = (fieldName) => {
   return function (instance, td, row, col, prop, cellValue) {
     // Read the raw { value, isTrue, ... } object from the source row, since the
@@ -212,7 +224,7 @@ const makeCheckboxRenderer = (fieldName) => {
     wrap.style.alignItems = "center";
 
     const span = document.createElement("span");
-    span.textContent = val;
+    span.textContent = formatNumberCell(val);
 
     // const shouldShowCheckbox = isAdmin
     //   ? highlighted
@@ -266,7 +278,7 @@ const makeValueRenderer = (fieldName) => {
     const raw = instance.getSourceDataAtRow(instance.toPhysicalRow(row))?.[
       fieldName
     ];
-    td.innerHTML = getFieldValue(raw);
+    td.textContent = formatNumberCell(getFieldValue(raw));
     return td;
   };
 };
@@ -499,6 +511,27 @@ export const FLAT_VALUE_FIELDS = [
   "Total Cost",
   "Total Cost+4%",
 ];
+// Price/cost inputs accept digits with one decimal point.
+// Pasted "$1,234.50" is cleaned to "1234.50"; anything else returns null (rejected).
+export const sanitizePriceInput = (value) => {
+  const cleaned = String(value ?? "").replace(/[$,\s]/g, "");
+  return /^\d*\.?\d*$/.test(cleaned) ? cleaned : null;
+};
+
+// Empty or zero number fields are sent as "0.00" so the update treats them as zero
+export const normalizeNumberFields = (order) => {
+  if (!order || typeof order !== "object") return order;
+
+  const next = { ...order };
+
+  FLAT_VALUE_FIELDS.forEach((key) => {
+    if (!(key in next)) return;
+    const num = Number(String(next[key] ?? "").trim() || 0);
+    if (!Number.isFinite(num) || num === 0) next[key] = "0.00";
+  });
+
+  return next;
+};
 export const flattenOrderValues = (order) => {
   if (!order || typeof order !== "object") return order;
 

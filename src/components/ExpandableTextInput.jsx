@@ -51,7 +51,7 @@ const ExpandableTextInput = ({
           className="shrink-0 p-0.5 text-gray-500 hover:text-indigo-600 hover:bg-gray-100 rounded"
           title={disabled ? "View full text" : "Expand to edit"}
         >
-          <Maximize2 size={12} />
+          <Maximize2 size={14} />
         </button>
       </div>
 

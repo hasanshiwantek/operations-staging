@@ -144,10 +144,10 @@ const SearchableSelect = ({
           }
         }}
         onKeyDown={handleKeyDown}
-        className={`${className} pr-4`}
+        className={`${className} pr-5`}
       />
       <ChevronDown
-        size={12}
+        size={14}
         className="absolute right-0 pointer-events-none text-gray-500"
       />
 
@@ -164,7 +164,7 @@ const SearchableSelect = ({
               bottom: position.bottom,
               width: position.width,
             }}
-            className="z-[130] max-h-[220px] overflow-y-auto bg-white border border-gray-300 rounded-md shadow-lg py-1 text-xs"
+            className="z-[130] max-h-[220px] overflow-y-auto bg-white border border-gray-300 rounded-md shadow-lg py-1 text-sm"
           >
             {filtered.length === 0 ? (
               <li className="px-2 py-1.5 text-gray-400">No matches</li>
