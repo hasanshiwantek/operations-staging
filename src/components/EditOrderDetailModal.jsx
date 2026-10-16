@@ -2,14 +2,23 @@ import { X } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { toast } from "react-toastify";
 import { useDispatch, useSelector } from "react-redux";
+import { toast } from "react-toastify";
 import { fetchOrderById } from "../store/usersSlice";
 import {
+  ENTRY_CHECK_MAX_LENGTH,
+  FLAT_VALUE_FIELDS,
   formatToday,
   getIsFinance,
+  normalizeNumberFields,
   normalizeOrderOptions,
+  sanitizePriceInput,
+  withDefaultShippingAccount,
+  withMirroredField,
 } from "../utils/constant";
+import useBalancedColumns from "../hooks/useBalancedColumns";
+import ExpandableTextInput from "./ExpandableTextInput";
+import SearchableSelect from "./SearchableSelect";
 // Always locked fields
 
 // Unlockable fields
@@ -57,6 +66,13 @@ const EditOrderDetailModal = ({
   const [unlockedFields, setUnlockedFields] = useState(new Set());
   const [fetching, setFetching] = useState(false);
   const [baseOrder, setBaseOrder] = useState(null);
+  const columns = useBalancedColumns(
+    Object.keys(formData).filter((key) => key !== "order_type").length,
+  );
+  // 6px = gap-x-1.5 between fields
+  const fieldWidth = {
+    width: `calc((100% - ${(columns - 1) * 6}px) / ${columns})`,
+  };
   const { storeId } = useSelector((state) => state.auth);
   const { pending, orderOptions, optionsLoading } = useSelector(
     (state) => state.users,
@@ -112,15 +128,15 @@ const EditOrderDetailModal = ({
     const salesTax = num(data["Sales Tax"]);
     const warehouseCharges = num(data["Warehouse Charges"]);
     const customDuties = num(data["Custom Duties"]);
-    const ccPaypal4 = num(data["CC/Paypal 4%"]);
+    const isCancelled = isCancelledStatus(data["Order Status"]);
+    // Cancelled orders carry no CC/Paypal fee
+    const ccPaypal4 = isCancelled ? 0 : num(data["CC/Paypal 4%"]);
 
     // Card Payment = Cost + Vendor Shipping + Vendor Tax
     const cardPayment = cost + vendorShipping + vendorTax;
 
     // Total Price = Shipping + Price + Tax
-    const totalPrice = isCancelledStatus(data["Order Status"])
-      ? 0
-      : shipping + price + tax;
+    const totalPrice = isCancelled ? 0 : shipping + price + tax;
 
     // Total Cost = Courier Charges + Sales Tax + Warehouse Charges + Custom Duties + Card Payment
     const totalCost =
@@ -143,6 +159,7 @@ const EditOrderDetailModal = ({
 
     return {
       ...data,
+      ...(isCancelled && { "CC/Paypal 4%": "0.00" }),
       "Card Payment": cardPayment.toFixed(2),
       "Total Price": totalPrice.toFixed(2),
       "Total Cost": totalCost.toFixed(2),
@@ -165,10 +182,14 @@ const EditOrderDetailModal = ({
   }, [order]);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    let { name, value } = e.target;
+    if (FLAT_VALUE_FIELDS.includes(name)) {
+      value = sanitizePriceInput(value);
+      if (value === null) return; // reject non-numeric input
+    }
     // setFormData((prev) => ({ ...prev, [name]: value }));
     setFormData((prev) => {
-      const updated = { ...prev, [name]: value };
+      const updated = withMirroredField(prev, name, value);
       const { Status, ...rest } = updated; // Exclude order_type from formData
       return calculateFields(rest); // ← auto calculate
     });
@@ -195,7 +216,9 @@ const EditOrderDetailModal = ({
         // setFormData({ ...fetchedOrder });
         // setBaseOrder({ ...fetchedOrder });
         // lastFetchedId.current = String(orderId);
-        const calculated = calculateFields(fetchedOrder);
+        const calculated = calculateFields(
+          withDefaultShippingAccount(fetchedOrder),
+        );
         const { Status, ...rest } = calculated;
         setFormData(rest);
         setBaseOrder(rest);
@@ -217,7 +240,7 @@ const EditOrderDetailModal = ({
       toast.error("Enter an Entry Reason before cancelling this order.");
       return;
     }
-    onSave(formData);
+    onSave(normalizeNumberFields(formData));
   };
 
   const hasChanges = () => {
@@ -241,10 +264,12 @@ const EditOrderDetailModal = ({
   };
   useEffect(() => {
     if (isCreatePartMode || isRMAMode) {
-      const calculated = calculateFields({
-        ...order,
-        "Order Date": formatToday(),
-      });
+      const calculated = calculateFields(
+        withDefaultShippingAccount({
+          ...order,
+          "Order Date": formatToday(),
+        }),
+      );
       const { Status, ...rest } = calculated;
       setFormData(rest);
       setBaseOrder(rest);
@@ -254,8 +279,8 @@ const EditOrderDetailModal = ({
   if (!order) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-2 sm:p-3">
-      <div className="bg-white rounded-lg w-full max-w-[1500px] h-auto max-h-[98vh] overflow-hidden flex flex-col shadow-2xl">
+    <div className="fixed inset-0 bg-black/60 flex z-[100]">
+      <div className="bg-white w-full h-full overflow-hidden flex flex-col">
         {/* Header */}
         <div className="px-4 py-2.5 border-b flex justify-between items-center bg-gray-50 shrink-0">
           <h2 className="text-lg sm:text-xl font-semibold text-gray-800">
@@ -318,6 +343,14 @@ const EditOrderDetailModal = ({
               const isDisabled = (() => {
                 if (alwaysDisabledFields.includes(key)) return true;
 
+                // Fee is fixed at zero while the order is cancelled
+                if (
+                  key === "CC/Paypal 4%" &&
+                  isCancelledStatus(formData["Order Status"])
+                ) {
+                  return true;
+                }
+
                 // Finance: ONLY Charged Date + Paid Via
                 if (isFinance) {
                   return key !== "Charged Date" && key !== "Paid Via";
@@ -370,11 +403,9 @@ const EditOrderDetailModal = ({
               return (
                 <div
                   key={key}
+                  style={fieldWidth}
                   className="
         flex-none
-        w-full
-        sm:w-[calc(50%-6px)]
-        md:w-[calc((100%_-_42px)_/_8)]
         min-w-0
         border
         border-gray-300
@@ -386,10 +417,10 @@ const EditOrderDetailModal = ({
                   {/* Label + Pen Icon */}
                   <div
                     className="
-                                        min-h-[22px]
+                                        min-h-[28px] 2xl:min-h-[34px]
                                         px-1
                                         py-[3px]
-                                        bg-[#9C1120]
+                                        bg-indigo-600
                                         flex
                                         items-center
                                         justify-center
@@ -398,7 +429,7 @@ const EditOrderDetailModal = ({
                   >
                     <label
                       className="
-                                            text-sm
+                                            text-sm 2xl:text-base
                                             font-bold
                                             text-white
                                             text-center
@@ -413,7 +444,13 @@ const EditOrderDetailModal = ({
                         )}
                     </label>
 
-                    {!isFinance && isUnlockable && isDisabled && (
+                    {!isFinance &&
+                      isUnlockable &&
+                      isDisabled &&
+                      !(
+                        key === "CC/Paypal 4%" &&
+                        isCancelledStatus(formData["Order Status"])
+                      ) && (
                       <button
                         type="button"
                         onClick={() => unlockField(key)}
@@ -450,13 +487,12 @@ const EditOrderDetailModal = ({
 
                   <div
                     className={`
-                                        min-h-[30px]
+                                        min-h-[38px] 2xl:min-h-[48px]
                                         flex
                                         items-center
                                         px-1.5
                                         py-1
-                                        text-[10px]
-                                        sm:text-[11px]
+                                        text-sm 2xl:text-base
                                         ${
                                           isDisabled || optionsLoading
                                             ? "bg-[#dcebd6] text-gray-700"
@@ -465,16 +501,15 @@ const EditOrderDetailModal = ({
                                     `}
                   >
                     {isDropdown ? (
-                      <select
+                      <SearchableSelect
                         name={key}
                         value={formData[key] ?? ""}
+                        options={options}
                         onChange={handleChange}
                         disabled={isDisabled || optionsLoading}
-                        //                                     className={`w-full px-4 py-2.5 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition-all
-                        // ${isDisabled || optionsLoading
-                        //                                             ? 'border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed'
-                        //                                             : 'border-indigo-300 bg-white'
-                        //                                         }`}
+                        placeholder={
+                          optionsLoading ? "Loading..." : `Select ${key}`
+                        }
                         className={`
                                                 w-full
                                                 min-w-0
@@ -482,8 +517,7 @@ const EditOrderDetailModal = ({
                                                 border-0
                                                 outline-none
                                                 p-0
-                                                text-[10px]
-                                                sm:text-[11px]
+                                                text-sm 2xl:text-base
                                                 
                                                 ${
                                                   isDisabled || optionsLoading
@@ -491,17 +525,7 @@ const EditOrderDetailModal = ({
                                                     : "text-gray-800 cursor-pointer"
                                                 }
                                             `}
-                      >
-                        <option value="">
-                          {optionsLoading ? "Loading..." : `Select ${key}`}
-                        </option>
-
-                        {options.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
-                          </option>
-                        ))}
-                      </select>
+                      />
                     ) : isDateField ? (
                       /* DATE PICKER */
                       <DatePicker
@@ -526,8 +550,31 @@ const EditOrderDetailModal = ({
                                                 !outline-none
                                                 !shadow-none
                                                 !p-0
-                                                text-[10px]
-                                                sm:text-[11px]
+                                                text-sm 2xl:text-base
+                                                ${
+                                                  isDisabled
+                                                    ? "text-gray-700 cursor-not-allowed"
+                                                    : "text-gray-800"
+                                                }
+                                            `}
+                      />
+                    ) : key === "Entry Check" ? (
+                      /* EXPANDABLE TEXT */
+                      <ExpandableTextInput
+                        name={key}
+                        label={key}
+                        value={formData[key]}
+                        onChange={handleChange}
+                        disabled={isDisabled}
+                        maxLength={ENTRY_CHECK_MAX_LENGTH}
+                        className={`
+                                                w-full
+                                                min-w-0
+                                                border-0
+                                                outline-none
+                                                bg-transparent
+                                                p-0
+                                                text-sm 2xl:text-base
                                                 ${
                                                   isDisabled
                                                     ? "text-gray-700 cursor-not-allowed"
@@ -540,6 +587,9 @@ const EditOrderDetailModal = ({
                       <input
                         type="text"
                         name={key}
+                        inputMode={
+                          FLAT_VALUE_FIELDS.includes(key) ? "decimal" : undefined
+                        }
                         value={formData[key] ?? ""}
                         onChange={handleChange}
                         disabled={isDisabled}
@@ -550,8 +600,7 @@ const EditOrderDetailModal = ({
                                                 outline-none
                                                 bg-transparent
                                                 p-0
-                                                text-[10px]
-                                                sm:text-[11px]
+                                                text-sm 2xl:text-base
                                                 ${
                                                   isDisabled
                                                     ? "text-gray-700 cursor-not-allowed"

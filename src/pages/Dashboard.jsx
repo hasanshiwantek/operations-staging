@@ -3,17 +3,16 @@ import { useEffect, useMemo, useState } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { useDispatch, useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import grossprofit from "../assets/grossprofit-icon.svg";
 import ordervalue from "../assets/ordervalue-icon.svg";
 import totalorders from "../assets/totalorders-icon.svg";
-import OrderCard from "../components/OrderCard";
-import StatsCard from "../components/StatsCard";
-import UsersSection from "../components/UsersSection";
-// import CreateUserModal from "../components/CreateUserModal";
-import { useNavigate } from "react-router-dom";
 import NotAllowed from "../components/notallowed/NotAllowed";
+import OrderCard from "../components/OrderCard";
 import OrderListTable from "../components/OrderListTable";
 import Pagination from "../components/Pagination";
+import StatsCard from "../components/StatsCard";
+import UsersSection from "../components/UsersSection";
 import { OrderCardSkeleton } from "../components/Utils";
 import { fetchOrdersAdmin, fetchUsers } from "../store/usersSlice";
 import { toNumber } from "../utils/constant";
@@ -50,10 +49,10 @@ const Dashboard = () => {
   const [showUserModal, setShowUserModal] = useState(false);
   const [hasFetchedUsers, setHasFetchedUsers] = useState(false);
   // Global KPI basis:
-  // "gross" = all orders,
+  // "primary" = all orders,
   // "net" = excludes PO/RMA order types
   const [orderBasis, setOrderBasis] = useState(
-    () => localStorage.getItem("dashboardOrderBasis") || "gross",
+    () => localStorage.getItem("dashboardOrderBasis") || "primary",
   );
   const { user, storeId } = useSelector((state) => state?.auth);
   const { userPermissions } = useSelector((state) => state?.permissions);
@@ -79,7 +78,7 @@ const Dashboard = () => {
       permission: "order", // parent slug
     },
     {
-      label: "View Sheet",
+      label: "Website Sheet",
       value: "view-sheet",
       permission: "view_sheet", // parent slug
     },
@@ -217,7 +216,7 @@ const Dashboard = () => {
 
   // default: stats = last 30 days, list = all
   // any filter: stats + list = same filtered set
-  const isGrossOrder = (order) => {
+  const isPrimaryOrder = (order) => {
     const type = String(order?.order_type || "").toLowerCase();
     return !Boolean(type === "rma" || type === "po");
   };
@@ -226,7 +225,9 @@ const Dashboard = () => {
     ? filteredOrders
     : orderData.filter(inLast30Days);
   const statsSource =
-    orderBasis === "gross" ? periodOrders.filter(isGrossOrder) : periodOrders;
+    orderBasis === "primary"
+      ? periodOrders.filter(isPrimaryOrder)
+      : periodOrders;
   const totalPages = Math.ceil(filteredOrders.length / ordersPerPage);
   const startIndex = (currentPage - 1) * ordersPerPage;
   const endIndex = startIndex + ordersPerPage;
@@ -264,25 +265,30 @@ const Dashboard = () => {
     (sum, order) => sum + (order?.grossProfit || 0),
     0,
   );
-  const deliveredCount = statsSource?.filter(
-    (o) => o.status?.toLowerCase() === "delivered",
-  ).length;
-  const deliveredAmount = statsSource?.reduce(
-    (sum, order) =>
-      order?.status?.toLowerCase() === "delivered"
-        ? sum + (order?.totalPrice || 0)
-        : sum,
+  const deliveredOrders = statsSource?.filter(
+    (o) => o?.status?.toLowerCase() === "delivered",
+  );
+  const deliveredCount = deliveredOrders?.length;
+  const deliveredAmount = deliveredOrders?.reduce(
+    (sum, order) => sum + (order?.totalPrice || 0),
     0,
   );
 
-  const cancelledCount = statsSource?.filter(
-    (o) => o.status?.toLowerCase() === "cancelled",
-  ).length;
-  const cancelledAmount = statsSource?.reduce(
-    (sum, order) =>
-      order?.status?.toLowerCase() === "cancelled"
-        ? sum + (order?.totalPrice || 0)
-        : sum,
+  const cancelledOrders = statsSource?.filter(
+    (o) => o?.status?.toLowerCase() === "cancelled",
+  );
+  const cancelledCount = cancelledOrders?.length;
+  const cancelledAmount = cancelledOrders?.reduce(
+    (sum, order) => sum + (order?.totalPrice || 0),
+    0,
+  );
+
+  const rmaOrders = periodOrders?.filter(
+    (o) => String(o?.order_type || "").toLowerCase() === "rma",
+  );
+  const rmaCount = rmaOrders?.length;
+  const rmaAmount = rmaOrders?.reduce(
+    (sum, order) => sum + (order?.totalPrice || 0),
     0,
   );
 
@@ -298,11 +304,11 @@ const Dashboard = () => {
     <>
       {/* Filters */}
       <div className="flex justify-end gap-2 mb-4 w-full">
-        {/* Global KPI basis: Gross / Net orders */}
+        {/* Global KPI basis: Primary / Net orders */}
         <div className="flex items-center rounded-full border bg-white p-1 shadow-sm mr-auto">
           {[
             { key: "net", label: "Net Orders" },
-            { key: "gross", label: "Gross Orders" },
+            { key: "primary", label: "Primary Orders" },
           ].map(({ key, label }) => (
             <button
               key={key}
@@ -397,7 +403,7 @@ const Dashboard = () => {
         </button>
       </div>
       {/* ==== Stats Cards ==== */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
         {[
           {
             label: "Total orders",
@@ -441,6 +447,18 @@ const Dashboard = () => {
             value: `$${cancelledAmount.toLocaleString()}`,
             icon: ordervalue,
             alt: "Cancelled orders icon",
+          },
+          {
+            label: "RMA Order Count",
+            value: rmaCount,
+            icon: totalorders,
+            alt: "RMA orders icon",
+          },
+          {
+            label: "RMA Order Amount",
+            value: `$${rmaAmount.toLocaleString()}`,
+            icon: ordervalue,
+            alt: "RMA orders icon",
           },
         ].map((stat, i) => (
           <StatsCard key={i} {...stat} />

@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axiosInstance from "../Axios/axiosInstance";
+import { syncOrderDates } from "../utils/constant";
 
 const initialState = {
   users: [],
@@ -284,7 +285,7 @@ export const fetchOrderById = createAsyncThunk(
       const res = await axiosInstance.get(`/order-files/${orderId}`);
       const result = res.data;
       const fetchedOrder = result?.data || result?.order || result;
-      return fetchedOrder;
+      return syncOrderDates(fetchedOrder);
     } catch (error) {
       return rejectWithValue(
         error.response?.data?.message ||
@@ -484,7 +485,9 @@ const usersSlice = createSlice({
         const Orders = action.payload?.data || action.payload || [];
 
         // Remove order_type from every order
-        const cleanedOrders = Orders.map(({ order_type, ...rest }) => rest);
+        const cleanedOrders = Orders.map(({ order_type, ...rest }) =>
+          syncOrderDates(rest),
+        );
 
         state.orderloading = false;
         state.Orders = cleanedOrders;
@@ -501,7 +504,10 @@ const usersSlice = createSlice({
       })
       .addCase(fetchOrdersAdmin.fulfilled, (state, action) => {
         state.orderloading = false;
-        state.Orders = action.payload.data || action.payload || [];
+        const Orders = action.payload.data || action.payload || [];
+        state.Orders = Array.isArray(Orders)
+          ? Orders.map(syncOrderDates)
+          : Orders;
         state.error = null;
       })
       .addCase(fetchOrdersAdmin.rejected, (state, action) => {
@@ -515,7 +521,9 @@ const usersSlice = createSlice({
       })
       .addCase(fetchSingleOrder.fulfilled, (state, action) => {
         state.orderloading = false;
-        state.singleOrder = action.payload;
+        state.singleOrder = action.payload?.data
+          ? { ...action.payload, data: syncOrderDates(action.payload.data) }
+          : action.payload;
       })
       .addCase(fetchSingleOrder.rejected, (state, action) => {
         state.orderloading = false;
@@ -527,7 +535,9 @@ const usersSlice = createSlice({
       })
       .addCase(fetchSingleOrderAdmin.fulfilled, (state, action) => {
         state.orderloading = false;
-        state.singleOrder = action.payload;
+        state.singleOrder = action.payload?.data
+          ? { ...action.payload, data: syncOrderDates(action.payload.data) }
+          : action.payload;
       })
       .addCase(fetchSingleOrderAdmin.rejected, (state, action) => {
         state.orderloading = false;

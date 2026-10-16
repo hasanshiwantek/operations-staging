@@ -29,6 +29,7 @@ import {
   columnsOfSheet,
   FLAT_VALUE_FIELDS,
   flattenOrderValues,
+  formatNumberCell,
   getFieldChecked,
   getFieldHighlight,
   getFieldValue,
@@ -78,8 +79,8 @@ const toFilterNumber = (value) => {
   return Number.isFinite(num) ? num : raw;
 };
 
-// Renders the untouched source value (not the valueGetter output)
-function sourceTextRenderer(
+// Number cells show the source value with thousand separators (Qty keeps whole numbers)
+function numberTextRenderer(
   instance,
   td,
   row,
@@ -88,8 +89,12 @@ function sourceTextRenderer(
   value,
   cellProperties,
 ) {
-  const raw = instance.getSourceDataAtRow(instance.toPhysicalRow(row))?.[prop];
-  textRenderer(instance, td, row, col, prop, raw ?? "", cellProperties);
+  const source = instance.getSourceDataAtRow(instance.toPhysicalRow(row))?.[
+    prop
+  ];
+  const raw = source && typeof source === "object" ? source.value : source;
+  const text = prop === "Qty" ? formatNumberCell(raw, 0) : formatNumberCell(raw);
+  textRenderer(instance, td, row, col, prop, text, cellProperties);
 }
 
 // Date cells hold ISO values in the grid (see toTableRow) but show MM/DD/YYYY
@@ -131,7 +136,7 @@ const hotColumns = columnsOfSheet.map((column) => {
       ...column,
       type: "numeric",
       valueGetter: toFilterNumber,
-      renderer: column.renderer || sourceTextRenderer,
+      renderer: column.renderer || numberTextRenderer,
     };
   }
   return column;
@@ -147,7 +152,8 @@ const toSearchText = (value) => {
 
 const cellMatchesQuery = (value, query, { matchCase, wholeCell }) => {
   let text = toSearchText(value);
-  let needle = query;
+  // Number cells show thousand separators; let "1,234" find the stored 1234
+  let needle = /^[\d,.\-\s$]+$/.test(query) ? query.replace(/,/g, "") : query;
   if (!matchCase) {
     text = text.toLocaleLowerCase();
     needle = needle.toLocaleLowerCase();
