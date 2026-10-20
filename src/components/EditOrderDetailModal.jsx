@@ -108,6 +108,13 @@ const EditOrderDetailModal = ({
     "Profit %",
     "Card Payment",
   ];
+  // Order Status is fixed once the saved order is cancelled, is an RMA, or has RMAs raised from it
+  const isOrderStatusLocked =
+    Boolean(isRMAMode) ||
+    String(order?.order_type || "").toLowerCase() === "rma" ||
+    isCancelledStatus(order?.["Order Status"]) ||
+    (Array.isArray(order?.rmaOrderNos) && order.rmaOrderNos.length > 0);
+
   const isFieldLocked = (fieldName) => {
     if (alwaysDisabledFields.includes(fieldName)) return true;
     if (isFinance && fieldName !== "Charged Date") return true;
@@ -342,6 +349,8 @@ const EditOrderDetailModal = ({
 
               const isDisabled = (() => {
                 if (alwaysDisabledFields.includes(key)) return true;
+
+                if (key === "Order Status" && isOrderStatusLocked) return true;
 
                 // Fee is fixed at zero while the order is cancelled
                 if (
