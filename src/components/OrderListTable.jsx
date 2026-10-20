@@ -1462,7 +1462,7 @@ function OrderListTable({ Orders }) {
                 display: "flex",
                 alignItems: "center",
                 gap: "6px",
-                width: "300px",
+                width: "260px",
                 padding: "0 10px",
                 height: "38px",
                 border: "1px solid #d1d5db",
@@ -1482,7 +1482,7 @@ function OrderListTable({ Orders }) {
                     runOrderSearch("");
                   }
                 }}
-                placeholder="Search order#, customer, email, part#, status, date..."
+                placeholder="Search by keyword"
                 title="Order No, Customer, Email, Part#, Status, Date, Tracking, etc."
                 style={{
                   flex: 1,
