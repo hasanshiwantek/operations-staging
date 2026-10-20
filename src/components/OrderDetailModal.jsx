@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { useSelector } from "react-redux";
+import useBalancedColumns from "../hooks/useBalancedColumns";
 import {
   defaultOrder,
   ENTRY_CHECK_MAX_LENGTH,
@@ -12,7 +13,6 @@ import {
   sanitizePriceInput,
   withMirroredField,
 } from "../utils/constant";
-import useBalancedColumns from "../hooks/useBalancedColumns";
 import ExpandableTextInput from "./ExpandableTextInput";
 import SearchableSelect from "./SearchableSelect";
 
@@ -100,14 +100,7 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
 
           <button
             onClick={onClose}
-            className="
-                            p-1
-                            text-gray-500
-                            hover:text-red-600
-                            hover:bg-red-50
-                            rounded-md
-                            transition-colors
-                        "
+            className="p-1 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
           >
             <X size={24} />
           </button>
@@ -269,7 +262,9 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
                         type="text"
                         name={key}
                         inputMode={
-                          FLAT_VALUE_FIELDS.includes(key) ? "decimal" : undefined
+                          FLAT_VALUE_FIELDS.includes(key)
+                            ? "decimal"
+                            : undefined
                         }
                         value={formData[key] ?? ""}
                         onChange={handleChange}

@@ -6,6 +6,7 @@ import usersReducer from './usersSlice';
 import attributeReducer from "./attributeSlice";
 import orderTypeReducer from "./orderTypeSlice";
 import permissionsReducer from "./permissionsSlice";
+import orderEditRangeReducer from "./orderEditRangeSlice";
 
 // Persist configuration for auth
 const authPersistConfig = {
@@ -26,6 +27,7 @@ export const store = configureStore({
     attributes: attributeReducer,
     orderTypes: orderTypeReducer,
     permissions: permissionsReducer,
+    orderEditRange: orderEditRangeReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

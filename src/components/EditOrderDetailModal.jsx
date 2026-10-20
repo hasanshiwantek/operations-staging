@@ -400,6 +400,22 @@ const EditOrderDetailModal = ({
                 setUnlockedFields((prev) => new Set(prev).add(fieldKey));
               };
 
+              // Paid Via also unlocks by clicking the field itself (ops team request)
+              const unlocksOnFieldClick =
+                key === "Paid Via" &&
+                !isFinance &&
+                isUnlockable &&
+                isDisabled &&
+                !optionsLoading;
+
+              const unlockAndFocus = (e) => {
+                const container = e.currentTarget;
+                unlockField(key);
+                requestAnimationFrame(() =>
+                  container.querySelector("input, select, textarea")?.focus(),
+                );
+              };
+
               return (
                 <div
                   key={key}
@@ -486,6 +502,8 @@ const EditOrderDetailModal = ({
                   {/* DROPDOWN */}
 
                   <div
+                    onClick={unlocksOnFieldClick ? unlockAndFocus : undefined}
+                    title={unlocksOnFieldClick ? "Click to edit this field" : undefined}
                     className={`
                                         min-h-[38px] 2xl:min-h-[48px]
                                         flex
@@ -497,6 +515,11 @@ const EditOrderDetailModal = ({
                                           isDisabled || optionsLoading
                                             ? "bg-[#dcebd6] text-gray-700"
                                             : "bg-white text-gray-800"
+                                        }
+                                        ${
+                                          unlocksOnFieldClick
+                                            ? "cursor-pointer [&_*]:pointer-events-none"
+                                            : ""
                                         }
                                     `}
                   >

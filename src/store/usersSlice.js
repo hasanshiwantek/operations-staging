@@ -8,6 +8,8 @@ const initialState = {
   singleOrder: null,
   userloading: false,
   orderloading: false,
+  orderSearch: "",
+  latestOrdersRequestId: null,
   sheets: [],
   createLoading: false,
   updateLoading: false,
@@ -133,9 +135,13 @@ export const fetchOrders = createAsyncThunk(
 // single order thunk
 export const fetchOrdersAdmin = createAsyncThunk(
   "users/fetchOrdersAdmin",
-  async (role_id, { rejectWithValue }) => {
+  async (role_id, { getState, rejectWithValue }) => {
     try {
-      const response = await axiosInstance.get(`/order-files`);
+      // Every refetch keeps the order sheet's active search
+      const search = getState().users.orderSearch?.trim();
+      const response = await axiosInstance.get(`/order-files`, {
+        params: search ? { search } : undefined,
+      });
       // const response = await axiosInstance.get(`/order-files?sheet_id=${storeId}`);
       return response.data; // single order object
     } catch (error) {
@@ -400,6 +406,9 @@ const usersSlice = createSlice({
     clearError: (state) => {
       state.error = null;
     },
+    setOrderSearch: (state, action) => {
+      state.orderSearch = action.payload ?? "";
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -498,11 +507,14 @@ const usersSlice = createSlice({
         state.error = action.payload;
         state.users = [];
       })
-      .addCase(fetchOrdersAdmin.pending, (state) => {
+      .addCase(fetchOrdersAdmin.pending, (state, action) => {
         state.orderloading = true;
         state.error = null;
+        state.latestOrdersRequestId = action.meta.requestId;
       })
       .addCase(fetchOrdersAdmin.fulfilled, (state, action) => {
+        // Ignore responses from older searches that resolve late
+        if (action.meta.requestId !== state.latestOrdersRequestId) return;
         state.orderloading = false;
         const Orders = action.payload.data || action.payload || [];
         state.Orders = Array.isArray(Orders)
@@ -511,6 +523,7 @@ const usersSlice = createSlice({
         state.error = null;
       })
       .addCase(fetchOrdersAdmin.rejected, (state, action) => {
+        if (action.meta.requestId !== state.latestOrdersRequestId) return;
         state.orderloading = false;
         state.error = action.payload;
         state.users = [];
@@ -670,5 +683,5 @@ const usersSlice = createSlice({
   },
 });
 
-export const { clearError } = usersSlice.actions;
+export const { clearError, setOrderSearch } = usersSlice.actions;
 export default usersSlice.reducer;

@@ -174,22 +174,40 @@ export const applySavedCheckboxState = (orders) => {
   });
 };
 
+// Read the logged-in user from redux-persist storage; null when missing or unparsable
+const getPersistedUser = () => {
+  try {
+    const persistedAuth = JSON.parse(localStorage.getItem("persist:auth") || "null");
+    const user = persistedAuth?.user;
+    if (!user || user === "undefined" || user === "null") return null;
+    return typeof user === "string" ? JSON.parse(user) : user;
+  } catch {
+    return null;
+  }
+};
+
 export const getIsAdmin = () => {
   // const value = localStorage.getItem("isAdmin");
   // return value === true || value === "true";
-  let persistedAuth = JSON.parse(localStorage.getItem("persist:auth"));
-  let user = JSON.parse(persistedAuth?.user);
+  const user = getPersistedUser();
 
   return [1, 2].includes(user?.role_id);
 };
 export const getIsFinance = () => {
   // const value = localStorage.getItem("isAdmin");
   // return value === true || value === "true";
-  let persistedAuth = JSON.parse(localStorage.getItem("persist:auth"));
-  let user = JSON.parse(persistedAuth?.user);
+  const user = getPersistedUser();
 
   return [3].includes(user?.role_id);
 };
+export const getIsOperation = () => {
+  const user = getPersistedUser();
+
+  return [5].includes(user?.role_id);
+};
+
+// Operation users can tick only these fields (finance flow: check what isn't highlighted yet)
+const OPERATION_CHECKBOX_FIELDS = ["CC/Paypal 4%"];
 
 // Display a number with thousand separators (1234.5 → "1,234.50"); non-numbers pass through
 export const formatNumberCell = (value, minDecimals = 2, maxDecimals = 2) => {
@@ -215,6 +233,8 @@ const makeCheckboxRenderer = (fieldName) => {
     const highlighted = getFieldHighlight(value);
     const isAdmin = getIsAdmin();
     const isFinance = getIsFinance();
+    const isOperationField =
+      getIsOperation() && OPERATION_CHECKBOX_FIELDS.includes(fieldName);
     const hasAmount = toNumber(val) > 0;
     td.innerHTML = "";
 
@@ -232,7 +252,12 @@ const makeCheckboxRenderer = (fieldName) => {
     //     ? !highlighted
     //     : false;
     const shouldShowCheckbox =
-      hasAmount && (isAdmin ? highlighted : isFinance ? !highlighted : false);
+      hasAmount &&
+      (isAdmin
+        ? highlighted
+        : isFinance || isOperationField
+          ? !highlighted
+          : false);
 
     if (shouldShowCheckbox) {
       const checkbox = document.createElement("input");
@@ -543,3 +568,4 @@ export const flattenOrderValues = (order) => {
 
   return next;
 };
+

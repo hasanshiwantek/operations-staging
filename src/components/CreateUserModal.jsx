@@ -1,17 +1,9 @@
-import React, { useState, useEffect } from "react";
-import {
-  MoreVertical,
-  X,
-  Eye,
-  EyeOff,
-  ChevronDown,
-  ChevronUp,
-} from "lucide-react";
-import addUserIcon from "../assets/adduser-icon.svg";
+import { X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { deleteUser, fetchUsers, updateUser } from "../store/usersSlice";
-import { getRoles, register } from "../store/authSlice";
 import { toast } from "react-toastify";
+import { getRoles, register } from "../store/authSlice";
+import { fetchUsers, updateUser } from "../store/usersSlice";
 import { Permissions } from "./Permissions";
 
 const pageAccessOptions = [
@@ -85,7 +77,6 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
     permission_ids: editUser?.permissions?.map((p) => p.id) || [], // ✅ correct
   });
 
-
   // Debug: Log the converted page access
 
   const validateForm = () => {
@@ -130,7 +121,7 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
 
     if (isEditMode) {
       const result = await dispatch(
-        updateUser({ id: editUser.id, data: payload })
+        updateUser({ id: editUser.id, data: payload }),
       );
 
       if (updateUser.fulfilled.match(result)) {
@@ -230,8 +221,9 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
                 onChange={(e) =>
                   setFormData({ ...formData, name: e.target.value })
                 }
-                className={`w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${errors.name ? "border-red-400" : "border-gray-200"
-                  }`}
+                className={`w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${
+                  errors.name ? "border-red-400" : "border-gray-200"
+                }`}
               />
               <p className="text-xs text-red-500 min-h-[16px] mt-1">
                 {errors.name || " "}
@@ -248,8 +240,9 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
                 onChange={(e) =>
                   setFormData({ ...formData, email: e.target.value })
                 }
-                className={`w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${errors.email ? "border-red-400" : "border-gray-200"
-                  }`}
+                className={`w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${
+                  errors.email ? "border-red-400" : "border-gray-200"
+                }`}
               />
               <p className="text-xs text-red-500 min-h-[16px] mt-1">
                 {errors.email || " "}
@@ -265,10 +258,15 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
                 disabled={editUser}
                 value={formData.role}
                 onChange={(e) => {
-                  setFormData({ ...formData, role: e.target.value, colour_code: null });
+                  setFormData({
+                    ...formData,
+                    role: e.target.value,
+                    colour_code: null,
+                  });
                 }}
-                className={`w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${errors.role ? "border-red-400" : "border-gray-200"
-                  }`}
+                className={`w-full mt-1 p-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 ${
+                  errors.role ? "border-red-400" : "border-gray-200"
+                }`}
               >
                 <option value="">Select a role</option>
                 {roles?.map((role) => (
@@ -283,54 +281,57 @@ export const CreateUserModal = ({ onClose, editUser = null }) => {
             </div>
           </div>
           {/* Color Picker */}
-          {formData.role == 3 && <div>
-            <label className="mb-2 block text-sm font-medium text-gray-700">
-              Colour <span className="text-red-500">*</span>
-            </label>
+          {(formData.role == 3 || formData.role == 5) && (
+            <div>
+              <label className="mb-2 block text-sm font-medium text-gray-700">
+                Colour <span className="text-red-500">*</span>
+              </label>
 
-            <div className="flex items-center gap-3">
-              {/* Native Color Picker */}
-              <div className="relative">
+              <div className="flex items-center gap-3">
+                {/* Native Color Picker */}
+                <div className="relative">
+                  <input
+                    type="color"
+                    value={formData?.colour_code || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, colour_code: e.target.value })
+                    }
+                    className="h-11 w-14 cursor-pointer rounded-lg border border-gray-300 p-1"
+                    title="Pick a color"
+                  />
+                </div>
+
+                {/* Hex Input */}
                 <input
-                  type="color"
+                  type="text"
                   value={formData?.colour_code || ""}
-                  onChange={(e) =>
-                    setFormData({ ...formData, colour_code: e.target.value })
-                  }
-                  className="h-11 w-14 cursor-pointer rounded-lg border border-gray-300 p-1"
-                  title="Pick a color"
+                  onChange={(e) => {
+                    let value = e.target.value;
+
+                    // Automatically add #
+                    if (value && !value.startsWith("#")) {
+                      value = `#${value}`;
+                    }
+                    setFormData({ ...formData, colour_code: value });
+                  }}
+                  placeholder="#22c55e"
+                  maxLength={7}
+                  className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-mono outline-none transition
+        ${
+          errors.colour_code
+            ? "border-red-500 focus:ring-2 focus:ring-red-200"
+            : "border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+        }`}
                 />
               </div>
 
-              {/* Hex Input */}
-              <input
-                type="text"
-                value={formData?.colour_code || ""}
-                onChange={(e) => {
-                  let value = e.target.value;
-
-                  // Automatically add #
-                  if (value && !value.startsWith("#")) {
-                    value = `#${value}`;
-                  }
-                  setFormData({ ...formData, colour_code: value })
-                }}
-                placeholder="#22c55e"
-                maxLength={7}
-                className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-mono outline-none transition
-        ${errors.colour_code
-                    ? "border-red-500 focus:ring-2 focus:ring-red-200"
-                    : "border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-                  }`}
-              />
+              {errors.colour_code && (
+                <p className="mt-1 text-sm text-red-500">
+                  {errors.colour_code}
+                </p>
+              )}
             </div>
-
-            {errors.colour_code && (
-              <p className="mt-1 text-sm text-red-500">
-                {errors.colour_code}
-              </p>
-            )}
-          </div>}
+          )}
           <div>
             <label className="text-sm text-gray-600 font-medium mb-2 block">
               Page access

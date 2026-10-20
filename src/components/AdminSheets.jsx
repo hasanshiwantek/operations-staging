@@ -10,6 +10,12 @@ import {
   fetchSheets,
   updateSheet,
 } from "../store/usersSlice";
+import {
+  fetchOrderEditRange,
+  getEditRangeMonths,
+  ORDER_EDIT_RANGE_OPTIONS,
+  saveOrderEditRange,
+} from "../store/orderEditRangeSlice";
 
 const AdminSheets = () => {
   const dispatch = useDispatch();
@@ -28,6 +34,9 @@ const AdminSheets = () => {
   const [editingSheet, setEditingSheet] = useState(null); // track edit
   const [selectedFile, setSelectedFile] = useState(null);
   const [loading, setLoading] = useState(false)
+  // Order edit window (months) for the store being edited; initial value tracks what's saved
+  const [editRangeMonths, setEditRangeMonths] = useState(null);
+  const [initialEditRangeMonths, setInitialEditRangeMonths] = useState(null);
   const {
     register,
     handleSubmit,
@@ -55,19 +64,45 @@ const AdminSheets = () => {
     setEditingSheet(sheet);
     setValue("name", sheet.name);
     setValue("store_name", sheet.store_name);
+    setEditRangeMonths(null);
+    setInitialEditRangeMonths(null);
     setShowModal(true);
+
+    dispatch(fetchOrderEditRange({ storeId: sheet.id }))
+      .unwrap()
+      .then((res) => {
+        const months = getEditRangeMonths(res?.data);
+        setEditRangeMonths(months);
+        setInitialEditRangeMonths(months);
+      })
+      .catch(() => {});
   };
   const onSubmit = async (data) => {
     setLoading(true);
 
     try {
       if (editingSheet) {
-        await dispatch(
-          updateSheet({
-            id: editingSheet.id,
-            ...data,
-          })
-        ).unwrap();
+        const requests = [
+          dispatch(
+            updateSheet({
+              id: editingSheet.id,
+              ...data,
+            })
+          ).unwrap(),
+        ];
+
+        if (editRangeMonths && editRangeMonths !== initialEditRangeMonths) {
+          requests.push(
+            dispatch(
+              saveOrderEditRange({
+                months: editRangeMonths,
+                storeId: editingSheet.id,
+              })
+            ).unwrap()
+          );
+        }
+
+        await Promise.all(requests);
 
       } else {
         await dispatch(
@@ -245,6 +280,33 @@ const AdminSheets = () => {
                 className="border p-2 rounded-lg text-sm w-full"
               />
               {errors.store_name && <span className="text-red-500 text-xs">{errors.store_name.message}</span>}
+
+              {editingSheet && (
+                <div className="flex flex-col gap-2">
+                  <span className="text-sm font-medium text-gray-700">
+                    Users can edit orders from
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {ORDER_EDIT_RANGE_OPTIONS.map((option) => {
+                      const active = editRangeMonths === option.value;
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setEditRangeMonths(option.value)}
+                          className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                            active
+                              ? "bg-blue-500 border-blue-500 text-white"
+                              : "bg-white border-gray-300 text-gray-600 hover:border-blue-400"
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <button
                 type="submit"
                 disabled={loading}
