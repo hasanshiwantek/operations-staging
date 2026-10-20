@@ -1,7 +1,12 @@
-import React from "react";
+import React, { useRef, useState } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { Download } from "lucide-react";
+import ExportProgressModal, {
+    EXPORT_SLICE_MS,
+    ExportCancelledError,
+    yieldToBrowser,
+} from "./ExportProgressModal";
 
 // Field order jaise PDF mein dikhana hai (grouped logically)
 const FIELD_GROUPS = [
@@ -114,7 +119,18 @@ const formatValue = (val) => {
 };
 
 const ExportOrdersPdf = ({ orders: ordersProp = [], getOrders, fileName = "orders-export.pdf", label = "Export PDF" }) => {
-    const handleExport = () => {
+    // null = idle; otherwise { message, progress }
+    const [exportState, setExportState] = useState(null);
+    // Bumped on every start/cancel; a run whose id is stale stops at its next pause
+    const runIdRef = useRef(0);
+
+    const cancelExport = () => {
+        runIdRef.current += 1;
+        setExportState(null);
+    };
+
+    const handleExport = async () => {
+        if (exportState) return;
         // getOrders (optional) is read at click time, e.g. the grid's visible rows
         const orders = getOrders ? getOrders() : ordersProp;
         if (!orders || orders.length === 0) {
@@ -122,94 +138,137 @@ const ExportOrdersPdf = ({ orders: ordersProp = [], getOrders, fileName = "order
             return;
         }
 
-        const doc = new jsPDF({
-            orientation: "portrait",
-            unit: "pt",
-            format: "a4",
-        });
+        const runId = ++runIdRef.current;
+        // Yield to the browser, then stop here if the user cancelled meanwhile
+        const pause = async () => {
+            await yieldToBrowser();
+            if (runIdRef.current !== runId) throw new ExportCancelledError();
+        };
+        setExportState({ message: `Preparing ${orders.length} orders...`, progress: 0 });
 
-        const pageWidth = doc.internal.pageSize.getWidth();
-        const marginX = 40;
-
-        orders.forEach((order, index) => {
-            if (index > 0) doc.addPage();
-
-            let cursorY = 50;
-
-            // ===== Header =====
-            doc.setFillColor(79, 70, 229); // indigo-600
-            doc.rect(0, 0, pageWidth, 70, "F");
-
-            doc.setTextColor(255, 255, 255);
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(16);
-            doc.text(`Order #${formatValue(order["Order#"])}`, marginX, 38);
-
-            doc.setFont("helvetica", "normal");
-            doc.setFontSize(9);
-            doc.text(
-                `Order Date: ${formatValue(order["Order Date"])}   |   Order Status: ${formatValue(order["Order Status"])}`,
-                marginX,
-                55
-            );
-
-            // page counter (top right)
-            doc.setFontSize(8);
-            doc.text(`Page ${index + 1} of ${orders.length}`, pageWidth - marginX, 55, {
-                align: "right",
+        try {
+            await pause();
+            const doc = new jsPDF({
+                orientation: "portrait",
+                unit: "pt",
+                format: "a4",
             });
 
-            cursorY = 90;
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const marginX = 40;
 
-            // ===== Har group ki table =====
-            FIELD_GROUPS.forEach((group) => {
-                const rows = group.fields.map((field) => [
-                    field,
-                    formatValue(order[field]),
-                ]);
+            let sliceStart = performance.now();
 
-                autoTable(doc, {
-                    startY: cursorY,
-                    head: [[{ content: group.title, colSpan: 2 }]],
-                    body: rows,
-                    theme: "grid",
-                    margin: { left: marginX, right: marginX },
-                    styles: {
-                        fontSize: 8,
-                        cellPadding: 3,
-                        overflow: "linebreak",
-                        valign: "top",
-                    },
-                    headStyles: {
-                        fillColor: [243, 244, 246], // gray-100
-                        textColor: [55, 65, 81], // gray-700
-                        fontStyle: "bold",
-                        fontSize: 9,
-                    },
-                    columnStyles: {
-                        0: { cellWidth: 130, fontStyle: "bold", textColor: [107, 114, 128] },
-                        1: { cellWidth: pageWidth - marginX * 2 - 130 },
-                    },
-                    didDrawPage: (data) => {
-                        cursorY = data.cursor.y;
-                    },
+            for (let index = 0; index < orders.length; index++) {
+                const order = orders[index];
+
+                if (performance.now() - sliceStart > EXPORT_SLICE_MS) {
+                    setExportState({
+                        message: `Building order ${index} of ${orders.length}...`,
+                        progress: index / orders.length,
+                    });
+                    await pause();
+                    sliceStart = performance.now();
+                }
+
+                if (index > 0) doc.addPage();
+
+                let cursorY = 50;
+
+                // ===== Header =====
+                doc.setFillColor(79, 70, 229); // indigo-600
+                doc.rect(0, 0, pageWidth, 70, "F");
+
+                doc.setTextColor(255, 255, 255);
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(16);
+                doc.text(`Order #${formatValue(order["Order#"])}`, marginX, 38);
+
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(9);
+                doc.text(
+                    `Order Date: ${formatValue(order["Order Date"])}   |   Order Status: ${formatValue(order["Order Status"])}`,
+                    marginX,
+                    55
+                );
+
+                // page counter (top right)
+                doc.setFontSize(8);
+                doc.text(`Page ${index + 1} of ${orders.length}`, pageWidth - marginX, 55, {
+                    align: "right",
                 });
 
-                cursorY = doc.lastAutoTable.finalY + 12;
-            });
-        });
+                cursorY = 90;
 
-        doc.save(fileName);
+                // ===== Har group ki table =====
+                FIELD_GROUPS.forEach((group) => {
+                    const rows = group.fields.map((field) => [
+                        field,
+                        formatValue(order[field]),
+                    ]);
+
+                    autoTable(doc, {
+                        startY: cursorY,
+                        head: [[{ content: group.title, colSpan: 2 }]],
+                        body: rows,
+                        theme: "grid",
+                        margin: { left: marginX, right: marginX },
+                        styles: {
+                            fontSize: 8,
+                            cellPadding: 3,
+                            overflow: "linebreak",
+                            valign: "top",
+                        },
+                        headStyles: {
+                            fillColor: [243, 244, 246], // gray-100
+                            textColor: [55, 65, 81], // gray-700
+                            fontStyle: "bold",
+                            fontSize: 9,
+                        },
+                        columnStyles: {
+                            0: { cellWidth: 130, fontStyle: "bold", textColor: [107, 114, 128] },
+                            1: { cellWidth: pageWidth - marginX * 2 - 130 },
+                        },
+                        didDrawPage: (data) => {
+                            cursorY = data.cursor.y;
+                        },
+                    });
+
+                    cursorY = doc.lastAutoTable.finalY + 12;
+                });
+            }
+
+            setExportState({ message: "Saving PDF file...", progress: null });
+            await pause();
+            doc.save(fileName);
+        } catch (err) {
+            if (err instanceof ExportCancelledError) return;
+            console.error("PDF export failed:", err);
+            alert("PDF export failed. Please try again.");
+        } finally {
+            if (runIdRef.current === runId) setExportState(null);
+        }
     };
 
     return (
-        <button
-            onClick={handleExport}
-            style={{ padding: '8px 16px', background: '#e11d48', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: "center" }}
+        <>
+            <button
+                onClick={handleExport}
+                disabled={Boolean(exportState)}
+                style={{ padding: '8px 16px', background: '#e11d48', color: 'white', border: 'none', borderRadius: '6px', cursor: exportState ? 'progress' : 'pointer', opacity: exportState ? 0.7 : 1, display: 'flex', alignItems: "center" }}
 
-        >
-            {label}
-        </button>
+            >
+                {exportState ? "Exporting..." : label}
+            </button>
+            {exportState && (
+                <ExportProgressModal
+                    title="Exporting PDF"
+                    message={exportState.message}
+                    progress={exportState.progress}
+                    onCancel={cancelExport}
+                />
+            )}
+        </>
     );
 };
 

@@ -44,6 +44,11 @@ import {
 } from "../utils/constant";
 import EditOrderDetailModal from "./EditOrderDetailModal";
 import ExportOrdersPdf from "./ExportOrdersPdf";
+import ExportProgressModal, {
+  EXPORT_SLICE_MS,
+  ExportCancelledError,
+  yieldToBrowser,
+} from "./ExportProgressModal";
 import OrderDetailModal from "./OrderDetailModal";
 
 registerAllModules();
@@ -293,6 +298,14 @@ function OrderListTable({ Orders }) {
   );
   const editRangeStart = getEditRangeStartDate(editRangeMonth);
   const [isFullScreen, setIsFullScreen] = useState(false);
+  // Excel export progress: null = idle; otherwise { message, progress }
+  const [excelExport, setExcelExport] = useState(null);
+  // Bumped on every start/cancel; a run whose id is stale stops at its next pause
+  const excelRunIdRef = useRef(0);
+  const cancelExcelExport = () => {
+    excelRunIdRef.current += 1;
+    setExcelExport(null);
+  };
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isRMAMode, setIsRMAMode] = useState(false);
   const [isCreatePartMode, setIsCreatePartMode] = useState(false);
@@ -941,23 +954,62 @@ function OrderListTable({ Orders }) {
       return { sum, count, avg, visible: count > 1 };
     });
   }, []);
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
+    if (excelExport) return;
     const visibleRows = getGridOrders();
     if (!visibleRows || visibleRows.length === 0)
       return alert("No data to export");
-    const exportRows = visibleRows.map(({ order_type, ...order }) => {
-      const row = { ...order };
 
-      Object.keys(row).forEach((key) => {
-        row[key] = getFieldValue(row[key]);
-      });
+    const total = visibleRows.length;
+    const runId = ++excelRunIdRef.current;
+    // Yield to the browser, then stop here if the user cancelled meanwhile
+    const pause = async () => {
+      await yieldToBrowser();
+      if (excelRunIdRef.current !== runId) throw new ExportCancelledError();
+    };
+    setExcelExport({ message: `Preparing ${total} orders...`, progress: 0 });
 
-      return row;
-    });
-    const ws = XLSX.utils.json_to_sheet(exportRows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Orders");
-    XLSX.writeFile(wb, `Orders_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    try {
+      await pause();
+
+      // Convert rows in time slices so the progress modal and Cancel stay responsive
+      const exportRows = [];
+      let sliceStart = performance.now();
+      for (let i = 0; i < total; i++) {
+        if (performance.now() - sliceStart > EXPORT_SLICE_MS) {
+          setExcelExport({
+            message: `Processing ${i} of ${total} orders...`,
+            progress: (i / total) * 0.6,
+          });
+          await pause();
+          sliceStart = performance.now();
+        }
+
+        const { order_type, ...order } = visibleRows[i];
+        const row = { ...order };
+        Object.keys(row).forEach((key) => {
+          row[key] = getFieldValue(row[key]);
+        });
+        exportRows.push(row);
+      }
+
+      // Sheet building and file writing are single SheetJS calls — shown as indeterminate
+      setExcelExport({ message: "Building spreadsheet...", progress: null });
+      await pause();
+      const ws = XLSX.utils.json_to_sheet(exportRows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Orders");
+
+      setExcelExport({ message: "Saving Excel file...", progress: null });
+      await pause();
+      XLSX.writeFile(wb, `Orders_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    } catch (err) {
+      if (err instanceof ExportCancelledError) return;
+      console.error("Excel export failed:", err);
+      alert("Excel export failed. Please try again.");
+    } finally {
+      if (excelRunIdRef.current === runId) setExcelExport(null);
+    }
   };
   const handleSyncOrders = async () => {
     await dispatch(
@@ -1563,17 +1615,27 @@ function OrderListTable({ Orders }) {
             {hasPermission("view_sheet.download_excel") && (
               <button
                 onClick={exportToExcel}
+                disabled={Boolean(excelExport)}
                 style={{
                   padding: "8px 16px",
                   background: "#4CAF50",
                   color: "white",
                   border: "none",
                   borderRadius: "6px",
-                  cursor: "pointer",
+                  cursor: excelExport ? "progress" : "pointer",
+                  opacity: excelExport ? 0.7 : 1,
                 }}
               >
-                Download Excel
+                {excelExport ? "Exporting..." : "Download Excel"}
               </button>
+            )}
+            {excelExport && (
+              <ExportProgressModal
+                title="Exporting Excel"
+                message={excelExport.message}
+                progress={excelExport.progress}
+                onCancel={cancelExcelExport}
+              />
             )}
             {hasPermission("view_sheet.import_excel") && (
               <button
