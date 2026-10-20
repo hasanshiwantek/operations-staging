@@ -21,7 +21,8 @@ axiosInstance.interceptors.request.use((config) => {
     if (tokenparsed) {
       config.headers.Authorization = `Bearer ${tokenparsed}`;
     }
-    if (storeId) {
+    // A request may target another store by setting its own store-id
+    if (storeId && config.headers["store-id"] == null) {
       config.headers["store-id"] = Number(storeId);
     }
     // if (roleId) {

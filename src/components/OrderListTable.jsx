@@ -12,7 +12,12 @@ import React, {
 } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import * as XLSX from "xlsx";
+import { Search, X } from "lucide-react";
 import { fetchOrderTypesMap } from "../store/orderTypeSlice";
+import {
+  fetchOrderEditRange,
+  getEditRangeStartDate,
+} from "../store/orderEditRangeSlice";
 import {
   createGenerateId,
   fetchOrderOptions,
@@ -20,6 +25,7 @@ import {
   importOrderFiles,
   postOrderFiles,
   postSyncOrder,
+  setOrderSearch,
   updateFinanceOrderCheck,
   updateOrderFiles,
 } from "../store/usersSlice";
@@ -272,14 +278,20 @@ function OrderListTable({ Orders }) {
   const expandingRef = useRef(false);
   const isContextMenuOpen = useRef(false);
   const [tableOrders, setTableOrders] = useState(() => cloneOrders(Orders));
-  const { orderloading, syncLoading, orderCheckLoading } = useSelector(
-    (state) => state.users,
-  );
+  const { orderloading, syncLoading, orderCheckLoading, orderSearch } =
+    useSelector((state) => state.users);
+  // Search box text; the API search runs once typing pauses
+  const [searchInput, setSearchInput] = useState(orderSearch || "");
+  const searchDebounceRef = useRef(null);
   const { token, storeId, user: authUser } = useSelector((state) => state.auth);
   const { user } = useSelector((state) => state?.auth);
   const { userPermissions } = useSelector((state) => state?.permissions);
   const permissions = userPermissions || [];
   const { orderTypesMap } = useSelector((state) => state.orderTypes);
+  const { month: editRangeMonth } = useSelector(
+    (state) => state.orderEditRange,
+  );
+  const editRangeStart = getEditRangeStartDate(editRangeMonth);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isRMAMode, setIsRMAMode] = useState(false);
@@ -307,12 +319,42 @@ function OrderListTable({ Orders }) {
     visible: false,
   });
   const roleId = user?.role_id;
-  const permissionOfSaveBtn = [1, 2, 3].includes(roleId);
+  // 5 = Operation (CC/Paypal 4% checkbox only)
+  const permissionOfSaveBtn = [1, 2, 3, 5].includes(roleId);
   const hasPermission = (slug) => {
     // Super Admin / Admin → full access
     if (roleId === 1 || roleId === 2) return true;
     return permissions?.some((p) => p.slug === slug);
   };
+  const isAdminRole = roleId === 1 || roleId === 2;
+
+  // Orders dated before the admin-set start month are locked for non-admins
+  const isOrderEditLocked = (order) => {
+    if (isAdminRole || !editRangeStart) return false;
+    const orderDate = toISODate(order?.["Order Date"]);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(orderDate)) return false;
+    return orderDate < editRangeStart;
+  };
+
+  const runOrderSearch = (value) => {
+    clearTimeout(searchDebounceRef.current);
+    const next = value.trim();
+    if (next === (orderSearch || "").trim()) return;
+    dispatch(setOrderSearch(next));
+    dispatch(fetchOrdersAdmin(storeId?.id));
+  };
+
+  const handleSearchChange = (value) => {
+    setSearchInput(value);
+    clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => runOrderSearch(value), 500);
+  };
+
+  useEffect(() => () => clearTimeout(searchDebounceRef.current), []);
+
+  useEffect(() => {
+    dispatch(fetchOrderEditRange());
+  }, [dispatch, storeId?.id]);
 
   useEffect(() => {
     setTableOrders(cloneOrders(Orders));
@@ -1045,8 +1087,11 @@ function OrderListTable({ Orders }) {
 
       const status = String(order?.["Order Status"] || "").toLowerCase();
       const type = String(order?.order_type || "").toLowerCase();
+      const hasRmaOrders =
+        Array.isArray(order?.rmaOrderNos) && order.rmaOrderNos.length > 0;
 
-      if (status === "delivered") cellProperties.className = "delivered-row";
+      if (hasRmaOrders) cellProperties.className = "rma-row";
+      else if (status === "delivered") cellProperties.className = "delivered-row";
       else if (status === "cancelled")
         cellProperties.className = "cancelled-row";
       else if (status === "incomplete")
@@ -1411,7 +1456,78 @@ function OrderListTable({ Orders }) {
         >
           <h2>Dashboard - Order Sheet</h2>
 
-          <div style={{ display: "flex", gap: "12px" }}>
+          <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                width: "300px",
+                padding: "0 10px",
+                height: "38px",
+                border: "1px solid #d1d5db",
+                borderRadius: "6px",
+                background: "#fff",
+              }}
+            >
+              <Search size={16} color="#9ca3af" style={{ flexShrink: 0 }} />
+              <input
+                type="text"
+                value={searchInput}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") runOrderSearch(searchInput);
+                  if (e.key === "Escape" && searchInput) {
+                    setSearchInput("");
+                    runOrderSearch("");
+                  }
+                }}
+                placeholder="Search order#, customer, email, part#, status, date..."
+                title="Order No, Customer, Email, Part#, Status, Date, Tracking, etc."
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  border: "none",
+                  outline: "none",
+                  fontSize: "13px",
+                  background: "transparent",
+                }}
+              />
+              {orderloading && searchInput ? (
+                <span
+                  style={{
+                    width: "14px",
+                    height: "14px",
+                    border: "2px solid #c7d2fe",
+                    borderTopColor: "#4f46e5",
+                    borderRadius: "50%",
+                    flexShrink: 0,
+                  }}
+                  className="animate-spin"
+                />
+              ) : (
+                searchInput && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchInput("");
+                      runOrderSearch("");
+                    }}
+                    title="Clear search"
+                    style={{
+                      display: "flex",
+                      border: "none",
+                      background: "transparent",
+                      cursor: "pointer",
+                      padding: 0,
+                      color: "#9ca3af",
+                    }}
+                  >
+                    <X size={16} />
+                  </button>
+                )
+              )}
+            </div>
             {permissionOfSaveBtn && hasPendingChecks && (
               <button
                 onClick={handleSaveCheckedFields}
@@ -1511,6 +1627,50 @@ function OrderListTable({ Orders }) {
             padding: isFullScreen ? "8px 12px 12px" : "0 0 48px",
           }}
         >
+          {/* Loading overlay — dims the table while orders are fetched or checks are saved */}
+          {(orderloading || orderCheckLoading) && (
+            <div
+              aria-busy="true"
+              aria-live="polite"
+              style={{
+                position: "absolute",
+                inset: 0,
+                zIndex: 200,
+                background: "rgba(255, 255, 255, 0.6)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "progress",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  padding: "10px 16px",
+                  background: "#fff",
+                  borderRadius: "999px",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  color: "#4f46e5",
+                }}
+              >
+                <span
+                  className="animate-spin"
+                  style={{
+                    width: "18px",
+                    height: "18px",
+                    border: "3px solid #c7d2fe",
+                    borderTopColor: "#4f46e5",
+                    borderRadius: "50%",
+                  }}
+                />
+                {orderCheckLoading ? "Saving checks..." : "Loading orders..."}
+              </div>
+            </div>
+          )}
           {isFullScreen && (
             <div
               style={{
@@ -1552,6 +1712,7 @@ function OrderListTable({ Orders }) {
           `}</style>
           {findOpen && (
             <div
+              data-keep-selection
               style={{
                 position: "absolute",
                 top: isFullScreen ? 8 : 4,
@@ -1789,13 +1950,28 @@ function OrderListTable({ Orders }) {
             // Important settings
             readOnly={true}
             disableVisualSelection={false}
-            outsideClickDeselects={false}
+            // Clicking outside the sheet clears the selection, except inside HOT's
+            // own menus (context / filter dropdowns) and the Find bar
+            outsideClickDeselects={(target) =>
+              !target?.closest?.(
+                ".htContextMenu, .htDropdownMenu, .htFiltersConditionsMenu, .htMenu, [data-keep-selection]",
+              )
+            }
             afterGetColHeader={handleAfterGetColHeader}
             nestedHeaders={nestedHeaders}
             contextMenu={{
               items: {
                 edit: {
-                  name: "Edit",
+                  name: function () {
+                    const selected = this.getSelectedLast();
+                    const order = selected ? getOrderAtRow(selected[0]) : null;
+                    return "Edit";
+                  },
+                  disabled: function () {
+                    const selected = this.getSelectedLast();
+                    if (!selected) return true;
+                    return isOrderEditLocked(getOrderAtRow(selected[0]));
+                  },
                   hidden: function () {
                     // // Hide if user doesn't have permission
                     // if (!hasPermission("view_sheet.edit_order")) return true;
@@ -1807,6 +1983,7 @@ function OrderListTable({ Orders }) {
                   },
                   callback: function (key, selection) {
                     const row = selection[0].start.row;
+                    if (isOrderEditLocked(getOrderAtRow(row))) return;
                     handleOrderClick(row); // your existing handler
                   },
                 },
