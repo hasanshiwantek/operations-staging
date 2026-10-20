@@ -108,11 +108,13 @@ const EditOrderDetailModal = ({
     "Profit %",
     "Card Payment",
   ];
-  // Order Status is fixed once the saved order is cancelled, is an RMA, or has RMAs raised from it
+  // Order Status is fixed once the saved order is cancelled, incomplete, is an RMA, or has RMAs raised from it
   const isOrderStatusLocked =
     Boolean(isRMAMode) ||
     String(order?.order_type || "").toLowerCase() === "rma" ||
     isCancelledStatus(order?.["Order Status"]) ||
+    String(order?.["Order Status"] || "").trim().toLowerCase() === "incomplete" ||
+    String(order?.order_type || "").toLowerCase() === "incomplete" ||
     (Array.isArray(order?.rmaOrderNos) && order.rmaOrderNos.length > 0);
 
   const isFieldLocked = (fieldName) => {
