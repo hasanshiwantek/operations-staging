@@ -282,14 +282,13 @@ function OrderListTable({ Orders }) {
   const hotRef = useRef(null);
   const isRightClickRef = useRef(false);
   const expandingRef = useRef(false);
-  const isContextMenuOpen = useRef(false);
   const [tableOrders, setTableOrders] = useState(() => cloneOrders(Orders));
   const { orderloading, syncLoading, orderCheckLoading, orderSearch } =
     useSelector((state) => state.users);
   // Search box text; the API search runs once typing pauses
   const [searchInput, setSearchInput] = useState(orderSearch || "");
   const searchDebounceRef = useRef(null);
-  const { token, storeId, user: authUser } = useSelector((state) => state.auth);
+  const { storeId, user: authUser } = useSelector((state) => state.auth);
   const { user } = useSelector((state) => state?.auth);
   const { userPermissions } = useSelector((state) => state?.permissions);
   const permissions = userPermissions || [];
