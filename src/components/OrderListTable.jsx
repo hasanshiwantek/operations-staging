@@ -3,6 +3,7 @@ import { registerAllModules } from "handsontable/registry";
 import { textRenderer } from "handsontable/renderers";
 import "handsontable/styles/handsontable.min.css";
 import "handsontable/styles/ht-theme-main.min.css";
+import { Search, X } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -12,12 +13,11 @@ import React, {
 } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import * as XLSX from "xlsx";
-import { Search, X } from "lucide-react";
-import { fetchOrderTypesMap } from "../store/orderTypeSlice";
 import {
   fetchOrderEditRange,
   getEditRangeStartDate,
 } from "../store/orderEditRangeSlice";
+import { fetchOrderTypesMap } from "../store/orderTypeSlice";
 import {
   createGenerateId,
   fetchOrderOptions,
@@ -104,7 +104,8 @@ function numberTextRenderer(
     prop
   ];
   const raw = source && typeof source === "object" ? source.value : source;
-  const text = prop === "Qty" ? formatNumberCell(raw, 0) : formatNumberCell(raw);
+  const text =
+    prop === "Qty" ? formatNumberCell(raw, 0) : formatNumberCell(raw);
   textRenderer(instance, td, row, col, prop, text, cellProperties);
 }
 
@@ -1002,7 +1003,10 @@ function OrderListTable({ Orders }) {
 
       setExcelExport({ message: "Saving Excel file...", progress: null });
       await pause();
-      XLSX.writeFile(wb, `Orders_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      XLSX.writeFile(
+        wb,
+        `Orders_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      );
     } catch (err) {
       if (err instanceof ExportCancelledError) return;
       console.error("Excel export failed:", err);
@@ -1143,7 +1147,8 @@ function OrderListTable({ Orders }) {
         Array.isArray(order?.rmaOrderNos) && order.rmaOrderNos.length > 0;
 
       if (hasRmaOrders) cellProperties.className = "rma-row";
-      else if (status === "delivered") cellProperties.className = "delivered-row";
+      else if (status === "delivered")
+        cellProperties.className = "delivered-row";
       else if (status === "cancelled")
         cellProperties.className = "cancelled-row";
       else if (status === "incomplete")
@@ -2024,11 +2029,7 @@ function OrderListTable({ Orders }) {
             contextMenu={{
               items: {
                 edit: {
-                  name: function () {
-                    const selected = this.getSelectedLast();
-                    const order = selected ? getOrderAtRow(selected[0]) : null;
-                    return "Edit";
-                  },
+                  name: "Edit",
                   disabled: function () {
                     const selected = this.getSelectedLast();
                     if (!selected) return true;
@@ -2051,6 +2052,11 @@ function OrderListTable({ Orders }) {
                 },
                 create_part: {
                   name: "Create part order",
+                  disabled: function () {
+                    const selected = this.getSelectedLast();
+                    if (!selected) return true;
+                    return isOrderEditLocked(getOrderAtRow(selected[0]));
+                  },
                   hidden: function () {
                     const selected = this.getSelectedLast();
                     if (!selected || selected[0] < 0) return true;
@@ -2072,6 +2078,7 @@ function OrderListTable({ Orders }) {
                   },
                   callback: async (key, selection) => {
                     const row = selection[0].start.row;
+                    if (isOrderEditLocked(getOrderAtRow(row))) return;
 
                     let { order_type, ...originalOrder } =
                       getOrderAtRow(row) || {};
@@ -2102,6 +2109,11 @@ function OrderListTable({ Orders }) {
                 },
                 rma: {
                   name: "RMA",
+                  disabled: function () {
+                    const selected = this.getSelectedLast();
+                    if (!selected) return true;
+                    return isOrderEditLocked(getOrderAtRow(selected[0]));
+                  },
                   hidden: function () {
                     const selected = this.getSelectedLast();
                     if (!selected || selected[0] < 0) return true;
@@ -2120,6 +2132,7 @@ function OrderListTable({ Orders }) {
                   },
                   callback: async (key, selection) => {
                     const row = selection[0].start.row;
+                    if (isOrderEditLocked(getOrderAtRow(row))) return;
                     let { order_type, ...originalOrder } =
                       getOrderAtRow(row) || {};
 
