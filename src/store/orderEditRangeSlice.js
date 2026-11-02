@@ -98,6 +98,46 @@ export const saveOrderEditRange = createAsyncThunk(
     }
 );
 
+// ==========================
+// GET / SAVE Order View Range (Admin)
+// ==========================
+// How far back users can see orders. Same month format and chips as the edit
+// range; the server filters the order list by it, so no state is kept here.
+export const fetchOrderViewRange = createAsyncThunk(
+    "orderEditRange/fetchOrderViewRange",
+    async ({ storeId } = {}, { rejectWithValue }) => {
+        try {
+            const response = await axiosInstance.get(
+                `/auth/view-order-range`,
+                storeHeaders(storeId)
+            );
+            return response.data;
+        } catch (error) {
+            return rejectWithValue(
+                error.response?.data?.message || "Failed to fetch order view range"
+            );
+        }
+    }
+);
+
+export const saveOrderViewRange = createAsyncThunk(
+    "orderEditRange/saveOrderViewRange",
+    async ({ months, storeId }, { rejectWithValue }) => {
+        try {
+            const response = await axiosInstance.post(
+                `/auth/view-order-range`,
+                { month: monthsToStartMonth(months) },
+                storeHeaders(storeId)
+            );
+            return response.data;
+        } catch (error) {
+            return rejectWithValue(
+                error.response?.data?.message || "Failed to save order view range"
+            );
+        }
+    }
+);
+
 const initialState = {
     month: null,
     loading: false,

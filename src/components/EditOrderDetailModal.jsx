@@ -52,6 +52,18 @@ const isCancelledStatus = (status) =>
       .trim()
       .toLowerCase(),
   );
+
+// Fields that block saving, as { field: message }; add new checks here
+const validateForm = (data) => {
+  const errors = {};
+  if (
+    isCancelledStatus(data["Order Status"]) &&
+    !String(data["Entry Reason"] || "").trim()
+  ) {
+    errors["Entry Reason"] = "Enter an Entry Reason before cancelling this order.";
+  }
+  return errors;
+};
 const EditOrderDetailModal = ({
   order,
   onClose,
@@ -66,6 +78,9 @@ const EditOrderDetailModal = ({
   const [unlockedFields, setUnlockedFields] = useState(new Set());
   const [fetching, setFetching] = useState(false);
   const [baseOrder, setBaseOrder] = useState(null);
+  // Fields that failed validation on Save, shown in red until fixed
+  const [fieldErrors, setFieldErrors] = useState({});
+  const fieldsRef = useRef(null);
   const columns = useBalancedColumns(
     Object.keys(formData).filter((key) => key !== "order_type").length,
   );
@@ -240,13 +255,42 @@ const EditOrderDetailModal = ({
     }
   };
 
+  // A highlighted field turns back to normal as soon as its check passes
+  // (e.g. a reason is typed, or the status is changed away from Cancelled)
+  useEffect(() => {
+    setFieldErrors((prev) => {
+      const keys = Object.keys(prev);
+      if (!keys.length) return prev;
+      const current = validateForm(formData);
+      const next = Object.fromEntries(
+        keys.filter((key) => current[key]).map((key) => [key, current[key]]),
+      );
+      return Object.keys(next).length === keys.length ? prev : next;
+    });
+  }, [formData]);
+
+  // Scroll a field into view and put the cursor in it (after this render)
+  const focusField = (key) => {
+    setTimeout(() => {
+      const box = fieldsRef.current?.querySelector(
+        `[data-field="${CSS.escape(key)}"]`,
+      );
+      if (!box) return;
+      box.scrollIntoView({ block: "center", behavior: "smooth" });
+      box.querySelector("input, textarea, select, button")?.focus({
+        preventScroll: true,
+      });
+    });
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (
-      isCancelledStatus(formData["Order Status"]) &&
-      !String(formData["Entry Reason"] || "").trim()
-    ) {
-      toast.error("Enter an Entry Reason before cancelling this order.");
+    const errors = validateForm(formData);
+    const [firstError] = Object.keys(errors);
+    if (firstError) {
+      setFieldErrors(errors);
+      toast.error(errors[firstError]);
+      focusField(firstError);
       return;
     }
     onSave(normalizeNumberFields(formData));
@@ -322,6 +366,7 @@ const EditOrderDetailModal = ({
           )}
 
           <div
+            ref={fieldsRef}
             className="
                         flex
                         flex-wrap
@@ -427,32 +472,36 @@ const EditOrderDetailModal = ({
                 );
               };
 
+              const fieldError = fieldErrors[key];
+
               return (
                 <div
                   key={key}
+                  data-field={key}
                   style={fieldWidth}
-                  className="
+                  title={fieldError || undefined}
+                  className={`
         flex-none
         min-w-0
         border
-        border-gray-300
         rounded-sm
         overflow-hidden
         bg-white
-    "
+        ${fieldError ? "border-red-500 ring-2 ring-red-300" : "border-gray-300"}
+    `}
                 >
                   {/* Label + Pen Icon */}
                   <div
-                    className="
+                    className={`
                                         min-h-[28px] 2xl:min-h-[34px]
                                         px-1
                                         py-[3px]
-                                        bg-indigo-600
+                                        ${fieldError ? "bg-red-600" : "bg-indigo-600"}
                                         flex
                                         items-center
                                         justify-center
                                         gap-1
-                                    "
+                                    `}
                   >
                     <label
                       className="
@@ -525,7 +574,9 @@ const EditOrderDetailModal = ({
                                         ${
                                           isDisabled || optionsLoading
                                             ? "bg-[#dcebd6] text-gray-700"
-                                            : "bg-white text-gray-800"
+                                            : fieldError
+                                              ? "bg-red-50 text-gray-800"
+                                              : "bg-white text-gray-800"
                                         }
                                         ${
                                           unlocksOnFieldClick

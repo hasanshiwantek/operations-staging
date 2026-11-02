@@ -65,6 +65,9 @@ const HOT_STYLE = { zIndex: 10 };
 // More changed rows than this and the grid is reloaded instead of patched
 const MAX_PATCHED_ROWS = 20;
 
+// How long a just-saved row stays highlighted after the sheet reloads
+const ROW_FLASH_MS = 4000;
+
 const stopHeaderMouseDown = (event, coords) => {
   if (coords.row === -1) event.stopImmediatePropagation();
 };
@@ -422,6 +425,8 @@ function OrderListTable({ Orders, isActive = true }) {
   const [orderTypeFilter, setOrderTypeFilter] = useState("all");
   // Rows left visible by the column filters (null = no column filter active)
   const [visibleOrders, setVisibleOrders] = useState(null);
+  // Columns with a filter applied (drives the "Clear filters" button)
+  const [columnFilterCount, setColumnFilterCount] = useState(0);
   // Bumped whenever sorting/filtering changes which cell sits where
   const [gridVersion, setGridVersion] = useState(0);
   // Find bar (Ctrl+F)
@@ -542,6 +547,42 @@ function OrderListTable({ Orders, isActive = true }) {
   // keeps them by reference) and the orders they were made from
   const gridDataRef = useRef([]);
   const gridOrdersRef = useRef(null);
+  // The grid instance that holds gridDataRef; a new instance (StrictMode
+  // re-mount, wrapper re-init) starts empty and must get every row again
+  const gridInstanceRef = useRef(null);
+
+  // ---------- Saved-row highlight ----------
+  // After a save the whole sheet reloads, so the rows the user just saved are
+  // highlighted (and scrolled to) once the new data lands. pendingFlashIdsRef
+  // holds the Order#s until then; flashIdsRef is what `cells` reads.
+  const pendingFlashIdsRef = useRef(null);
+  const flashIdsRef = useRef(new Set());
+  const flashTimerRef = useRef(null);
+
+  const flashSavedRows = (hot) => {
+    const ids = pendingFlashIdsRef.current;
+    if (!ids?.length) return;
+    pendingFlashIdsRef.current = null;
+    flashIdsRef.current = new Set(ids.map(String));
+
+    const physicalRow = gridDataRef.current.findIndex((row) =>
+      flashIdsRef.current.has(String(row?.["Order#"])),
+    );
+    const visualRow = physicalRow === -1 ? null : hot.toVisualRow(physicalRow);
+    // A few rows above it stay in view for context
+    if (visualRow != null && visualRow >= 0) {
+      hot.scrollViewportTo(Math.max(0, visualRow - 3));
+    }
+    hot.render();
+
+    clearTimeout(flashTimerRef.current);
+    flashTimerRef.current = setTimeout(() => {
+      flashIdsRef.current = new Set();
+      if (!hot.isDestroyed) hot.render();
+    }, ROW_FLASH_MS);
+  };
+
+  useEffect(() => () => clearTimeout(flashTimerRef.current), []);
 
   const syncVisibleOrders = useCallback(() => {
     const hot = hotRef.current?.hotInstance;
@@ -579,10 +620,24 @@ function OrderListTable({ Orders, isActive = true }) {
       tableStateRef.current.conditions = hot
         .getPlugin("filters")
         .exportConditions();
+      setColumnFilterCount(tableStateRef.current.conditions.length);
     }
     syncVisibleOrders();
     setGridVersion((v) => v + 1);
   }, [syncVisibleOrders]);
+
+  // Every column filter plus the "Filter by Color" one, cleared in one go
+  const activeFilterCount =
+    columnFilterCount + (orderTypeFilter !== "all" ? 1 : 0);
+  const clearAllFilters = () => {
+    const hot = hotRef.current?.hotInstance;
+    if (hot && !hot.isDestroyed) {
+      const filters = hot.getPlugin("filters");
+      filters.clearConditions();
+      filters.filter();
+    }
+    setOrderTypeFilter("all");
+  };
 
   const handleAfterColumnSort = useCallback(() => {
     const hot = hotRef.current?.hotInstance;
@@ -618,11 +673,11 @@ function OrderListTable({ Orders, isActive = true }) {
     gridOrdersRef.current = filteredOrders;
 
     // A checkbox tick swaps just one order object. Patch those few rows in
-    // place and redraw instead of reloading every row — updateData re-runs
-    // filters and sorting over all of them. (A tick only changes the
-    // checked/highlight flags, which filters and sorting don't read.)
+    // place instead of reloading every row; an active column filter or sort
+    // is re-applied in case the patched values affect it.
     if (
       prevOrders &&
+      gridInstanceRef.current === hot &&
       prevOrders.length === filteredOrders.length &&
       gridData.length === tableData.length
     ) {
@@ -634,15 +689,43 @@ function OrderListTable({ Orders, isActive = true }) {
         }
       }
       if (changed.length <= MAX_PATCHED_ROWS) {
-        changed.forEach((i) => Object.assign(gridData[i], tableData[i]));
-        if (changed.length) hot.render();
+        if (!changed.length) return;
+        const cache = tableRowCacheRef.current;
+        changed.forEach((i) => {
+          Object.assign(gridData[i], tableData[i]);
+          // The patched grid row now belongs to the new order. Drop the old
+          // order's cache entry, or if that order object comes back (e.g. a
+          // tick is reverted) it would map to this row with the wrong values.
+          cache.delete(prevOrders[i]);
+          cache.set(filteredOrders[i], gridData[i]);
+        });
+        const filters = hot.getPlugin("filters");
+        const sorting = hot.getPlugin("columnSorting");
+        if (filters.isEnabled() && filters.exportConditions().length) {
+          filters.filter();
+        }
+        const sortConfig = sorting.isEnabled() ? sorting.getSortConfig() : [];
+        if (sortConfig.length) sorting.sort(sortConfig);
+        hot.render();
+        flashSavedRows(hot);
         return;
       }
     }
 
     gridDataRef.current = tableData;
+    gridInstanceRef.current = hot;
     hot.updateData(tableData);
+    // updateData keeps the filter/sort settings but not their result, so new
+    // rows (a reload after saving, the colour filter) would show unfiltered
+    const filters = hot.getPlugin("filters");
+    const sorting = hot.getPlugin("columnSorting");
+    if (filters.isEnabled() && filters.exportConditions().length) {
+      filters.filter();
+    }
+    const sortConfig = sorting.isEnabled() ? sorting.getSortConfig() : [];
+    if (sortConfig.length) sorting.sort(sortConfig);
     syncVisibleOrders();
+    flashSavedRows(hot);
   }, [filteredOrders, tableData, syncVisibleOrders]);
 
   // ---------- Find (Ctrl+F) ----------
@@ -1276,6 +1359,7 @@ function OrderListTable({ Orders, isActive = true }) {
     dispatch(updateFinanceOrderCheck(payload))
       .unwrap()
       .then(() => {
+        pendingFlashIdsRef.current = payload.map((row) => row.order_id);
         dispatch(fetchOrdersAdmin(storeId?.id));
       })
       .catch((error) => {
@@ -1312,7 +1396,9 @@ function OrderListTable({ Orders, isActive = true }) {
   const cells = useCallback(
     (row, col) => {
       const order = filteredOrdersRef.current?.[row];
-      const cellProperties = {};
+      // Always return a className: the grid caches cell meta, so leaving it
+      // out would keep a colour class the cell no longer has
+      const cellProperties = { className: "" };
       if (!order) return cellProperties;
 
       const status = String(order?.["Order Status"] || "").toLowerCase();
@@ -1331,6 +1417,11 @@ function OrderListTable({ Orders, isActive = true }) {
         cellProperties.className = "incomplete-row";
       else if (type === "po") cellProperties.className = "po-row";
       else if (type === "rma") cellProperties.className = "rma-row";
+
+      // Just-saved row (see flashSavedRows)
+      if (flashIdsRef.current.has(String(order["Order#"]))) {
+        cellProperties.className = `${cellProperties.className} row-flash`.trim();
+      }
 
       const column = columnsOfSheet[col]?.data;
       if (!column) return cellProperties;
@@ -1493,9 +1584,18 @@ function OrderListTable({ Orders, isActive = true }) {
       dispatch(fetchOrderTypesMap(storeId.id));
     }
   }, [storeId?.id]);
+  // Esc closes the innermost layer first: an open Find bar, then full screen
+  const findOpenRef = useRef(findOpen);
+  findOpenRef.current = findOpen;
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === "Escape") setIsFullScreen(false);
+      if (e.key !== "Escape") return;
+      if (findOpenRef.current) {
+        setFindOpen(false);
+        hotRef.current?.hotInstance?.listen();
+        return;
+      }
+      setIsFullScreen(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -1525,8 +1625,17 @@ function OrderListTable({ Orders, isActive = true }) {
 
   // ---------- Stable grid props (see MemoHotTable) ----------
   // Sized from the server data only, so ticking checkboxes or filtering
-  // doesn't make the columns jump
-  const colWidths = useMemo(() => estimateColumnWidths(Orders || []), [Orders]);
+  // doesn't make the columns jump. The previous array is kept when the widths
+  // come out the same (e.g. after a saved edit), so the grid isn't reconfigured.
+  const colWidthsRef = useRef(null);
+  const colWidths = useMemo(() => {
+    const next = estimateColumnWidths(Orders || []);
+    const prev = colWidthsRef.current;
+    if (prev && prev.length === next.length && prev.every((w, i) => w === next[i]))
+      return prev;
+    colWidthsRef.current = next;
+    return next;
+  }, [Orders]);
 
   const handleAfterRenderer = useCallback(
     (td, row, col) => {
@@ -1534,9 +1643,9 @@ function OrderListTable({ Orders, isActive = true }) {
       const column = columnsOfSheet[col]?.data;
       const color = resolveCellColor(order, column);
 
-      if (color) {
-        td.style.backgroundColor = color;
-      }
+      // Always set (or clear): cells are recycled, so a cell that lost its
+      // colour would otherwise keep the previous one
+      td.style.backgroundColor = color || "";
 
       // Find (Ctrl+F) highlights — toggled so recycled cells don't keep them
       const { matches, current } = findHighlightRef.current;
@@ -1789,6 +1898,33 @@ function OrderListTable({ Orders, isActive = true }) {
   //     </div>
   //   );
   // }
+
+  // Shown in the toolbar and the full-screen bar while any filter is applied
+  const clearFiltersButton = activeFilterCount > 0 && (
+    <button
+      type="button"
+      onClick={clearAllFilters}
+      title="Remove every column filter and the colour filter"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "8px 14px",
+        borderRadius: 8,
+        border: "1px solid #fca5a5",
+        background: "#fff",
+        color: "#b91c1c",
+        fontSize: 13,
+        fontWeight: 600,
+        cursor: "pointer",
+        whiteSpace: "nowrap",
+      }}
+    >
+      <X size={14} />
+      Clear filters ({activeFilterCount})
+    </button>
+  );
+
   return (
     <React.Fragment>
       {selectedOrder && (
@@ -1829,6 +1965,7 @@ function OrderListTable({ Orders, isActive = true }) {
               )
                 .unwrap()
                 .then(() => {
+                  pendingFlashIdsRef.current = [updatedOrder["Order#"]];
                   dispatch(fetchOrdersAdmin(storeId?.id));
                   setSelectedOrder(null);
                   setIsCreatePartMode(false);
@@ -1849,6 +1986,7 @@ function OrderListTable({ Orders, isActive = true }) {
               )
                 .unwrap()
                 .then(() => {
+                  pendingFlashIdsRef.current = [updatedOrder["Order#"]];
                   dispatch(fetchOrdersAdmin(storeId?.id));
                   setSelectedOrder(null);
                   setIsRMAMode(false);
@@ -1872,6 +2010,7 @@ function OrderListTable({ Orders, isActive = true }) {
               )
                 .unwrap()
                 .then(() => {
+                  pendingFlashIdsRef.current = [updatedOrder["Order#"]];
                   dispatch(fetchOrdersAdmin(storeId?.id));
                   setSelectedOrder(null);
                 })
@@ -2000,6 +2139,7 @@ function OrderListTable({ Orders, isActive = true }) {
                 )
               )}
             </div>
+            {clearFiltersButton}
             {permissionOfSaveBtn && hasPendingChecks && (
               <button
                 onClick={handleSaveCheckedFields}
@@ -2158,6 +2298,7 @@ function OrderListTable({ Orders, isActive = true }) {
               style={{
                 display: "flex",
                 alignItems: "center",
+                gap: 8,
                 height: 44,
                 flexShrink: 0,
               }}
@@ -2182,9 +2323,41 @@ function OrderListTable({ Orders, isActive = true }) {
               >
                 ← Back
               </button>
+              {clearFiltersButton}
+              {/* Save checked fields without leaving full screen */}
+              {permissionOfSaveBtn && hasPendingChecks && (
+                <button
+                  type="button"
+                  onClick={handleSaveCheckedFields}
+                  disabled={orderCheckLoading}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: 8,
+                    border: "none",
+                    background: "#db2777",
+                    color: "#fff",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: orderCheckLoading ? "progress" : "pointer",
+                    boxShadow: "0 2px 8px rgba(219,39,119,0.3)",
+                  }}
+                >
+                  {orderCheckLoading ? "Saving..." : "Save"}
+                </button>
+              )}
             </div>
           )}
           <style>{`
+            /* Just-saved row: a blue overlay (row colours use !important
+               backgrounds, and red/yellow/green/pink already mean a status)
+               that holds, then fades out */
+            @keyframes ht-row-flash {
+              0%, 70% { box-shadow: inset 0 0 0 9999px rgba(59, 130, 246, 0.4); }
+              100% { box-shadow: inset 0 0 0 9999px rgba(59, 130, 246, 0); }
+            }
+            .handsontable td.row-flash {
+              animation: ht-row-flash ${ROW_FLASH_MS}ms ease-out forwards;
+            }
             .handsontable td.ht-find-match.ht-find-match {
               background-color: #fff3a3 !important;
             }

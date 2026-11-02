@@ -12,10 +12,49 @@ import {
 } from "../store/usersSlice";
 import {
   fetchOrderEditRange,
+  fetchOrderViewRange,
   getEditRangeMonths,
   ORDER_EDIT_RANGE_OPTIONS,
   saveOrderEditRange,
+  saveOrderViewRange,
 } from "../store/orderEditRangeSlice";
+
+// One row of "Past N months" chips (used for the edit and view windows).
+// Chips wider than maxValue are disabled, with disabledTitle as the reason.
+const RangeChips = ({ label, value, onChange, maxValue, disabledTitle }) => (
+  <div className="flex flex-col gap-2">
+    <span className="text-sm font-medium text-gray-700">{label}</span>
+    <div className="flex flex-wrap gap-2">
+      {ORDER_EDIT_RANGE_OPTIONS.map((option) => {
+        const active = value === option.value;
+        const disabled = maxValue != null && option.value > maxValue;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            disabled={disabled}
+            title={disabled ? disabledTitle : undefined}
+            onClick={() => onChange(option.value)}
+            className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+              active
+                ? "bg-blue-500 border-blue-500 text-white"
+                : disabled
+                  ? "bg-gray-50 border-gray-200 text-gray-300 cursor-not-allowed"
+                  : "bg-white border-gray-300 text-gray-600 hover:border-blue-400"
+            }`}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  </div>
+);
+
+// Users can't edit orders they can't see, so the edit window may not be
+// wider than the view window (no limit while the view window isn't set)
+const isEditWiderThanView = (editMonths, viewMonths) =>
+  editMonths != null && viewMonths != null && editMonths > viewMonths;
 
 const AdminSheets = () => {
   const dispatch = useDispatch();
@@ -37,6 +76,9 @@ const AdminSheets = () => {
   // Order edit window (months) for the store being edited; initial value tracks what's saved
   const [editRangeMonths, setEditRangeMonths] = useState(null);
   const [initialEditRangeMonths, setInitialEditRangeMonths] = useState(null);
+  // Order view window (months): how far back users can see orders at all
+  const [viewRangeMonths, setViewRangeMonths] = useState(null);
+  const [initialViewRangeMonths, setInitialViewRangeMonths] = useState(null);
   const {
     register,
     handleSubmit,
@@ -76,12 +118,28 @@ const AdminSheets = () => {
         setInitialEditRangeMonths(months);
       })
       .catch(() => {});
+
+    setViewRangeMonths(null);
+    setInitialViewRangeMonths(null);
+    dispatch(fetchOrderViewRange({ storeId: sheet.id }))
+      .unwrap()
+      .then((res) => {
+        const months = getEditRangeMonths(res?.data);
+        setViewRangeMonths(months);
+        setInitialViewRangeMonths(months);
+      })
+      .catch(() => {});
   };
   const onSubmit = async (data) => {
     setLoading(true);
 
     try {
       if (editingSheet) {
+        if (isEditWiderThanView(editRangeMonths, viewRangeMonths)) {
+          toast.error("The edit range can't be wider than the view range");
+          return;
+        }
+
         const requests = [
           dispatch(
             updateSheet({
@@ -96,6 +154,17 @@ const AdminSheets = () => {
             dispatch(
               saveOrderEditRange({
                 months: editRangeMonths,
+                storeId: editingSheet.id,
+              })
+            ).unwrap()
+          );
+        }
+
+        if (viewRangeMonths && viewRangeMonths !== initialViewRangeMonths) {
+          requests.push(
+            dispatch(
+              saveOrderViewRange({
+                months: viewRangeMonths,
                 storeId: editingSheet.id,
               })
             ).unwrap()
@@ -282,30 +351,26 @@ const AdminSheets = () => {
               {errors.store_name && <span className="text-red-500 text-xs">{errors.store_name.message}</span>}
 
               {editingSheet && (
-                <div className="flex flex-col gap-2">
-                  <span className="text-sm font-medium text-gray-700">
-                    Users can edit orders from
-                  </span>
-                  <div className="flex flex-wrap gap-2">
-                    {ORDER_EDIT_RANGE_OPTIONS.map((option) => {
-                      const active = editRangeMonths === option.value;
-                      return (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => setEditRangeMonths(option.value)}
-                          className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                            active
-                              ? "bg-blue-500 border-blue-500 text-white"
-                              : "bg-white border-gray-300 text-gray-600 hover:border-blue-400"
-                          }`}
-                        >
-                          {option.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                <>
+                  <RangeChips
+                    label="Users can view orders from"
+                    value={viewRangeMonths}
+                    onChange={(months) => {
+                      setViewRangeMonths(months);
+                      // Narrowing the view also narrows an edit window that's now wider
+                      if (isEditWiderThanView(editRangeMonths, months)) {
+                        setEditRangeMonths(months);
+                      }
+                    }}
+                  />
+                  <RangeChips
+                    label="Users can edit orders from"
+                    value={editRangeMonths}
+                    onChange={setEditRangeMonths}
+                    maxValue={viewRangeMonths}
+                    disabledTitle="Can't be wider than the view range"
+                  />
+                </>
               )}
               <button
                 type="submit"
