@@ -2358,6 +2358,27 @@ function OrderListTable({ Orders, isActive = true }) {
             .handsontable td.row-flash {
               animation: ht-row-flash ${ROW_FLASH_MS}ms ease-out forwards;
             }
+            /* Filtered column header (Handsontable adds htFiltersActive):
+               solid indigo, white text and an amber underline, with the
+               dropdown arrow swapped for a funnel (like Excel), so filtered
+               columns stand out at a glance */
+            .handsontable thead th.htFiltersActive {
+              background-color: #4f46e5 !important;
+              color: #fff !important;
+              box-shadow: inset 0 -3px 0 #f59e0b !important;
+            }
+            .handsontable thead th.htFiltersActive .colHeader {
+              color: #fff !important;
+            }
+            /* Dropdown button: white funnel on a faint white chip */
+            .handsontable thead th.htFiltersActive .changeType::before {
+              background-color: #fff !important;
+              -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M21 4H3l7 8.3V18l4 2v-7.7L21 4z'/%3E%3C/svg%3E") !important;
+              mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M21 4H3l7 8.3V18l4 2v-7.7L21 4z'/%3E%3C/svg%3E") !important;
+            }
+            .handsontable thead th.htFiltersActive .changeType::after {
+              background-color: rgba(255, 255, 255, 0.2) !important;
+            }
             .handsontable td.ht-find-match.ht-find-match {
               background-color: #fff3a3 !important;
             }
