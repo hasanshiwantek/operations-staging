@@ -174,16 +174,33 @@ export const applySavedCheckboxState = (orders) => {
   });
 };
 
-// Read the logged-in user from redux-persist storage; null when missing or unparsable
+// Read the logged-in user from redux-persist storage; null when missing or unparsable.
+// The grid's checkbox renderer asks for the role on every cell it draws, so the
+// parsed user is reused until the stored auth text changes (login / logout).
+let cachedAuthText;
+let cachedUser = null;
 const getPersistedUser = () => {
+  let authText = null;
   try {
-    const persistedAuth = JSON.parse(localStorage.getItem("persist:auth") || "null");
-    const user = persistedAuth?.user;
-    if (!user || user === "undefined" || user === "null") return null;
-    return typeof user === "string" ? JSON.parse(user) : user;
+    authText = localStorage.getItem("persist:auth");
   } catch {
     return null;
   }
+  if (authText === cachedAuthText) return cachedUser;
+  cachedAuthText = authText;
+  try {
+    const persistedAuth = JSON.parse(authText || "null");
+    const user = persistedAuth?.user;
+    cachedUser =
+      !user || user === "undefined" || user === "null"
+        ? null
+        : typeof user === "string"
+          ? JSON.parse(user)
+          : user;
+  } catch {
+    cachedUser = null;
+  }
+  return cachedUser;
 };
 
 export const getIsAdmin = () => {
@@ -209,24 +226,39 @@ export const getIsOperation = () => {
 // Operation users can tick only these fields (finance flow: check what isn't highlighted yet)
 const OPERATION_CHECKBOX_FIELDS = ["CC/Paypal 4%"];
 
+// toLocaleString with options builds a new Intl.NumberFormat on every call
+// (~35x slower); the grid formats every number cell it draws, so reuse them
+const numberFormats = new Map();
+const getNumberFormat = (minDecimals, maxDecimals) => {
+  const key = `${minDecimals}:${maxDecimals}`;
+  let format = numberFormats.get(key);
+  if (!format) {
+    format = new Intl.NumberFormat("en-US", {
+      minimumFractionDigits: minDecimals,
+      maximumFractionDigits: maxDecimals,
+    });
+    numberFormats.set(key, format);
+  }
+  return format;
+};
+
 // Display a number with thousand separators (1234.5 → "1,234.50"); non-numbers pass through
 export const formatNumberCell = (value, minDecimals = 2, maxDecimals = 2) => {
   const str = String(value ?? "").trim();
   if (str === "" || str === "NaN") return "";
   const num = Number(str.replace(/[$,\s]/g, ""));
   if (!Number.isFinite(num)) return str;
-  return num.toLocaleString("en-US", {
-    minimumFractionDigits: minDecimals,
-    maximumFractionDigits: maxDecimals,
-  });
+  return getNumberFormat(minDecimals, maxDecimals).format(num);
 };
 
 const makeCheckboxRenderer = (fieldName) => {
   return function (instance, td, row, col, prop, cellValue) {
     // Read the raw { value, isTrue, ... } object from the source row, since the
     // column's valueGetter (used by filters/sorting) may pass a flattened value.
+    // getSourceDataAtCell, not getSourceDataAtRow: the latter copies the whole
+    // row on every call, which dominated the grid's render time.
     const value =
-      instance.getSourceDataAtRow(instance.toPhysicalRow(row))?.[fieldName] ??
+      instance.getSourceDataAtCell(instance.toPhysicalRow(row), col) ??
       cellValue;
     const val = getFieldValue(value);
     const checked = getFieldChecked(value);
@@ -299,10 +331,8 @@ const makeCheckboxRenderer = (fieldName) => {
   };
 };
 const makeValueRenderer = (fieldName) => {
-  return function (instance, td, row) {
-    const raw = instance.getSourceDataAtRow(instance.toPhysicalRow(row))?.[
-      fieldName
-    ];
+  return function (instance, td, row, col) {
+    const raw = instance.getSourceDataAtCell(instance.toPhysicalRow(row), col);
     td.textContent = formatNumberCell(getFieldValue(raw));
     return td;
   };
