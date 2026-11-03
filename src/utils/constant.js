@@ -225,6 +225,8 @@ export const getIsOperation = () => {
 
 // Operation users can tick only these fields (finance flow: check what isn't highlighted yet)
 const OPERATION_CHECKBOX_FIELDS = ["CC/Paypal 4%"];
+// Finance users tick every checkbox field except these (they don't handle the merchant fee)
+const FINANCE_EXCLUDED_CHECKBOX_FIELDS = ["CC/Paypal 4%"];
 
 // toLocaleString with options builds a new Intl.NumberFormat on every call
 // (~35x slower); the grid formats every number cell it draws, so reuse them
@@ -264,7 +266,8 @@ const makeCheckboxRenderer = (fieldName) => {
     const checked = getFieldChecked(value);
     const highlighted = getFieldHighlight(value);
     const isAdmin = getIsAdmin();
-    const isFinance = getIsFinance();
+    const isFinanceField =
+      getIsFinance() && !FINANCE_EXCLUDED_CHECKBOX_FIELDS.includes(fieldName);
     const isOperationField =
       getIsOperation() && OPERATION_CHECKBOX_FIELDS.includes(fieldName);
     const hasAmount = toNumber(val) > 0;
@@ -287,7 +290,7 @@ const makeCheckboxRenderer = (fieldName) => {
       hasAmount &&
       (isAdmin
         ? highlighted
-        : isFinance || isOperationField
+        : isFinanceField || isOperationField
           ? !highlighted
           : false);
 

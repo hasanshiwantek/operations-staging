@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { Lock, X } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -9,6 +9,7 @@ import {
   ENTRY_CHECK_MAX_LENGTH,
   FLAT_VALUE_FIELDS,
   formatToday,
+  getIsAdmin,
   getIsFinance,
   normalizeNumberFields,
   normalizeOrderOptions,
@@ -70,6 +71,8 @@ const EditOrderDetailModal = ({
   onSave,
   isCreatePartMode,
   isRMAMode,
+  // Fields checked and saved on the sheet: locked for everyone but admins
+  checkedFields = [],
 }) => {
   const dispatch = useDispatch();
   const [formData, setFormData] = useState({});
@@ -93,6 +96,8 @@ const EditOrderDetailModal = ({
     (state) => state.users,
   );
   const isFinance = getIsFinance();
+  const isAdmin = getIsAdmin();
+  const isCheckedLocked = (key) => !isAdmin && checkedFields.includes(key);
   const normalizedOptions = normalizeOrderOptions(orderOptions);
   const debounceRef = useRef(null);
   const lastFetchedId = useRef(null);
@@ -397,6 +402,9 @@ const EditOrderDetailModal = ({
               const isDisabled = (() => {
                 if (alwaysDisabledFields.includes(key)) return true;
 
+                // Checked and saved on the sheet: only admins may change it
+                if (isCheckedLocked(key)) return true;
+
                 if (key === "Order Status" && isOrderStatusLocked) return true;
 
                 // Fee is fixed at zero while the order is cancelled
@@ -464,12 +472,30 @@ const EditOrderDetailModal = ({
                 isDisabled &&
                 !optionsLoading;
 
+              // Unlock, then put the cursor in the field (once it's enabled)
               const unlockAndFocus = (e) => {
-                const container = e.currentTarget;
+                const container = e.currentTarget.closest("[data-field]");
                 unlockField(key);
-                requestAnimationFrame(() =>
-                  container.querySelector("input, select, textarea")?.focus(),
+                setTimeout(() =>
+                  container
+                    ?.querySelector("input:not([type=hidden]), select, textarea")
+                    ?.focus(),
                 );
+              };
+
+              // A field opened with the pencil locks again once focus moves
+              // on to another field; the edited value is kept
+              const relockOnLeave = (e) => {
+                const container = e.currentTarget;
+                setTimeout(() => {
+                  if (container.contains(document.activeElement)) return;
+                  setUnlockedFields((prev) => {
+                    if (!prev.has(key)) return prev;
+                    const next = new Set(prev);
+                    next.delete(key);
+                    return next;
+                  });
+                });
               };
 
               const fieldError = fieldErrors[key];
@@ -480,6 +506,11 @@ const EditOrderDetailModal = ({
                   data-field={key}
                   style={fieldWidth}
                   title={fieldError || undefined}
+                  onBlur={
+                    isUnlockable && unlockedFields.has(key)
+                      ? relockOnLeave
+                      : undefined
+                  }
                   className={`
         flex-none
         min-w-0
@@ -520,16 +551,26 @@ const EditOrderDetailModal = ({
                         )}
                     </label>
 
+                    {isCheckedLocked(key) && (
+                      <span
+                        className="shrink-0 text-white/80"
+                        title="Checked and saved on the sheet. Only an admin can change it."
+                      >
+                        <Lock size={13} />
+                      </span>
+                    )}
+
                     {!isFinance &&
                       isUnlockable &&
                       isDisabled &&
+                      !isCheckedLocked(key) &&
                       !(
                         key === "CC/Paypal 4%" &&
                         isCancelledStatus(formData["Order Status"])
                       ) && (
                       <button
                         type="button"
-                        onClick={() => unlockField(key)}
+                        onClick={unlockAndFocus}
                         className="
                                                 shrink-0
                                                 p-0.5

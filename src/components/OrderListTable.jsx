@@ -65,9 +65,6 @@ const HOT_STYLE = { zIndex: 10 };
 // More changed rows than this and the grid is reloaded instead of patched
 const MAX_PATCHED_ROWS = 20;
 
-// How long a just-saved row stays highlighted after the sheet reloads
-const ROW_FLASH_MS = 4000;
-
 const stopHeaderMouseDown = (event, coords) => {
   if (coords.row === -1) event.stopImmediatePropagation();
 };
@@ -230,6 +227,26 @@ function usDateRenderer(instance, td, row, col, prop, value, cellProperties) {
   );
 }
 
+// The sheet shows only these Order Statuses; any other (Shipped, Awaiting
+// Payment, …) shows as empty. Compared ignoring case, spaces and dashes, so
+// "Intransit", "In Transit" and "in-transit" all count. Display only: the
+// order itself (and the Edit form) keeps its real status.
+const SHEET_ORDER_STATUSES = new Set([
+  "cancelled",
+  "canceled",
+  "intransit",
+  "delivered",
+  "incomplete",
+]);
+const toSheetOrderStatus = (status) =>
+  SHEET_ORDER_STATUSES.has(
+    String(status ?? "")
+      .toLowerCase()
+      .replace(/[\s_-]/g, ""),
+  )
+    ? status
+    : "";
+
 // The "intl-date" type expects ISO dates in the data itself, so the grid gets
 // a shallow copy of each order with its dates converted.
 const toTableRow = (order) => {
@@ -237,6 +254,7 @@ const toTableRow = (order) => {
   DATE_COLUMNS.forEach((key) => {
     if (row[key]) row[key] = toISODate(row[key]);
   });
+  row["Order Status"] = toSheetOrderStatus(row["Order Status"]);
   return row;
 };
 
@@ -551,38 +569,34 @@ function OrderListTable({ Orders, isActive = true }) {
   // re-mount, wrapper re-init) starts empty and must get every row again
   const gridInstanceRef = useRef(null);
 
-  // ---------- Saved-row highlight ----------
+  // ---------- Saved-row selection ----------
   // After a save the whole sheet reloads, so the rows the user just saved are
-  // highlighted (and scrolled to) once the new data lands. pendingFlashIdsRef
-  // holds the Order#s until then; flashIdsRef is what `cells` reads.
-  const pendingFlashIdsRef = useRef(null);
-  const flashIdsRef = useRef(new Set());
-  const flashTimerRef = useRef(null);
+  // selected (whole row, like clicking its S.no) and scrolled to once the new
+  // data lands. They stay selected until the user selects something else.
+  // pendingSelectIdsRef holds their Order#s until then.
+  const pendingSelectIdsRef = useRef(null);
 
-  const flashSavedRows = (hot) => {
-    const ids = pendingFlashIdsRef.current;
+  const selectSavedRows = (hot) => {
+    const ids = pendingSelectIdsRef.current;
     if (!ids?.length) return;
-    pendingFlashIdsRef.current = null;
-    flashIdsRef.current = new Set(ids.map(String));
+    pendingSelectIdsRef.current = null;
 
-    const physicalRow = gridDataRef.current.findIndex((row) =>
-      flashIdsRef.current.has(String(row?.["Order#"])),
-    );
-    const visualRow = physicalRow === -1 ? null : hot.toVisualRow(physicalRow);
-    // A few rows above it stay in view for context
-    if (visualRow != null && visualRow >= 0) {
-      hot.scrollViewportTo(Math.max(0, visualRow - 3));
-    }
-    hot.render();
+    const wanted = new Set(ids.map(String));
+    const rows = [];
+    gridDataRef.current.forEach((row, physicalRow) => {
+      if (!wanted.has(String(row?.["Order#"]))) return;
+      const visualRow = hot.toVisualRow(physicalRow);
+      // Rows hidden by a filter can't be selected
+      if (visualRow != null && visualRow >= 0) rows.push(visualRow);
+    });
+    if (!rows.length) return;
+    rows.sort((a, b) => a - b);
 
-    clearTimeout(flashTimerRef.current);
-    flashTimerRef.current = setTimeout(() => {
-      flashIdsRef.current = new Set();
-      if (!hot.isDestroyed) hot.render();
-    }, ROW_FLASH_MS);
+    const lastCol = hot.countCols() - 1;
+    hot.selectCells(rows.map((row) => [row, 0, row, lastCol]));
+    // A few rows above the first one stay in view for context
+    hot.scrollViewportTo(Math.max(0, rows[0] - 3));
   };
-
-  useEffect(() => () => clearTimeout(flashTimerRef.current), []);
 
   const syncVisibleOrders = useCallback(() => {
     const hot = hotRef.current?.hotInstance;
@@ -707,7 +721,7 @@ function OrderListTable({ Orders, isActive = true }) {
         const sortConfig = sorting.isEnabled() ? sorting.getSortConfig() : [];
         if (sortConfig.length) sorting.sort(sortConfig);
         hot.render();
-        flashSavedRows(hot);
+        selectSavedRows(hot);
         return;
       }
     }
@@ -725,7 +739,7 @@ function OrderListTable({ Orders, isActive = true }) {
     const sortConfig = sorting.isEnabled() ? sorting.getSortConfig() : [];
     if (sortConfig.length) sorting.sort(sortConfig);
     syncVisibleOrders();
-    flashSavedRows(hot);
+    selectSavedRows(hot);
   }, [filteredOrders, tableData, syncVisibleOrders]);
 
   // ---------- Find (Ctrl+F) ----------
@@ -863,13 +877,22 @@ function OrderListTable({ Orders, isActive = true }) {
     return filteredOrdersRef.current?.[hot.toPhysicalRow(visualRow)];
   }, []);
 
-  // What the grid shows (column filters applied, current sort order) — used by exports
+  // What the grid shows (column filters applied, current sort order) — used by
+  // exports, with Order Status limited to the sheet's statuses like the grid
   const getGridOrders = () => {
     const hot = hotRef.current?.hotInstance;
-    if (!hot || hot.isDestroyed) return filteredOrders || [];
-    return Array.from({ length: hot.countRows() }, (_, row) =>
-      getOrderAtRow(row),
-    ).filter(Boolean);
+    const orders =
+      !hot || hot.isDestroyed
+        ? filteredOrders || []
+        : Array.from({ length: hot.countRows() }, (_, row) =>
+            getOrderAtRow(row),
+          ).filter(Boolean);
+    return orders.map((order) => {
+      const status = toSheetOrderStatus(order["Order Status"]);
+      return status === order["Order Status"]
+        ? order
+        : { ...order, "Order Status": status };
+    });
   };
 
   // Excel's "Filter by Color" — lives in the column dropdown menu
@@ -1359,7 +1382,7 @@ function OrderListTable({ Orders, isActive = true }) {
     dispatch(updateFinanceOrderCheck(payload))
       .unwrap()
       .then(() => {
-        pendingFlashIdsRef.current = payload.map((row) => row.order_id);
+        pendingSelectIdsRef.current = payload.map((row) => row.order_id);
         dispatch(fetchOrdersAdmin(storeId?.id));
       })
       .catch((error) => {
@@ -1417,11 +1440,6 @@ function OrderListTable({ Orders, isActive = true }) {
         cellProperties.className = "incomplete-row";
       else if (type === "po") cellProperties.className = "po-row";
       else if (type === "rma") cellProperties.className = "rma-row";
-
-      // Just-saved row (see flashSavedRows)
-      if (flashIdsRef.current.has(String(order["Order#"]))) {
-        cellProperties.className = `${cellProperties.className} row-flash`.trim();
-      }
 
       const column = columnsOfSheet[col]?.data;
       if (!column) return cellProperties;
@@ -1930,6 +1948,16 @@ function OrderListTable({ Orders, isActive = true }) {
       {selectedOrder && (
         <EditOrderDetailModal
           order={flattenOrderValues(selectedOrder)}
+          // Fields checked and saved on the sheet (the flattened order above
+          // loses that); the form locks them for everyone but admins. A new
+          // part order / RMA starts unchecked, so nothing is locked there.
+          checkedFields={
+            isRMAMode || isCreatePartMode
+              ? []
+              : CHECKBOX_FIELDS.filter((field) =>
+                  getFieldHighlight(selectedOrder[field]),
+                )
+          }
           onClose={() => setSelectedOrder(null)}
           isRMAMode={isRMAMode}
           isCreatePartMode={isCreatePartMode}
@@ -1965,7 +1993,7 @@ function OrderListTable({ Orders, isActive = true }) {
               )
                 .unwrap()
                 .then(() => {
-                  pendingFlashIdsRef.current = [updatedOrder["Order#"]];
+                  pendingSelectIdsRef.current = [updatedOrder["Order#"]];
                   dispatch(fetchOrdersAdmin(storeId?.id));
                   setSelectedOrder(null);
                   setIsCreatePartMode(false);
@@ -1986,7 +2014,7 @@ function OrderListTable({ Orders, isActive = true }) {
               )
                 .unwrap()
                 .then(() => {
-                  pendingFlashIdsRef.current = [updatedOrder["Order#"]];
+                  pendingSelectIdsRef.current = [updatedOrder["Order#"]];
                   dispatch(fetchOrdersAdmin(storeId?.id));
                   setSelectedOrder(null);
                   setIsRMAMode(false);
@@ -2010,7 +2038,7 @@ function OrderListTable({ Orders, isActive = true }) {
               )
                 .unwrap()
                 .then(() => {
-                  pendingFlashIdsRef.current = [updatedOrder["Order#"]];
+                  pendingSelectIdsRef.current = [updatedOrder["Order#"]];
                   dispatch(fetchOrdersAdmin(storeId?.id));
                   setSelectedOrder(null);
                 })
@@ -2348,16 +2376,6 @@ function OrderListTable({ Orders, isActive = true }) {
             </div>
           )}
           <style>{`
-            /* Just-saved row: a blue overlay (row colours use !important
-               backgrounds, and red/yellow/green/pink already mean a status)
-               that holds, then fades out */
-            @keyframes ht-row-flash {
-              0%, 70% { box-shadow: inset 0 0 0 9999px rgba(59, 130, 246, 0.4); }
-              100% { box-shadow: inset 0 0 0 9999px rgba(59, 130, 246, 0); }
-            }
-            .handsontable td.row-flash {
-              animation: ht-row-flash ${ROW_FLASH_MS}ms ease-out forwards;
-            }
             /* Filtered column header (Handsontable adds htFiltersActive):
                solid indigo, white text and an amber underline, with the
                dropdown arrow swapped for a funnel (like Excel), so filtered
