@@ -31,7 +31,6 @@ import {
 } from "../store/usersSlice";
 import {
   CHECKBOX_FIELDS,
-  cloneOrders,
   columnsOfSheet,
   FLAT_VALUE_FIELDS,
   flattenOrderValues,
@@ -52,6 +51,112 @@ import ExportProgressModal, {
 import OrderDetailModal from "./OrderDetailModal";
 
 registerAllModules();
+
+// The React wrapper calls updateSettings with every prop each time HotTable
+// renders, which re-initialises plugins and redraws the whole grid. Memoizing
+// it keeps unrelated state (search box, find bar, selection summary, modals)
+// from touching the grid — so every prop passed to it must stay stable.
+const MemoHotTable = React.memo(
+  React.forwardRef((props, ref) => <HotTable ref={ref} {...props} />),
+);
+
+const HOT_STYLE = { zIndex: 10 };
+
+// More changed rows than this and the grid is reloaded instead of patched
+const MAX_PATCHED_ROWS = 20;
+
+const stopHeaderMouseDown = (event, coords) => {
+  if (coords.row === -1) event.stopImmediatePropagation();
+};
+
+// Clicking outside the sheet clears the selection, except inside HOT's
+// own menus (context / filter dropdowns) and the Find bar
+const outsideClickDeselects = (target) =>
+  !target?.closest?.(
+    ".htContextMenu, .htDropdownMenu, .htFiltersConditionsMenu, .htMenu, [data-keep-selection]",
+  );
+
+// ========== Column widths ==========
+// Replaces autoColumnSize, which measured cells in the DOM across every row on
+// each data load. Here only the few longest values per column (by character
+// count) are measured, on a canvas with the grid's font.
+const CELL_FONT = '14px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'; // ht-theme-main
+const HEADER_FONT = `700 ${CELL_FONT}`;
+const CELL_PADDING_PX = 18; // td padding + border + a little slack
+const HEADER_EXTRA_PX = 38; // th padding + dropdown menu button
+const CHECKBOX_WIDTH_PX = 20;
+const MIN_COL_WIDTH = 60;
+const MAX_COL_WIDTH = 320;
+const MEASURED_PER_COLUMN = 5;
+
+let measureContext = null;
+const measureText = (text, font) => {
+  measureContext ??= document.createElement("canvas").getContext("2d");
+  measureContext.font = font;
+  return measureContext.measureText(text).width;
+};
+
+// Length of a number as formatNumberCell shows it: "-1,234,567.89"
+const formattedNumberLength = (raw, decimals) => {
+  const num = Number(String(raw).replace(/[$,\s]/g, ""));
+  if (!Number.isFinite(num)) return String(raw).length;
+  const digits = String(Math.trunc(Math.abs(num))).length;
+  return (
+    digits +
+    Math.floor((digits - 1) / 3) +
+    (decimals ? decimals + 1 : 0) +
+    (num < 0 ? 1 : 0)
+  );
+};
+
+const estimateColumnWidths = (orders) =>
+  hotColumns.map((column) => {
+    if (column.width) return column.width;
+    const key = column.data;
+    const headerWidth =
+      measureText(String(column.title || ""), HEADER_FONT) + HEADER_EXTRA_PX;
+    const isDate = DATE_COLUMNS.includes(key);
+    const isNumber = NUMERIC_COLUMNS.includes(key);
+    const decimals = key === "Qty" ? 0 : 2;
+
+    // The longest values by character count, as [length, raw] pairs
+    let candidates = [];
+    if (isDate) {
+      candidates = [[10, "00/00/0000"]]; // MM/DD/YYYY
+    } else {
+      for (let i = 0; i < orders.length; i++) {
+        const value = orders[i]?.[key];
+        const raw = value && typeof value === "object" ? value.value : value;
+        if (raw === null || raw === undefined || raw === "") continue;
+        const length = isNumber
+          ? formattedNumberLength(raw, decimals)
+          : String(raw).length;
+        if (
+          candidates.length === MEASURED_PER_COLUMN &&
+          length <= candidates[candidates.length - 1][0]
+        )
+          continue;
+        candidates.push([length, raw]);
+        candidates.sort((a, b) => b[0] - a[0]);
+        candidates.length = Math.min(candidates.length, MEASURED_PER_COLUMN);
+      }
+    }
+
+    const longestText = candidates.reduce((widest, [, raw]) => {
+      const text = isNumber
+        ? formatNumberCell(raw, decimals)
+        : String(raw);
+      return Math.max(widest, measureText(text, CELL_FONT));
+    }, 0);
+
+    const cellWidth =
+      longestText +
+      CELL_PADDING_PX +
+      (CHECKBOX_FIELDS.includes(key) ? CHECKBOX_WIDTH_PX : 0);
+    return Math.ceil(
+      Math.min(MAX_COL_WIDTH, Math.max(MIN_COL_WIDTH, headerWidth, cellWidth)),
+    );
+  });
 
 // ========== Excel-style filter setup ==========
 // Handsontable's filters read each cell through the column's `valueGetter`, so
@@ -100,9 +205,8 @@ function numberTextRenderer(
   value,
   cellProperties,
 ) {
-  const source = instance.getSourceDataAtRow(instance.toPhysicalRow(row))?.[
-    prop
-  ];
+  // getSourceDataAtCell, not getSourceDataAtRow: the latter copies the whole row
+  const source = instance.getSourceDataAtCell(instance.toPhysicalRow(row), col);
   const raw = source && typeof source === "object" ? source.value : source;
   const text =
     prop === "Qty" ? formatNumberCell(raw, 0) : formatNumberCell(raw);
@@ -111,7 +215,7 @@ function numberTextRenderer(
 
 // Date cells hold ISO values in the grid (see toTableRow) but show MM/DD/YYYY
 function usDateRenderer(instance, td, row, col, prop, value, cellProperties) {
-  const raw = instance.getSourceDataAtRow(instance.toPhysicalRow(row))?.[prop];
+  const raw = instance.getSourceDataAtCell(instance.toPhysicalRow(row), col);
   textRenderer(
     instance,
     td,
@@ -123,6 +227,26 @@ function usDateRenderer(instance, td, row, col, prop, value, cellProperties) {
   );
 }
 
+// The sheet shows only these Order Statuses; any other (Shipped, Awaiting
+// Payment, …) shows as empty. Compared ignoring case, spaces and dashes, so
+// "Intransit", "In Transit" and "in-transit" all count. Display only: the
+// order itself (and the Edit form) keeps its real status.
+const SHEET_ORDER_STATUSES = new Set([
+  "cancelled",
+  "canceled",
+  "intransit",
+  "delivered",
+  "incomplete",
+]);
+const toSheetOrderStatus = (status) =>
+  SHEET_ORDER_STATUSES.has(
+    String(status ?? "")
+      .toLowerCase()
+      .replace(/[\s_-]/g, ""),
+  )
+    ? status
+    : "";
+
 // The "intl-date" type expects ISO dates in the data itself, so the grid gets
 // a shallow copy of each order with its dates converted.
 const toTableRow = (order) => {
@@ -130,6 +254,7 @@ const toTableRow = (order) => {
   DATE_COLUMNS.forEach((key) => {
     if (row[key]) row[key] = toISODate(row[key]);
   });
+  row["Order Status"] = toSheetOrderStatus(row["Order Status"]);
   return row;
 };
 
@@ -277,12 +402,17 @@ const resolveCellColor = (order, column) => {
   return "";
 };
 
-function OrderListTable({ Orders }) {
+// isActive: false while the sheet stays mounted but hidden behind another tab
+function OrderListTable({ Orders, isActive = true }) {
   const dispatch = useDispatch();
   const hotRef = useRef(null);
   const isRightClickRef = useRef(false);
   const expandingRef = useRef(false);
-  const [tableOrders, setTableOrders] = useState(() => cloneOrders(Orders));
+  // No deep copy (structuredClone took ~230ms for 6k+ orders): orders are only
+  // ever replaced, never mutated, and the grid gets its own row copies
+  const [tableOrders, setTableOrders] = useState(() => Orders || []);
+  const isActiveRef = useRef(isActive);
+  isActiveRef.current = isActive;
   const { orderloading, syncLoading, orderCheckLoading, orderSearch } =
     useSelector((state) => state.users);
   // Search box text; the API search runs once typing pauses
@@ -313,6 +443,8 @@ function OrderListTable({ Orders }) {
   const [orderTypeFilter, setOrderTypeFilter] = useState("all");
   // Rows left visible by the column filters (null = no column filter active)
   const [visibleOrders, setVisibleOrders] = useState(null);
+  // Columns with a filter applied (drives the "Clear filters" button)
+  const [columnFilterCount, setColumnFilterCount] = useState(0);
   // Bumped whenever sorting/filtering changes which cell sits where
   const [gridVersion, setGridVersion] = useState(0);
   // Find bar (Ctrl+F)
@@ -370,8 +502,21 @@ function OrderListTable({ Orders }) {
   }, [dispatch, storeId?.id]);
 
   useEffect(() => {
-    setTableOrders(cloneOrders(Orders));
+    setTableOrders(Orders || []);
   }, [Orders]);
+
+  // While hidden the grid has no size and must not take keyboard input
+  // (arrow keys / Ctrl+C on the Dashboard); when shown again, re-measure it
+  useEffect(() => {
+    const hot = hotRef.current?.hotInstance;
+    if (!hot || hot.isDestroyed) return;
+    if (isActive) {
+      hot.refreshDimensions();
+    } else {
+      hot.deselectCell();
+      hot.unlisten();
+    }
+  }, [isActive]);
 
   useEffect(() => {
     setCheckboxChangeHandler((orderId, fieldName, nextField) => {
@@ -416,6 +561,43 @@ function OrderListTable({ Orders }) {
     });
   }, [tableOrders, orderTypeFilter]);
 
+  // What the grid holds: the row objects last passed to updateData (the grid
+  // keeps them by reference) and the orders they were made from
+  const gridDataRef = useRef([]);
+  const gridOrdersRef = useRef(null);
+  // The grid instance that holds gridDataRef; a new instance (StrictMode
+  // re-mount, wrapper re-init) starts empty and must get every row again
+  const gridInstanceRef = useRef(null);
+
+  // ---------- Saved-row selection ----------
+  // After a save the whole sheet reloads, so the rows the user just saved are
+  // selected (whole row, like clicking its S.no) and scrolled to once the new
+  // data lands. They stay selected until the user selects something else.
+  // pendingSelectIdsRef holds their Order#s until then.
+  const pendingSelectIdsRef = useRef(null);
+
+  const selectSavedRows = (hot) => {
+    const ids = pendingSelectIdsRef.current;
+    if (!ids?.length) return;
+    pendingSelectIdsRef.current = null;
+
+    const wanted = new Set(ids.map(String));
+    const rows = [];
+    gridDataRef.current.forEach((row, physicalRow) => {
+      if (!wanted.has(String(row?.["Order#"]))) return;
+      const visualRow = hot.toVisualRow(physicalRow);
+      // Rows hidden by a filter can't be selected
+      if (visualRow != null && visualRow >= 0) rows.push(visualRow);
+    });
+    if (!rows.length) return;
+    rows.sort((a, b) => a - b);
+
+    const lastCol = hot.countCols() - 1;
+    hot.selectCells(rows.map((row) => [row, 0, row, lastCol]));
+    // A few rows above the first one stay in view for context
+    hot.scrollViewportTo(Math.max(0, rows[0] - 3));
+  };
+
   const syncVisibleOrders = useCallback(() => {
     const hot = hotRef.current?.hotInstance;
     if (!hot || hot.isDestroyed) return;
@@ -425,9 +607,12 @@ function OrderListTable({ Orders }) {
       return;
     }
 
+    // Our own row objects, not getSourceDataAtRow: that copies each row, which
+    // was slow over thousands of rows and never matched the identity check below
+    const gridData = gridDataRef.current;
     const rows = [];
     for (let row = 0; row < hot.countRows(); row++) {
-      const order = hot.getSourceDataAtRow(hot.toPhysicalRow(row));
+      const order = gridData[hot.toPhysicalRow(row)];
       if (order) rows.push(order);
     }
     // Keep the same array when nothing changed so we don't re-render in a loop
@@ -449,10 +634,24 @@ function OrderListTable({ Orders }) {
       tableStateRef.current.conditions = hot
         .getPlugin("filters")
         .exportConditions();
+      setColumnFilterCount(tableStateRef.current.conditions.length);
     }
     syncVisibleOrders();
     setGridVersion((v) => v + 1);
   }, [syncVisibleOrders]);
+
+  // Every column filter plus the "Filter by Color" one, cleared in one go
+  const activeFilterCount =
+    columnFilterCount + (orderTypeFilter !== "all" ? 1 : 0);
+  const clearAllFilters = () => {
+    const hot = hotRef.current?.hotInstance;
+    if (hot && !hot.isDestroyed) {
+      const filters = hot.getPlugin("filters");
+      filters.clearConditions();
+      filters.filter();
+    }
+    setOrderTypeFilter("all");
+  };
 
   const handleAfterColumnSort = useCallback(() => {
     const hot = hotRef.current?.hotInstance;
@@ -461,10 +660,20 @@ function OrderListTable({ Orders }) {
     setGridVersion((v) => v + 1);
   }, []);
 
-  const tableData = useMemo(
-    () => (filteredOrders || []).map(toTableRow),
-    [filteredOrders],
-  );
+  // Rows are cached per order object, so a checkbox tick (which replaces one
+  // order) only converts that order again
+  const tableRowCacheRef = useRef(new WeakMap());
+  const tableData = useMemo(() => {
+    const cache = tableRowCacheRef.current;
+    return (filteredOrders || []).map((order) => {
+      let row = cache.get(order);
+      if (!row) {
+        row = toTableRow(order);
+        cache.set(order, row);
+      }
+      return row;
+    });
+  }, [filteredOrders]);
 
   // The data is pushed in here instead of through the `data` prop: the React
   // wrapper re-sends every prop on each render, and re-loading the data on
@@ -472,9 +681,66 @@ function OrderListTable({ Orders }) {
   useEffect(() => {
     const hot = hotRef.current?.hotInstance;
     if (!hot || hot.isDestroyed) return;
+
+    const prevOrders = gridOrdersRef.current;
+    const gridData = gridDataRef.current;
+    gridOrdersRef.current = filteredOrders;
+
+    // A checkbox tick swaps just one order object. Patch those few rows in
+    // place instead of reloading every row; an active column filter or sort
+    // is re-applied in case the patched values affect it.
+    if (
+      prevOrders &&
+      gridInstanceRef.current === hot &&
+      prevOrders.length === filteredOrders.length &&
+      gridData.length === tableData.length
+    ) {
+      const changed = [];
+      for (let i = 0; i < tableData.length; i++) {
+        if (prevOrders[i] !== filteredOrders[i]) {
+          changed.push(i);
+          if (changed.length > MAX_PATCHED_ROWS) break;
+        }
+      }
+      if (changed.length <= MAX_PATCHED_ROWS) {
+        if (!changed.length) return;
+        const cache = tableRowCacheRef.current;
+        changed.forEach((i) => {
+          Object.assign(gridData[i], tableData[i]);
+          // The patched grid row now belongs to the new order. Drop the old
+          // order's cache entry, or if that order object comes back (e.g. a
+          // tick is reverted) it would map to this row with the wrong values.
+          cache.delete(prevOrders[i]);
+          cache.set(filteredOrders[i], gridData[i]);
+        });
+        const filters = hot.getPlugin("filters");
+        const sorting = hot.getPlugin("columnSorting");
+        if (filters.isEnabled() && filters.exportConditions().length) {
+          filters.filter();
+        }
+        const sortConfig = sorting.isEnabled() ? sorting.getSortConfig() : [];
+        if (sortConfig.length) sorting.sort(sortConfig);
+        hot.render();
+        selectSavedRows(hot);
+        return;
+      }
+    }
+
+    gridDataRef.current = tableData;
+    gridInstanceRef.current = hot;
     hot.updateData(tableData);
+    // updateData keeps the filter/sort settings but not their result, so new
+    // rows (a reload after saving, the colour filter) would show unfiltered
+    const filters = hot.getPlugin("filters");
+    const sorting = hot.getPlugin("columnSorting");
+    if (filters.isEnabled() && filters.exportConditions().length) {
+      filters.filter();
+    }
+    const sortConfig = sorting.isEnabled() ? sorting.getSortConfig() : [];
+    if (sortConfig.length) sorting.sort(sortConfig);
     syncVisibleOrders();
-  }, [tableData, syncVisibleOrders]);
+    selectSavedRows(hot);
+  }, [filteredOrders, tableData, syncVisibleOrders]);
 
   // ---------- Find (Ctrl+F) ----------
   // Re-run the search as the query/options change, and whenever the data,
@@ -565,6 +831,8 @@ function OrderListTable({ Orders }) {
   // Ctrl+F / Cmd+F opens the sheet's find bar instead of the browser's
   useEffect(() => {
     const onKey = (e) => {
+      // Hidden behind another tab: leave Ctrl+F to the browser
+      if (!isActiveRef.current) return;
       if (
         (e.ctrlKey || e.metaKey) &&
         !e.altKey &&
@@ -597,21 +865,34 @@ function OrderListTable({ Orders }) {
     }
   });
 
+  // Read through a ref so the grid callbacks below can stay stable
+  const filteredOrdersRef = useRef(filteredOrders);
+  filteredOrdersRef.current = filteredOrders;
+
   // Visual row (after sorting/filtering) → the order it shows
-  const getOrderAtRow = (visualRow) => {
+  const getOrderAtRow = useCallback((visualRow) => {
     const hot = hotRef.current?.hotInstance;
     if (!hot || visualRow === null || visualRow === undefined || visualRow < 0)
       return undefined;
-    return filteredOrders?.[hot.toPhysicalRow(visualRow)];
-  };
+    return filteredOrdersRef.current?.[hot.toPhysicalRow(visualRow)];
+  }, []);
 
-  // What the grid shows (column filters applied, current sort order) — used by exports
+  // What the grid shows (column filters applied, current sort order) — used by
+  // exports, with Order Status limited to the sheet's statuses like the grid
   const getGridOrders = () => {
     const hot = hotRef.current?.hotInstance;
-    if (!hot || hot.isDestroyed) return filteredOrders || [];
-    return Array.from({ length: hot.countRows() }, (_, row) =>
-      getOrderAtRow(row),
-    ).filter(Boolean);
+    const orders =
+      !hot || hot.isDestroyed
+        ? filteredOrders || []
+        : Array.from({ length: hot.countRows() }, (_, row) =>
+            getOrderAtRow(row),
+          ).filter(Boolean);
+    return orders.map((order) => {
+      const status = toSheetOrderStatus(order["Order Status"]);
+      return status === order["Order Status"]
+        ? order
+        : { ...order, "Order Status": status };
+    });
   };
 
   // Excel's "Filter by Color" — lives in the column dropdown menu
@@ -854,7 +1135,7 @@ function OrderListTable({ Orders }) {
     }
   };
 
-  const handleAfterGetColHeader = (col, TH, headerLevel) => {
+  const handleAfterGetColHeader = useCallback((col, TH, headerLevel) => {
     if (headerLevel !== 0) return;
 
     // col index starts from 0 for the first data column (Sno)
@@ -904,7 +1185,7 @@ function OrderListTable({ Orders }) {
     ) {
       TH.classList.add("htCostRelated");
     }
-  };
+  }, []);
   const updateSelectionSummary = useCallback(() => {
     if (isRightClickRef.current) return;
 
@@ -1101,6 +1382,7 @@ function OrderListTable({ Orders }) {
     dispatch(updateFinanceOrderCheck(payload))
       .unwrap()
       .then(() => {
+        pendingSelectIdsRef.current = payload.map((row) => row.order_id);
         dispatch(fetchOrdersAdmin(storeId?.id));
       })
       .catch((error) => {
@@ -1136,8 +1418,10 @@ function OrderListTable({ Orders }) {
 
   const cells = useCallback(
     (row, col) => {
-      const order = filteredOrders?.[row];
-      const cellProperties = {};
+      const order = filteredOrdersRef.current?.[row];
+      // Always return a className: the grid caches cell meta, so leaving it
+      // out would keep a colour class the cell no longer has
+      const cellProperties = { className: "" };
       if (!order) return cellProperties;
 
       const status = String(order?.["Order Status"] || "").toLowerCase();
@@ -1195,7 +1479,9 @@ function OrderListTable({ Orders }) {
 
       return cellProperties;
     },
-    [filteredOrders],
+    // Reads the orders through a ref so it stays stable: a new `cells` would
+    // make the grid re-apply all its settings (see MemoHotTable)
+    [],
   );
 
   const nestedHeaders = useMemo(() => {
@@ -1271,7 +1557,11 @@ function OrderListTable({ Orders }) {
       // Second row (titles)
       columnsOfSheet.map((col) => col.title),
     ];
-  }, [summary]);
+    // Keyed on the totals, not the summary object: a checkbox tick rebuilds the
+    // summary with the same numbers, and new headers make the grid re-apply
+    // all its settings (see MemoHotTable)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(summary)]);
   useEffect(() => {
     const styleId = "dynamic-row-colors";
     let styleTag = document.getElementById(styleId);
@@ -1312,9 +1602,18 @@ function OrderListTable({ Orders }) {
       dispatch(fetchOrderTypesMap(storeId.id));
     }
   }, [storeId?.id]);
+  // Esc closes the innermost layer first: an open Find bar, then full screen
+  const findOpenRef = useRef(findOpen);
+  findOpenRef.current = findOpen;
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === "Escape") setIsFullScreen(false);
+      if (e.key !== "Escape") return;
+      if (findOpenRef.current) {
+        setFindOpen(false);
+        hotRef.current?.hotInstance?.listen();
+        return;
+      }
+      setIsFullScreen(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -1341,6 +1640,250 @@ function OrderListTable({ Orders }) {
 
     return () => clearTimeout(id);
   }, [isFullScreen]);
+
+  // ---------- Stable grid props (see MemoHotTable) ----------
+  // Sized from the server data only, so ticking checkboxes or filtering
+  // doesn't make the columns jump. The previous array is kept when the widths
+  // come out the same (e.g. after a saved edit), so the grid isn't reconfigured.
+  const colWidthsRef = useRef(null);
+  const colWidths = useMemo(() => {
+    const next = estimateColumnWidths(Orders || []);
+    const prev = colWidthsRef.current;
+    if (prev && prev.length === next.length && prev.every((w, i) => w === next[i]))
+      return prev;
+    colWidthsRef.current = next;
+    return next;
+  }, [Orders]);
+
+  const handleAfterRenderer = useCallback(
+    (td, row, col) => {
+      const order = getOrderAtRow(row);
+      const column = columnsOfSheet[col]?.data;
+      const color = resolveCellColor(order, column);
+
+      // Always set (or clear): cells are recycled, so a cell that lost its
+      // colour would otherwise keep the previous one
+      td.style.backgroundColor = color || "";
+
+      // Find (Ctrl+F) highlights — toggled so recycled cells don't keep them
+      const { matches, current } = findHighlightRef.current;
+      const hot = hotRef.current?.hotInstance;
+      const key =
+        matches.size && hot ? `${hot.toPhysicalRow(row)}:${col}` : "";
+      td.classList.toggle("ht-find-match", Boolean(key) && matches.has(key));
+      td.classList.toggle("ht-find-current", Boolean(key) && key === current);
+    },
+    [getOrderAtRow],
+  );
+
+  const handleBeforeCellMouseDown = useCallback((event) => {
+    isRightClickRef.current = event.button === 2;
+  }, []);
+
+  const handleBeforeCellContextMenu = useCallback((event) => {
+    event.preventDefault(); // only this is needed
+    isRightClickRef.current = true; // reset right-click flag
+  }, []);
+
+  const handleAfterSelectionEnd = useCallback(
+    (r1, c1, r2, c2) => {
+      setTimeout(() => {
+        if (isRightClickRef.current) {
+          isRightClickRef.current = false;
+          return;
+        }
+        updateSelectionSummary();
+      }, 50);
+
+      if (expandingRef.current) return;
+      if (r1 < 0 || c1 < 0) return;
+
+      const startCol = Math.min(c1, c2);
+      const endCol = Math.max(c1, c2);
+
+      // only when the selection is inside S.no
+      if (startCol !== 0 || endCol !== 0) return;
+
+      const hot = hotRef.current?.hotInstance;
+      if (!hot) return;
+
+      expandingRef.current = true;
+      hot.selectCell(
+        Math.min(r1, r2),
+        0,
+        Math.max(r1, r2),
+        hot.countCols() - 1,
+        false,
+      );
+      expandingRef.current = false;
+    },
+    [updateSelectionSummary],
+  );
+
+  const handleAfterDeselect = useCallback(() => {
+    setSelectionSummary((prev) =>
+      prev.visible ? { sum: 0, count: 0, avg: 0, visible: false } : prev,
+    );
+  }, []);
+
+  const handleAfterContextMenuHide = useCallback(() => {
+    isRightClickRef.current = false;
+  }, []);
+
+  // The context menu is built once; its callbacks read the latest
+  // permissions / handlers through this ref
+  const contextMenuRef = useRef(null);
+  contextMenuRef.current = {
+    isOrderEditLocked,
+    hasPermission,
+    handleOrderClick,
+    storeId,
+  };
+
+  const contextMenu = useMemo(
+    () => ({
+      items: {
+        edit: {
+          name: "Edit",
+          disabled: function () {
+            const selected = this.getSelectedLast();
+            if (!selected) return true;
+            return contextMenuRef.current.isOrderEditLocked(
+              getOrderAtRow(selected[0]),
+            );
+          },
+          hidden: function () {
+            // // Hide if user doesn't have permission
+            // if (!hasPermission("view_sheet.edit_order")) return true;
+            // return false;
+            const selected = this.getSelectedLast();
+            if (!selected || selected[0] < 0) return true;
+            if (!contextMenuRef.current.hasPermission("view_sheet.edit_order"))
+              return true;
+            return false;
+          },
+          callback: function (key, selection) {
+            const { isOrderEditLocked, handleOrderClick } =
+              contextMenuRef.current;
+            const row = selection[0].start.row;
+            if (isOrderEditLocked(getOrderAtRow(row))) return;
+            handleOrderClick(row); // your existing handler
+          },
+        },
+        create_part: {
+          name: "Create part order",
+          disabled: function () {
+            const selected = this.getSelectedLast();
+            if (!selected) return true;
+            return contextMenuRef.current.isOrderEditLocked(
+              getOrderAtRow(selected[0]),
+            );
+          },
+          hidden: function () {
+            const selected = this.getSelectedLast();
+            if (!selected || selected[0] < 0) return true;
+            // Hide if no permission
+            if (!contextMenuRef.current.hasPermission("view_sheet.po"))
+              return true;
+
+            if (!selected) return true;
+
+            const row = selected[0];
+            const order = getOrderAtRow(row);
+            const type = String(order?.order_type || "").toLowerCase();
+            const status = String(order?.["Order Status"] || "").toLowerCase();
+
+            return type === "po" || type === "rma" || status === "cancelled";
+          },
+          callback: async (key, selection) => {
+            const { isOrderEditLocked, storeId } = contextMenuRef.current;
+            const row = selection[0].start.row;
+            if (isOrderEditLocked(getOrderAtRow(row))) return;
+
+            let { order_type, ...originalOrder } = getOrderAtRow(row) || {};
+
+            if (!originalOrder["Order#"]) return;
+
+            try {
+              const result = await dispatch(
+                createGenerateId({
+                  orderId: String(originalOrder["Order#"]),
+                  role_id: storeId?.id,
+                }),
+              ).unwrap();
+
+              if (result.success && result.generated_id) {
+                const newOrderData = {
+                  ...originalOrder,
+                  "Order#": result.generated_id, // only Order# changes
+                };
+
+                setIsCreatePartMode(true); // ← mark as create mode
+                setSelectedOrder(newOrderData);
+              }
+            } catch (err) {
+              console.error("Failed to generate part number:", err);
+            }
+          },
+        },
+        rma: {
+          name: "RMA",
+          disabled: function () {
+            const selected = this.getSelectedLast();
+            if (!selected) return true;
+            return contextMenuRef.current.isOrderEditLocked(
+              getOrderAtRow(selected[0]),
+            );
+          },
+          hidden: function () {
+            const selected = this.getSelectedLast();
+            if (!selected || selected[0] < 0) return true;
+            if (!contextMenuRef.current.hasPermission("view_sheet.rma"))
+              return true;
+
+            if (!selected) return true;
+
+            const row = selected[0];
+            const order = getOrderAtRow(row);
+            const type = String(order?.order_type || "").toLowerCase();
+            const status = String(order?.["Order Status"] || "").toLowerCase();
+
+            return type === "rma" || status == "cancelled";
+          },
+          callback: async (key, selection) => {
+            const { isOrderEditLocked, storeId } = contextMenuRef.current;
+            const row = selection[0].start.row;
+            if (isOrderEditLocked(getOrderAtRow(row))) return;
+            let { order_type, ...originalOrder } = getOrderAtRow(row) || {};
+
+            if (!originalOrder["Order#"]) return;
+
+            try {
+              const result = await dispatch(
+                createGenerateId({
+                  orderId: String(originalOrder["Order#"]),
+                  role_id: storeId?.id,
+                }),
+              ).unwrap();
+
+              if (result.success && result.generated_id) {
+                const newOrderData = {
+                  ...originalOrder,
+                  "Order#": result.generated_id, // only Order# changes
+                };
+
+                setIsRMAMode(true); // ← mark as create mode
+                setSelectedOrder(newOrderData);
+              }
+            } catch (err) {
+              console.error("Failed to generate part number:", err);
+            }
+          },
+        },
+      },
+    }),
+    [dispatch, getOrderAtRow],
+  );
   // if (orderloading) {
   //   return (
   //     <div style={{ padding: '40px', textAlign: 'center' }}>
@@ -1373,11 +1916,48 @@ function OrderListTable({ Orders }) {
   //     </div>
   //   );
   // }
+
+  // Shown in the toolbar and the full-screen bar while any filter is applied
+  const clearFiltersButton = activeFilterCount > 0 && (
+    <button
+      type="button"
+      onClick={clearAllFilters}
+      title="Remove every column filter and the colour filter"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "8px 14px",
+        borderRadius: 8,
+        border: "1px solid #fca5a5",
+        background: "#fff",
+        color: "#b91c1c",
+        fontSize: 13,
+        fontWeight: 600,
+        cursor: "pointer",
+        whiteSpace: "nowrap",
+      }}
+    >
+      <X size={14} />
+      Clear filters ({activeFilterCount})
+    </button>
+  );
+
   return (
     <React.Fragment>
       {selectedOrder && (
         <EditOrderDetailModal
           order={flattenOrderValues(selectedOrder)}
+          // Fields checked and saved on the sheet (the flattened order above
+          // loses that); the form locks them for everyone but admins. A new
+          // part order / RMA starts unchecked, so nothing is locked there.
+          checkedFields={
+            isRMAMode || isCreatePartMode
+              ? []
+              : CHECKBOX_FIELDS.filter((field) =>
+                  getFieldHighlight(selectedOrder[field]),
+                )
+          }
           onClose={() => setSelectedOrder(null)}
           isRMAMode={isRMAMode}
           isCreatePartMode={isCreatePartMode}
@@ -1413,6 +1993,7 @@ function OrderListTable({ Orders }) {
               )
                 .unwrap()
                 .then(() => {
+                  pendingSelectIdsRef.current = [updatedOrder["Order#"]];
                   dispatch(fetchOrdersAdmin(storeId?.id));
                   setSelectedOrder(null);
                   setIsCreatePartMode(false);
@@ -1433,6 +2014,7 @@ function OrderListTable({ Orders }) {
               )
                 .unwrap()
                 .then(() => {
+                  pendingSelectIdsRef.current = [updatedOrder["Order#"]];
                   dispatch(fetchOrdersAdmin(storeId?.id));
                   setSelectedOrder(null);
                   setIsRMAMode(false);
@@ -1456,6 +2038,7 @@ function OrderListTable({ Orders }) {
               )
                 .unwrap()
                 .then(() => {
+                  pendingSelectIdsRef.current = [updatedOrder["Order#"]];
                   dispatch(fetchOrdersAdmin(storeId?.id));
                   setSelectedOrder(null);
                 })
@@ -1584,6 +2167,7 @@ function OrderListTable({ Orders }) {
                 )
               )}
             </div>
+            {clearFiltersButton}
             {permissionOfSaveBtn && hasPendingChecks && (
               <button
                 onClick={handleSaveCheckedFields}
@@ -1742,6 +2326,7 @@ function OrderListTable({ Orders }) {
               style={{
                 display: "flex",
                 alignItems: "center",
+                gap: 8,
                 height: 44,
                 flexShrink: 0,
               }}
@@ -1766,9 +2351,52 @@ function OrderListTable({ Orders }) {
               >
                 ← Back
               </button>
+              {clearFiltersButton}
+              {/* Save checked fields without leaving full screen */}
+              {permissionOfSaveBtn && hasPendingChecks && (
+                <button
+                  type="button"
+                  onClick={handleSaveCheckedFields}
+                  disabled={orderCheckLoading}
+                  style={{
+                    padding: "8px 16px",
+                    borderRadius: 8,
+                    border: "none",
+                    background: "#db2777",
+                    color: "#fff",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: orderCheckLoading ? "progress" : "pointer",
+                    boxShadow: "0 2px 8px rgba(219,39,119,0.3)",
+                  }}
+                >
+                  {orderCheckLoading ? "Saving..." : "Save"}
+                </button>
+              )}
             </div>
           )}
           <style>{`
+            /* Filtered column header (Handsontable adds htFiltersActive):
+               solid indigo, white text and an amber underline, with the
+               dropdown arrow swapped for a funnel (like Excel), so filtered
+               columns stand out at a glance */
+            .handsontable thead th.htFiltersActive {
+              background-color: #4f46e5 !important;
+              color: #fff !important;
+              box-shadow: inset 0 -3px 0 #f59e0b !important;
+            }
+            .handsontable thead th.htFiltersActive .colHeader {
+              color: #fff !important;
+            }
+            /* Dropdown button: white funnel on a faint white chip */
+            .handsontable thead th.htFiltersActive .changeType::before {
+              background-color: #fff !important;
+              -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M21 4H3l7 8.3V18l4 2v-7.7L21 4z'/%3E%3C/svg%3E") !important;
+              mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M21 4H3l7 8.3V18l4 2v-7.7L21 4z'/%3E%3C/svg%3E") !important;
+            }
+            .handsontable thead th.htFiltersActive .changeType::after {
+              background-color: rgba(255, 255, 255, 0.2) !important;
+            }
             .handsontable td.ht-find-match.ht-find-match {
               background-color: #fff3a3 !important;
             }
@@ -1906,103 +2534,29 @@ function OrderListTable({ Orders }) {
               </button>
             </div>
           )}
-          <HotTable
+          <MemoHotTable
             ref={hotRef}
-            // No `data` prop: rows are loaded via hot.updateData(tableData) above
+            // No `data` prop: rows are loaded via hot.updateData(tableData) above.
+            // Every prop here must be stable (module constant, useMemo or
+            // useCallback) or the whole grid redraws on each render.
             startRows={0}
             columns={hotColumns}
-            style={{ zIndex: 10 }}
+            style={HOT_STYLE}
             colHeaders={true}
             rowHeaders={false}
             selectionMode="multiple"
-            afterRenderer={(td, row, col) => {
-              const order = getOrderAtRow(row);
-              const column = columnsOfSheet[col]?.data;
-              const color = resolveCellColor(order, column);
-
-              if (color) {
-                td.style.backgroundColor = color;
-              }
-
-              // Find (Ctrl+F) highlights — toggled so recycled cells don't keep them
-              const { matches, current } = findHighlightRef.current;
-              const hot = hotRef.current?.hotInstance;
-              const key =
-                matches.size && hot ? `${hot.toPhysicalRow(row)}:${col}` : "";
-              td.classList.toggle(
-                "ht-find-match",
-                Boolean(key) && matches.has(key),
-              );
-              td.classList.toggle(
-                "ht-find-current",
-                Boolean(key) && key === current,
-              );
-            }}
+            afterRenderer={handleAfterRenderer}
             fragmentSelection={false}
-            afterOnCellMouseDown={(event, coords) => {
-              if (coords.row === -1) event.stopImmediatePropagation();
-            }}
-            beforeOnCellMouseDown={(event) => {
-              isRightClickRef.current = event.button === 2;
-            }}
-            beforeOnCellContextMenu={(event) => {
-              event.preventDefault(); // only this is needed
-              isRightClickRef.current = true; // reset right-click flag
-            }}
-            // afterSelectionEnd={() => {
-            //   // Delay slightly so context menu can open first
-            //   setTimeout(() => {
-            //     if (isRightClickRef.current) {
-            //       isRightClickRef.current = false;
-            //       return;
-            //     }
-            //     updateSelectionSummary();
-            //   }, 50);
-            // }}
-            afterSelectionEnd={(r1, c1, r2, c2) => {
-              setTimeout(() => {
-                if (isRightClickRef.current) {
-                  isRightClickRef.current = false;
-                  return;
-                }
-                updateSelectionSummary();
-              }, 50);
-
-              if (expandingRef.current) return;
-              if (r1 < 0 || c1 < 0) return;
-
-              const startCol = Math.min(c1, c2);
-              const endCol = Math.max(c1, c2);
-
-              // only when the selection is inside S.no
-              if (startCol !== 0 || endCol !== 0) return;
-
-              const hot = hotRef.current?.hotInstance;
-              if (!hot) return;
-
-              expandingRef.current = true;
-              hot.selectCell(
-                Math.min(r1, r2),
-                0,
-                Math.max(r1, r2),
-                hot.countCols() - 1,
-                false,
-              );
-              expandingRef.current = false;
-            }}
-            afterDeselect={() => {
-              setSelectionSummary((prev) =>
-                prev.visible
-                  ? { sum: 0, count: 0, avg: 0, visible: false }
-                  : prev,
-              );
-            }}
-            afterContextMenuHide={() => {
-              isRightClickRef.current = false;
-            }}
+            afterOnCellMouseDown={stopHeaderMouseDown}
+            beforeOnCellMouseDown={handleBeforeCellMouseDown}
+            beforeOnCellContextMenu={handleBeforeCellContextMenu}
+            afterSelectionEnd={handleAfterSelectionEnd}
+            afterDeselect={handleAfterDeselect}
+            afterContextMenuHide={handleAfterContextMenuHide}
             stretchH="all"
             wordWrap={false}
-            autoColumnSize={true}
+            autoColumnSize={false}
+            colWidths={colWidths}
             height={isFullScreen ? "calc(100vh - 70px)" : "calc(100vh - 180px)"}
             width="100%"
             licenseKey="non-commercial-and-evaluation"
@@ -2016,151 +2570,10 @@ function OrderListTable({ Orders }) {
             // Important settings
             readOnly={true}
             disableVisualSelection={false}
-            // Clicking outside the sheet clears the selection, except inside HOT's
-            // own menus (context / filter dropdowns) and the Find bar
-            outsideClickDeselects={(target) =>
-              !target?.closest?.(
-                ".htContextMenu, .htDropdownMenu, .htFiltersConditionsMenu, .htMenu, [data-keep-selection]",
-              )
-            }
+            outsideClickDeselects={outsideClickDeselects}
             afterGetColHeader={handleAfterGetColHeader}
             nestedHeaders={nestedHeaders}
-            contextMenu={{
-              items: {
-                edit: {
-                  name: "Edit",
-                  disabled: function () {
-                    const selected = this.getSelectedLast();
-                    if (!selected) return true;
-                    return isOrderEditLocked(getOrderAtRow(selected[0]));
-                  },
-                  hidden: function () {
-                    // // Hide if user doesn't have permission
-                    // if (!hasPermission("view_sheet.edit_order")) return true;
-                    // return false;
-                    const selected = this.getSelectedLast();
-                    if (!selected || selected[0] < 0) return true;
-                    if (!hasPermission("view_sheet.edit_order")) return true;
-                    return false;
-                  },
-                  callback: function (key, selection) {
-                    const row = selection[0].start.row;
-                    if (isOrderEditLocked(getOrderAtRow(row))) return;
-                    handleOrderClick(row); // your existing handler
-                  },
-                },
-                create_part: {
-                  name: "Create part order",
-                  disabled: function () {
-                    const selected = this.getSelectedLast();
-                    if (!selected) return true;
-                    return isOrderEditLocked(getOrderAtRow(selected[0]));
-                  },
-                  hidden: function () {
-                    const selected = this.getSelectedLast();
-                    if (!selected || selected[0] < 0) return true;
-                    // Hide if no permission
-                    if (!hasPermission("view_sheet.po")) return true;
-
-                    if (!selected) return true;
-
-                    const row = selected[0];
-                    const order = getOrderAtRow(row);
-                    const type = String(order?.order_type || "").toLowerCase();
-                    const status = String(
-                      order?.["Order Status"] || "",
-                    ).toLowerCase();
-
-                    return (
-                      type === "po" || type === "rma" || status === "cancelled"
-                    );
-                  },
-                  callback: async (key, selection) => {
-                    const row = selection[0].start.row;
-                    if (isOrderEditLocked(getOrderAtRow(row))) return;
-
-                    let { order_type, ...originalOrder } =
-                      getOrderAtRow(row) || {};
-
-                    if (!originalOrder["Order#"]) return;
-
-                    try {
-                      const result = await dispatch(
-                        createGenerateId({
-                          orderId: String(originalOrder["Order#"]),
-                          role_id: storeId?.id,
-                        }),
-                      ).unwrap();
-
-                      if (result.success && result.generated_id) {
-                        const newOrderData = {
-                          ...originalOrder,
-                          "Order#": result.generated_id, // only Order# changes
-                        };
-
-                        setIsCreatePartMode(true); // ← mark as create mode
-                        setSelectedOrder(newOrderData);
-                      }
-                    } catch (err) {
-                      console.error("Failed to generate part number:", err);
-                    }
-                  },
-                },
-                rma: {
-                  name: "RMA",
-                  disabled: function () {
-                    const selected = this.getSelectedLast();
-                    if (!selected) return true;
-                    return isOrderEditLocked(getOrderAtRow(selected[0]));
-                  },
-                  hidden: function () {
-                    const selected = this.getSelectedLast();
-                    if (!selected || selected[0] < 0) return true;
-                    if (!hasPermission("view_sheet.rma")) return true;
-
-                    if (!selected) return true;
-
-                    const row = selected[0];
-                    const order = getOrderAtRow(row);
-                    const type = String(order?.order_type || "").toLowerCase();
-                    const status = String(
-                      order?.["Order Status"] || "",
-                    ).toLowerCase();
-
-                    return type === "rma" || status == "cancelled";
-                  },
-                  callback: async (key, selection) => {
-                    const row = selection[0].start.row;
-                    if (isOrderEditLocked(getOrderAtRow(row))) return;
-                    let { order_type, ...originalOrder } =
-                      getOrderAtRow(row) || {};
-
-                    if (!originalOrder["Order#"]) return;
-
-                    try {
-                      const result = await dispatch(
-                        createGenerateId({
-                          orderId: String(originalOrder["Order#"]),
-                          role_id: storeId?.id,
-                        }),
-                      ).unwrap();
-
-                      if (result.success && result.generated_id) {
-                        const newOrderData = {
-                          ...originalOrder,
-                          "Order#": result.generated_id, // only Order# changes
-                        };
-
-                        setIsRMAMode(true); // ← mark as create mode
-                        setSelectedOrder(newOrderData);
-                      }
-                    } catch (err) {
-                      console.error("Failed to generate part number:", err);
-                    }
-                  },
-                },
-              },
-            }}
+            contextMenu={contextMenu}
             cells={cells}
             emptyDataMessage="No orders found"
           />
@@ -2236,4 +2649,5 @@ function OrderListTable({ Orders }) {
   );
 }
 
-export default OrderListTable;
+// Memoized so Dashboard re-renders that keep the same Orders skip the sheet
+export default React.memo(OrderListTable);

@@ -157,6 +157,9 @@ const SearchableSelect = ({
           <ul
             ref={listRef}
             role="listbox"
+            // Clicks anywhere in the list (e.g. its scrollbar) keep focus in
+            // the input, so the field doesn't count as left
+            onMouseDown={(e) => e.preventDefault()}
             style={{
               position: "fixed",
               left: position.left,

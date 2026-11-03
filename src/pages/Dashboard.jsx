@@ -1,5 +1,5 @@
 import { Filter, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { useDispatch, useSelector } from "react-redux";
@@ -16,6 +16,13 @@ import UsersSection from "../components/UsersSection";
 import { OrderCardSkeleton } from "../components/Utils";
 import { fetchOrdersAdmin, fetchUsers } from "../store/usersSlice";
 import { toNumber } from "../utils/constant";
+
+const calculateTotalPrice = (order) => {
+  const price = Number(toNumber(order["Price"]?.value));
+  const shipping = Number(toNumber(order["Shipping"]?.value));
+  const tax = Number(toNumber(order["Tax"]?.value));
+  return price + shipping + tax;
+};
 
 const Dashboard = () => {
   const dispatch = useDispatch();
@@ -90,40 +97,38 @@ const Dashboard = () => {
       : Object.values(user.page_access.page_name) // object → array
     : [];
 
-  const calculateTotalPrice = (order) => {
-    const price = Number(toNumber(order["Price"]?.value));
-    const shipping = Number(toNumber(order["Shipping"]?.value));
-    const tax = Number(toNumber(order["Tax"]?.value));
-    return price + shipping + tax;
-  };
-
   // Backend se aaya hua raw data
   // Agar Orders = backend response
-  const orderData =
-    Orders?.map((order) => ({
-      order_id: order["Order#"],
-      brand: order["Brands"],
-      category: order["Category"],
-      qty: Number(toNumber(order["Qty"])),
-      price: Number(toNumber(order["Price"]?.value)),
-      grossProfit: Number(toNumber(order["Gross Profit-4%"])),
-      totalPrice: calculateTotalPrice(order),
-      status: order["Order Status"],
-      procured_by: order["Procured By"],
-      order_date: order["Order Date"],
-      sales_agent: order["Sales Agent"],
-      order_type: order.order_type,
-    })) || [];
-  const allStatuses = orderData.map((order) => order.status);
-  const salesAgents = [
-    ...new Set(orderData.map((o) => o?.sales_agent).filter(Boolean)),
-  ];
+  // Memoized: rebuilding this for every order on each render made the sheet lag
+  const orderData = useMemo(
+    () =>
+      Orders?.map((order) => ({
+        order_id: order["Order#"],
+        brand: order["Brands"],
+        category: order["Category"],
+        qty: Number(toNumber(order["Qty"])),
+        price: Number(toNumber(order["Price"]?.value)),
+        grossProfit: Number(toNumber(order["Gross Profit-4%"])),
+        totalPrice: calculateTotalPrice(order),
+        status: order["Order Status"],
+        procured_by: order["Procured By"],
+        order_date: order["Order Date"],
+        sales_agent: order["Sales Agent"],
+        order_type: order.order_type,
+      })) || [],
+    [Orders],
+  );
   // ["PPC", "Frank", "Emma", "Mike"]
+  const salesAgents = useMemo(
+    () => [...new Set(orderData.map((o) => o?.sales_agent).filter(Boolean))],
+    [orderData],
+  );
 
-  const procuredByList = [
-    ...new Set(orderData.map((o) => o?.procured_by).filter(Boolean)),
-  ];
   // ["Bill Dawson", "Mike"]
+  const procuredByList = useMemo(
+    () => [...new Set(orderData.map((o) => o?.procured_by).filter(Boolean))],
+    [orderData],
+  );
   // For status filters (All, Delivered, Intransit, etc.)
   // These belong under "dashboard.home"
   const hasAccess = (filter) => {
@@ -157,42 +162,50 @@ const Dashboard = () => {
     dispatch(fetchOrdersAdmin(storeId?.id));
   }, [storeId?.id]);
 
-  if (loading)
-    return (
-      <p className="text-center mt-10 text-gray-500">Loading dashboard...</p>
-    );
-  if (!data)
-    return (
-      <p className="text-center mt-10 text-red-500">Failed to load data.</p>
-    );
-
   // === Filter logic ===
-  const filteredOrders = orderData?.filter((order) => {
-    const matchStatus =
-      selectedFilter === "All" ||
-      order.status?.toLowerCase().replace(/\s+/g, "") ===
-        selectedFilter.toLowerCase().replace(/\s+/g, "");
+  const filteredOrders = useMemo(
+    () =>
+      orderData.filter((order) => {
+        const matchStatus =
+          selectedFilter === "All" ||
+          order.status?.toLowerCase().replace(/\s+/g, "") ===
+            selectedFilter.toLowerCase().replace(/\s+/g, "");
 
-    const matchSearch = order?.order_id
-      ?.toString()
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
+        const matchSearch = order?.order_id
+          ?.toString()
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase());
 
-    const orderDate = new Date(order.order_date);
-    const matchDate =
-      (!startDate || orderDate >= startDate) &&
-      (!endDate || orderDate <= endDate);
+        const orderDate = new Date(order.order_date);
+        const matchDate =
+          (!startDate || orderDate >= startDate) &&
+          (!endDate || orderDate <= endDate);
 
-    const matchAgent =
-      selectedAgent === "All" || order.sales_agent === selectedAgent;
+        const matchAgent =
+          selectedAgent === "All" || order.sales_agent === selectedAgent;
 
-    const matchProcuredBy =
-      selectedProcuredBy === "All" || order.procured_by === selectedProcuredBy;
+        const matchProcuredBy =
+          selectedProcuredBy === "All" ||
+          order.procured_by === selectedProcuredBy;
 
-    return (
-      matchStatus && matchSearch && matchDate && matchAgent && matchProcuredBy
-    );
-  });
+        return (
+          matchStatus &&
+          matchSearch &&
+          matchDate &&
+          matchAgent &&
+          matchProcuredBy
+        );
+      }),
+    [
+      orderData,
+      selectedFilter,
+      searchQuery,
+      startDate,
+      endDate,
+      selectedAgent,
+      selectedProcuredBy,
+    ],
+  );
   const hasUserFilter =
     selectedFilter !== "All" ||
     selectedAgent !== "All" ||
@@ -208,26 +221,24 @@ const Dashboard = () => {
     return d;
   }, []);
 
-  const inLast30Days = (order) => {
-    const orderDate = new Date(order.order_date);
-    if (Number.isNaN(orderDate.getTime())) return false;
-    return orderDate >= last30Start;
-  };
-
   // default: stats = last 30 days, list = all
   // any filter: stats + list = same filtered set
-  const isPrimaryOrder = (order) => {
-    const type = String(order?.order_type || "").toLowerCase();
-    return !Boolean(type === "rma" || type === "po");
-  };
+  const periodOrders = useMemo(() => {
+    if (hasUserFilter) return filteredOrders;
+    return orderData.filter((order) => {
+      const orderDate = new Date(order.order_date);
+      if (Number.isNaN(orderDate.getTime())) return false;
+      return orderDate >= last30Start;
+    });
+  }, [hasUserFilter, filteredOrders, orderData, last30Start]);
 
-  const periodOrders = hasUserFilter
-    ? filteredOrders
-    : orderData.filter(inLast30Days);
-  const statsSource =
-    orderBasis === "primary"
-      ? periodOrders.filter(isPrimaryOrder)
-      : periodOrders;
+  const statsSource = useMemo(() => {
+    if (orderBasis !== "primary") return periodOrders;
+    return periodOrders.filter((order) => {
+      const type = String(order?.order_type || "").toLowerCase();
+      return !Boolean(type === "rma" || type === "po");
+    });
+  }, [orderBasis, periodOrders]);
   const totalPages = Math.ceil(filteredOrders.length / ordersPerPage);
   const startIndex = (currentPage - 1) * ordersPerPage;
   const endIndex = startIndex + ordersPerPage;
@@ -250,12 +261,26 @@ const Dashboard = () => {
     return userfiltered;
   }, [users, userSearch, authUser.id]);
 
-  const selectedOrderIds = filteredOrders?.map((item) =>
-    String(item?.order_id),
-  );
-  const matchedOrders = Orders?.filter((order) =>
-    selectedOrderIds?.includes(String(order?.["Order#"])),
-  );
+  // Memoized with a Set lookup: a new array here on every render made the
+  // sheet reload all of its rows, and `includes` per order was O(n²)
+  const matchedOrders = useMemo(() => {
+    const selectedOrderIds = new Set(
+      filteredOrders.map((item) => String(item?.order_id)),
+    );
+    return Orders?.filter((order) =>
+      selectedOrderIds.has(String(order?.["Order#"])),
+    );
+  }, [Orders, filteredOrders]);
+
+  // The sheet is mounted on its first visit and then only hidden, so switching
+  // tabs doesn't rebuild the grid (~4.5s for 6k+ orders) or drop its filters.
+  const isSheetTab = activeTab === "view-sheet";
+  const [sheetMounted, setSheetMounted] = useState(isSheetTab);
+  if (isSheetTab && !sheetMounted) setSheetMounted(true);
+  // While hidden the sheet keeps the orders it last showed, so Dashboard
+  // filter changes don't reload the hidden grid; it catches up when shown
+  const sheetOrdersRef = useRef(matchedOrders);
+  if (isSheetTab) sheetOrdersRef.current = matchedOrders;
   const totalOrders = statsSource?.length;
   const orderValue = statsSource?.reduce(
     (sum, order) => sum + (order?.totalPrice || 0),
@@ -300,6 +325,17 @@ const Dashboard = () => {
   useEffect(() => {
     localStorage.setItem("dashboardOrderBasis", orderBasis);
   }, [orderBasis]);
+
+  // Early returns come after every hook so the hook order never changes
+  if (loading)
+    return (
+      <p className="text-center mt-10 text-gray-500">Loading dashboard...</p>
+    );
+  if (!data)
+    return (
+      <p className="text-center mt-10 text-red-500">Failed to load data.</p>
+    );
+
   return (
     <>
       {/* Filters */}
@@ -555,11 +591,17 @@ const Dashboard = () => {
             )}
           </div>
         </>
-      ) : activeTab === "view-sheet" && hasParentPermission("view_sheet") ? (
-        <OrderListTable Orders={matchedOrders} />
-      ) : (
+      ) : isSheetTab && hasParentPermission("view_sheet") ? null : (
         <div className="flex justify-center items-center h-64">
           <NotAllowed />
+        </div>
+      )}
+      {sheetMounted && hasParentPermission("view_sheet") && (
+        <div style={{ display: isSheetTab ? undefined : "none" }}>
+          <OrderListTable
+            Orders={sheetOrdersRef.current}
+            isActive={isSheetTab}
+          />
         </div>
       )}
 
