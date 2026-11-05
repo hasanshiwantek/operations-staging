@@ -39,6 +39,7 @@ import {
   getFieldHighlight,
   getFieldValue,
   getIsAdmin,
+  getIsFinance,
   setCheckboxChangeHandler,
 } from "../utils/constant";
 import EditOrderDetailModal from "./EditOrderDetailModal";
@@ -49,6 +50,7 @@ import ExportProgressModal, {
   yieldToBrowser,
 } from "./ExportProgressModal";
 import OrderDetailModal from "./OrderDetailModal";
+import OrderDocumentModal from "./OrderDocumentModal";
 
 registerAllModules();
 
@@ -402,6 +404,17 @@ const resolveCellColor = (order, column) => {
   return "";
 };
 
+// Proforma Invoice / Packing Slip / Purchase Order are not offered for
+// cancelled orders or RMAs
+const canGenerateDocuments = (order) => {
+  if (!order) return false;
+  const type = String(order.order_type || "").toLowerCase();
+  const status = String(order["Order Status"] || "")
+    .trim()
+    .toLowerCase();
+  return type !== "rma" && status !== "cancelled" && status !== "canceled";
+};
+
 // isActive: false while the sheet stays mounted but hidden behind another tab
 function OrderListTable({ Orders, isActive = true }) {
   const dispatch = useDispatch();
@@ -440,6 +453,8 @@ function OrderListTable({ Orders, isActive = true }) {
   const [isRMAMode, setIsRMAMode] = useState(false);
   const [isCreatePartMode, setIsCreatePartMode] = useState(false);
   const [isAddMode, setIsAddMode] = useState(false);
+  // Proforma Invoice / Packing Slip / Purchase Order form: { type, order } or null
+  const [documentRequest, setDocumentRequest] = useState(null);
   const [orderTypeFilter, setOrderTypeFilter] = useState("all");
   // Rows left visible by the column filters (null = no column filter active)
   const [visibleOrders, setVisibleOrders] = useState(null);
@@ -1880,6 +1895,39 @@ function OrderListTable({ Orders, isActive = true }) {
             }
           },
         },
+        doc_separator: {
+          name: "---------",
+          hidden: function () {
+            const selected = this.getSelectedLast();
+            if (!selected || selected[0] < 0) return true;
+            return !canGenerateDocuments(getOrderAtRow(selected[0]));
+          },
+        },
+        ...Object.fromEntries(
+          [
+            ["proforma", "Proforma Invoice (PDF)"],
+            ["packing", "Packing Slip (PDF)"],
+            ["po", "Purchase Order (PDF)"],
+          ].map(([type, name]) => [
+            `doc_${type}`,
+            {
+              name,
+              hidden: function () {
+                const selected = this.getSelectedLast();
+                if (!selected || selected[0] < 0) return true;
+                if (!canGenerateDocuments(getOrderAtRow(selected[0])))
+                  return true;
+                // Vendor details are hidden from finance users
+                return type === "po" && getIsFinance();
+              },
+              callback: (key, selection) => {
+                const order = getOrderAtRow(selection[0].start.row);
+                if (canGenerateDocuments(order))
+                  setDocumentRequest({ type, order });
+              },
+            },
+          ]),
+        ),
       },
     }),
     [dispatch, getOrderAtRow],
@@ -2047,6 +2095,14 @@ function OrderListTable({ Orders, isActive = true }) {
                 });
             }
           }}
+        />
+      )}
+      {documentRequest && (
+        <OrderDocumentModal
+          type={documentRequest.type}
+          order={documentRequest.order}
+          orders={tableOrders}
+          onClose={() => setDocumentRequest(null)}
         />
       )}
       {isAddMode && (
