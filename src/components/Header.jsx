@@ -2,7 +2,7 @@ import React, { useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "react-toastify";
-import { LogOut, X, Plus, UserCircle, Logs } from "lucide-react";
+import { LogOut, X, Plus, UserCircle, Logs, FileClock } from "lucide-react";
 import { useForm } from "react-hook-form"; // ✅ import react-hook-form
 import logo from "../assets/header-logo.svg";
 import { logoutManual } from "../store/authSlice";
@@ -96,6 +96,15 @@ const Header = () => {
               </button>
             </>
           )}
+
+          <button
+            onClick={() => navigate("/document-history")}
+            className="p-2 hover:bg-gray-100 rounded-full transition"
+            title="Document history"
+            aria-label="Document history"
+          >
+            <FileClock size={20} className="text-gray-600" />
+          </button>
 
           <button
             onClick={() => setShowLogoutModal(true)}

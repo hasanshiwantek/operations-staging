@@ -404,10 +404,17 @@ const resolveCellColor = (order, column) => {
   return "";
 };
 
+// Incomplete orders (by status or order type) get no row actions at all:
+// no Edit, part order (PO), RMA or documents
+const isIncompleteOrder = (order) =>
+  String(order?.["Order Status"] || "").trim().toLowerCase() === "incomplete" ||
+  String(order?.order_type || "").trim().toLowerCase() === "incomplete";
+
 // Proforma Invoice / Packing Slip / Purchase Order are not offered for
-// cancelled orders or RMAs
+// cancelled orders, RMAs or incomplete orders
 const canGenerateDocuments = (order) => {
   if (!order) return false;
+  if (isIncompleteOrder(order)) return false;
   const type = String(order.order_type || "").toLowerCase();
   const status = String(order["Order Status"] || "")
     .trim()
@@ -1775,13 +1782,14 @@ function OrderListTable({ Orders, isActive = true }) {
             if (!selected || selected[0] < 0) return true;
             if (!contextMenuRef.current.hasPermission("view_sheet.edit_order"))
               return true;
-            return false;
+            return isIncompleteOrder(getOrderAtRow(selected[0]));
           },
           callback: function (key, selection) {
             const { isOrderEditLocked, handleOrderClick } =
               contextMenuRef.current;
             const row = selection[0].start.row;
             if (isOrderEditLocked(getOrderAtRow(row))) return;
+            if (isIncompleteOrder(getOrderAtRow(row))) return;
             handleOrderClick(row); // your existing handler
           },
         },
@@ -1808,12 +1816,18 @@ function OrderListTable({ Orders, isActive = true }) {
             const type = String(order?.order_type || "").toLowerCase();
             const status = String(order?.["Order Status"] || "").toLowerCase();
 
-            return type === "po" || type === "rma" || status === "cancelled";
+            return (
+              type === "po" ||
+              type === "rma" ||
+              status === "cancelled" ||
+              isIncompleteOrder(order)
+            );
           },
           callback: async (key, selection) => {
             const { isOrderEditLocked, storeId } = contextMenuRef.current;
             const row = selection[0].start.row;
             if (isOrderEditLocked(getOrderAtRow(row))) return;
+            if (isIncompleteOrder(getOrderAtRow(row))) return;
 
             let { order_type, ...originalOrder } = getOrderAtRow(row) || {};
 
@@ -1863,12 +1877,17 @@ function OrderListTable({ Orders, isActive = true }) {
             const type = String(order?.order_type || "").toLowerCase();
             const status = String(order?.["Order Status"] || "").toLowerCase();
 
-            return type === "rma" || status == "cancelled";
+            return (
+              type === "rma" ||
+              status == "cancelled" ||
+              isIncompleteOrder(order)
+            );
           },
           callback: async (key, selection) => {
             const { isOrderEditLocked, storeId } = contextMenuRef.current;
             const row = selection[0].start.row;
             if (isOrderEditLocked(getOrderAtRow(row))) return;
+            if (isIncompleteOrder(getOrderAtRow(row))) return;
             let { order_type, ...originalOrder } = getOrderAtRow(row) || {};
 
             if (!originalOrder["Order#"]) return;

@@ -10,6 +10,7 @@ import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import UserManagement from "./pages/UserManagement";
 import ActivityLog from "./pages/ActivityLog";
+import DocumentHistory from "./pages/DocumentHistory";
 import OrderDetails from "./pages/OrderDetails";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Layout from "./components/Layout";
@@ -155,6 +156,17 @@ const AppRoutes = () => {
             <Layout>
               <ProtectedRoute>
                 <OrderDetails />
+              </ProtectedRoute>
+            </Layout>
+          }
+        />
+
+        <Route
+          path="/document-history"
+          element={
+            <Layout>
+              <ProtectedRoute>
+                <DocumentHistory />
               </ProtectedRoute>
             </Layout>
           }

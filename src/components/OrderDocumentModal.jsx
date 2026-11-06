@@ -7,8 +7,10 @@ import "react-datepicker/dist/react-datepicker.css";
 import { useSelector } from "react-redux";
 import { toast } from "react-toastify";
 import SearchableSelect from "./SearchableSelect";
+import { saveDocumentRecord } from "../utils/documentHistoryApi";
 import {
   buildCustomerForm,
+  buildDocumentPayload,
   buildPurchaseOrderForm,
   DOC_TYPES,
   findMissing,
@@ -20,8 +22,6 @@ import {
   isItemFieldRequired,
   itemAmount,
   REQUIRED_FIELDS,
-  saveDescriptions,
-  saveVendor,
 } from "../utils/orderDocuments";
 import { normalizeOrderOptions } from "../utils/constant";
 
@@ -284,7 +284,12 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
     [type, forms],
   );
   const missing = missingByTab[activeKey];
-  const totals = useMemo(() => getTotals(form), [form]);
+  const totals = useMemo(() => (form ? getTotals(form) : null), [form]);
+  // PO: a tab for orders with no Vendor on the sheet is shown, but nothing is
+  // generated from it until the Vendor is added there
+  const activeTab = tabs.find((t) => t.key === activeKey);
+  const activeNoVendor = Boolean(isPO && activeTab?.noVendor);
+  const noVendorTab = isPO ? tabs.find((t) => t.noVendor) : null;
   const required = new Set(REQUIRED_FIELDS[type]);
 
   const setField = (name, value) =>
@@ -332,52 +337,108 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
     }, 50);
   };
 
-  const generateForm = async (f) => {
-    await GENERATORS[type](f);
-    saveDescriptions(f.items);
-    if (isPO) saveVendor(f.vendorCompany, f);
+  // Saves the document to the backend's history first and downloads it only
+  // once that worked, so no document leaves the portal without a record.
+  // Throws { stage: "save" | "pdf" } so the caller can say what failed.
+  const generateForm = async (key) => {
+    const f = forms[key];
+    const tab = tabs.find((t) => t.key === key);
+    const payload = buildDocumentPayload(type, f, {
+      orderNo: order?.["Order#"],
+      orderNos: [...new Set(f.items.map((item) => item.orderNo).filter(Boolean))],
+      vendor: isPO ? tab?.vendor : null,
+    });
+    try {
+      await saveDocumentRecord(type, payload);
+    } catch (err) {
+      throw Object.assign(err instanceof Error ? err : new Error(String(err)), {
+        stage: "save",
+      });
+    }
+    try {
+      await GENERATORS[type](f);
+    } catch (err) {
+      throw Object.assign(err instanceof Error ? err : new Error(String(err)), {
+        stage: "pdf",
+      });
+    }
+  };
+
+  // Explains a failed save or PDF; the backend's own message is already shown
+  // as a toast by the API client when it sent one
+  const reportFailure = (err, label) => {
+    console.error(`${label} failed:`, err);
+    if (err?.stage === "save") {
+      if (!err?.response?.data?.message) {
+        toast.error(
+          `${label} was not saved to the document history, so it was not downloaded. Check your connection and try again.`,
+        );
+      }
+    } else {
+      toast.error(
+        `${label} was saved to the document history but the PDF could not be created. Open it from Document History.`,
+      );
+    }
   };
 
   // The active tab's PDF
   const handleGenerate = async () => {
+    if (activeNoVendor) {
+      toast.error("Add the Vendor on the sheet first, then create this Purchase Order.");
+      return;
+    }
     if (missing.count > 0) {
       showMissing(activeKey, missing);
       return;
     }
+    const label =
+      isPO && tabs.length > 1
+        ? `The ${config.title} for ${tabs.find((t) => t.key === activeKey)?.vendor}`
+        : `The ${config.title}`;
     setGenerating(true);
     try {
-      await generateForm(form);
-      toast.success(
-        isPO && tabs.length > 1
-          ? `${config.title} for ${tabs.find((t) => t.key === activeKey)?.vendor} downloaded.`
-          : `${config.title} downloaded.`,
-      );
+      await generateForm(activeKey);
     } catch (err) {
-      console.error(`${config.title} failed:`, err);
-      toast.error(`Could not generate the ${config.title}.`);
+      reportFailure(err, label);
     } finally {
       setGenerating(false);
     }
   };
 
-  // PO: one PDF per vendor tab, once every tab is complete
+  // PO: one PDF per vendor tab, once every tab is complete. Each one is saved
+  // as its own record.
   const handleGenerateAll = async () => {
+    if (noVendorTab) {
+      setActiveKey(noVendorTab.key);
+      toast.error(
+        "Some orders have no Vendor on the sheet. Add it there first, then create the Purchase Orders.",
+      );
+      return;
+    }
     const incomplete = tabs.find((tab) => missingByTab[tab.key].count > 0);
     if (incomplete) {
       showMissing(incomplete.key, missingByTab[incomplete.key]);
       return;
     }
     setGenerating(true);
+    let done = 0;
     try {
       for (const tab of tabs) {
-        await generateForm(forms[tab.key]);
+        await generateForm(tab.key);
+        done += 1;
         // A short pause so the browser accepts each download
         await new Promise((resolve) => setTimeout(resolve, 400));
       }
-      toast.success(`${tabs.length} Purchase Orders downloaded.`);
+      toast.success(`${tabs.length} Purchase Orders saved and downloaded.`);
     } catch (err) {
-      console.error("Purchase Orders failed:", err);
-      toast.error("Could not generate all Purchase Orders.");
+      const stoppedAt = tabs[done];
+      reportFailure(err, `The Purchase Order for ${stoppedAt?.vendor}`);
+      if (done > 0) {
+        toast.info(
+          `${done} of ${tabs.length} Purchase Orders were already saved and downloaded.`,
+        );
+      }
+      if (stoppedAt) setActiveKey(stoppedAt.key);
     } finally {
       setGenerating(false);
     }
@@ -498,6 +559,17 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
 
         {/* Body */}
         <div ref={bodyRef} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+          {activeNoVendor && (
+            <p className="text-sm text-red-800 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+              {activeTab.orders.length === 1 ? "Order" : "Orders"}{" "}
+              <span className="font-medium">
+                {activeTab.orders.map((o) => text(o["Order#"])).join(", ")}
+              </span>{" "}
+              {activeTab.orders.length === 1 ? "has" : "have"} no Vendor on the
+              sheet. Add the Vendor there first; this Purchase Order cannot be
+              generated until then.
+            </p>
+          )}
           <Section title="Document details">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <Field
@@ -572,8 +644,13 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <Section title="Vendor">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Field label="Company name" {...fieldProps("vendorCompany")} />
-                  <Field label="Vendor contact name" {...fieldProps("vendorContact")} />
+                  {/* Always the sheet's Vendor, so read-only */}
+                  <Field
+                    label="Company name"
+                    {...fieldProps("vendorCompany")}
+                    disabled
+                  />
+                  <Field label="Vendor name" {...fieldProps("vendorContact")} />
                   <Field
                     label="Address"
                     multiline
@@ -584,9 +661,6 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
                   <Field label="Office phone" {...fieldProps("vendorPhone")} />
                   <Field label="Email" type="email" {...fieldProps("vendorEmail")} />
                 </div>
-                <p className="text-[11px] text-gray-400 mt-2">
-                  Vendor details are remembered on this browser for next time.
-                </p>
               </Section>
               <Section title="Ship To">
                 <Field label="Ship to" multiline rows={7} {...fieldProps("shipTo")} />
@@ -597,7 +671,7 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
               <Section title="Bill To">
                 <div className="grid grid-cols-1 gap-3">
                   <Field
-                    label="First line"
+                    label="Name"
                     placeholder="e.g. HP International Bank DAC"
                     {...fieldProps("billToName")}
                   />
@@ -720,7 +794,7 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
             {showPrice && (
               <p className="text-[11px] text-gray-400 mt-2">
                 Unit price is the order's {isPO ? "Cost" : "Price"} divided by
-                Qty. Descriptions you type are remembered per SKU.
+                Qty.
               </p>
             )}
           </Section>
@@ -796,15 +870,23 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
               <button
                 type="button"
                 onClick={handleGenerate}
-                disabled={generating}
+                disabled={generating || activeNoVendor}
+                title={activeNoVendor ? "Add the Vendor on the sheet first" : undefined}
                 className="py-1.5 px-5 border border-[#06245f] text-[#06245f] text-sm font-medium hover:bg-indigo-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {`Generate ${tabs.find((t) => t.key === activeKey)?.vendor} PDF`}
+                {activeNoVendor
+                  ? "Generate PDF"
+                  : `Generate ${activeTab?.vendor} PDF`}
               </button>
               <button
                 type="button"
                 onClick={handleGenerateAll}
-                disabled={generating}
+                disabled={generating || Boolean(noVendorTab)}
+                title={
+                  noVendorTab
+                    ? "Some orders have no Vendor on the sheet. Add it there first."
+                    : undefined
+                }
                 className="py-1.5 px-5 bg-[#06245f] hover:bg-[#041b4a] text-white text-sm font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {generating ? "Generating..." : `Generate all ${tabs.length} PDFs`}
@@ -814,7 +896,8 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
             <button
               type="button"
               onClick={handleGenerate}
-              disabled={generating}
+              disabled={generating || activeNoVendor}
+              title={activeNoVendor ? "Add the Vendor on the sheet first" : undefined}
               className="py-1.5 px-5 bg-[#06245f] hover:bg-[#041b4a] text-white text-sm font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {generating ? "Generating..." : "Generate PDF"}

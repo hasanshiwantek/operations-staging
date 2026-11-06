@@ -3,6 +3,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import logoUrl from "../assets/serverblink-logo.png";
+import titleFontUrl from "../assets/fonts/Anton-Regular.ttf?url";
 import { formatToday } from "./constant";
 
 // ---------------------------------------------------------------------------
@@ -110,16 +111,19 @@ export const getOrderFamily = (orders, clicked) => {
   });
 };
 
-// One Purchase Order per vendor: the family's orders grouped by Vendor, in the
-// order they appear (orders without a vendor share one "No vendor" group)
+// One Purchase Order per vendor: the family's orders grouped by the sheet's
+// Vendor, in the order they appear. Orders without a Vendor share a
+// "No vendor" group (noVendor: true) that is shown but cannot be generated
+// until the Vendor is added on the sheet.
+export const NO_VENDOR_KEY = "__no_vendor__";
 export const groupByVendor = (family) => {
   const groups = [];
   family.forEach((order) => {
     const vendor = text(order?.Vendor);
-    const key = vendor.toLowerCase() || "__no_vendor__";
+    const key = vendor.toLowerCase() || NO_VENDOR_KEY;
     let group = groups.find((g) => g.key === key);
     if (!group) {
-      group = { key, vendor: vendor || "No vendor", orders: [] };
+      group = { key, vendor: vendor || "No vendor", noVendor: !vendor, orders: [] };
       groups.push(group);
     }
     group.orders.push(order);
@@ -154,10 +158,9 @@ export const orderToItem = (order, { useCost = false } = {}) => {
   return {
     key: text(order?.["Order#"]) || `line-${Math.random()}`,
     orderNo: text(order?.["Order#"]),
-    sku: useCost
-      ? text(order?.["Vendor Part#"]) || text(order?.["Part#"])
-      : text(order?.["Part#"]),
-    description: getSavedDescription(order?.["Part#"]),
+    // The order's Part# on every document, Purchase Orders included
+    sku: text(order?.["Part#"]),
+    description: "",
     condition: text(order?.Condition),
     // Used when "Apply same warranty to all items" is off
     warranty: DEFAULT_WARRANTY,
@@ -197,70 +200,16 @@ export const getTotals = (form) => {
 };
 
 // ---------------------------------------------------------------------------
-// Vendor contact details are not on the sheet: remember what was typed per vendor
+// Nothing typed into the forms is kept between openings: each form starts from
+// the order alone. Earlier versions remembered vendor details and item
+// descriptions in the browser; clear those once.
 // ---------------------------------------------------------------------------
-const VENDOR_STORAGE_KEY = "poVendorDetails";
-export const VENDOR_FIELDS = [
-  "vendorContact",
-  "vendorAddress",
-  "vendorPhone",
-  "vendorEmail",
-];
-
-export const getSavedVendor = (vendorName) => {
-  try {
-    const saved = JSON.parse(localStorage.getItem(VENDOR_STORAGE_KEY) || "{}");
-    return saved[text(vendorName).toLowerCase()] || {};
-  } catch {
-    return {};
-  }
-};
-
-export const saveVendor = (vendorName, details) => {
-  const key = text(vendorName).toLowerCase();
-  if (!key) return;
-  try {
-    const saved = JSON.parse(localStorage.getItem(VENDOR_STORAGE_KEY) || "{}");
-    saved[key] = VENDOR_FIELDS.reduce(
-      (acc, field) => ({ ...acc, [field]: text(details[field]) }),
-      {},
-    );
-    localStorage.setItem(VENDOR_STORAGE_KEY, JSON.stringify(saved));
-  } catch {
-    // Storage unavailable: the details just are not remembered
-  }
-};
-
-// Item descriptions are not on the sheet either: remember them per Part#
-const DESCRIPTION_STORAGE_KEY = "docPartDescriptions";
-
-export const getSavedDescription = (partNo) => {
-  const key = text(partNo).toLowerCase();
-  if (!key) return "";
-  try {
-    const saved = JSON.parse(
-      localStorage.getItem(DESCRIPTION_STORAGE_KEY) || "{}",
-    );
-    return saved[key] || "";
-  } catch {
-    return "";
-  }
-};
-
-export const saveDescriptions = (items) => {
-  try {
-    const saved = JSON.parse(
-      localStorage.getItem(DESCRIPTION_STORAGE_KEY) || "{}",
-    );
-    items.forEach((item) => {
-      const key = text(item.sku).toLowerCase();
-      if (key && text(item.description)) saved[key] = text(item.description);
-    });
-    localStorage.setItem(DESCRIPTION_STORAGE_KEY, JSON.stringify(saved));
-  } catch {
-    // Storage unavailable: descriptions just are not remembered
-  }
-};
+try {
+  localStorage.removeItem("poVendorDetails");
+  localStorage.removeItem("docPartDescriptions");
+} catch {
+  // Storage unavailable: nothing to clear
+}
 
 // ---------------------------------------------------------------------------
 // Initial form data
@@ -281,8 +230,12 @@ export const buildCustomerForm = (type, family, clicked) => {
     // Bill To: first line typed by the user, then the address one part per line
     billToName: "",
     billTo: splitAddress(pick("Bill to address")),
-    // Ship To: Customer Company, then the address one part per line
-    shipTo: partyBlock(company, splitAddress(pick("Ship to address"))),
+    // Ship To: first line is the Customer Company ("On Label" on Packing
+    // Slips), then the address one part per line
+    shipTo: partyBlock(
+      type === "packing" ? "On Label" : company,
+      splitAddress(pick("Ship to address")),
+    ),
     items: family.map((order) => orderToItem(order)),
     warranty: type === "proforma" ? DEFAULT_WARRANTY : "",
     warrantyForAll: true,
@@ -297,17 +250,17 @@ export const buildPurchaseOrderForm = (selected, clicked) => {
   const main = selected[0] || clicked || {};
   const pick = (field) => text(main?.[field]) || firstValue(selected, field);
   const vendor = pick("Vendor");
-  const saved = getSavedVendor(vendor);
   const company = pick("Customer Company") || pick("Customer");
 
   return {
-    docNumber: pick("Vendor order#") || pick("Order#"),
+    // PO number defaults to the Order# of the tab's first order (editable)
+    docNumber: pick("Order#"),
     date: pick("Order Date") || formatToday(),
     vendorCompany: vendor,
-    vendorContact: saved.vendorContact || "",
-    vendorAddress: saved.vendorAddress || "",
-    vendorPhone: saved.vendorPhone || "",
-    vendorEmail: saved.vendorEmail || "",
+    vendorContact: "",
+    vendorAddress: "",
+    vendorPhone: "",
+    vendorEmail: "",
     shipTo: partyBlock(company, splitAddress(pick("Ship to address"))),
     requisitioner: pick("Procured By"),
     shippedVia: pick("Carrier"),
@@ -315,7 +268,7 @@ export const buildPurchaseOrderForm = (selected, clicked) => {
     items: selected.map((order) => orderToItem(order, { useCost: true })),
     warranty: DEFAULT_WARRANTY,
     warrantyForAll: true,
-    comments: "",
+    comments: "Blind Ship",
     pkgCharges: "0",
     tax: String(sumField(selected, "Vendor Tax")),
     shipping: String(sumField(selected, "Vendor Shipping")),
@@ -330,6 +283,7 @@ export const REQUIRED_FIELDS = {
     "docNumber",
     "date",
     "vendorCompany",
+    "vendorContact",
     "vendorAddress",
     "shipTo",
     "shippedVia",
@@ -429,9 +383,65 @@ const drawCompany = (doc, logo, { x, y, w, textX, lines, size, linkSize }) => {
   doc.line(textX, lines[2] + 1.5, textX + linkW, lines[2] + 1.5);
 };
 
-// Condensed navy title; anchored by its right edge, or left edge with align "left"
-const drawTitle = (doc, title, x, baseline, size, align = "right") => {
-  font(doc, size, "bold", NAVY);
+// Title face: Anton (SIL Open Font License, see assets/fonts/Anton-OFL.txt),
+// a free near-identical stand-in for Impact. Loaded once and embedded into
+// each PDF; if it cannot load, titles fall back to condensed Helvetica Bold.
+const TITLE_FONT = "Anton";
+const TITLE_FONT_FILE = "Anton-Regular.ttf";
+export const TITLE_SIZE = 22;
+let titleFontPromise = null;
+const loadTitleFont = () => {
+  if (!titleFontPromise) {
+    titleFontPromise = fetch(titleFontUrl)
+      .then((res) => (res.ok ? res.arrayBuffer() : null))
+      .then((buf) => {
+        if (!buf) return null;
+        // jsPDF takes the font file as a binary string
+        const bytes = new Uint8Array(buf);
+        let binary = "";
+        for (let i = 0; i < bytes.length; i += 0x8000) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+        }
+        return binary;
+      })
+      .catch(() => null)
+      .then((font) => {
+        if (!font) titleFontPromise = null; // try again next time
+        return font;
+      });
+  }
+  return titleFontPromise;
+};
+
+// Registers the title font on one document; returns whether it is available
+const useTitleFont = (doc, fontData) => {
+  if (!fontData) return false;
+  try {
+    doc.addFileToVFS(TITLE_FONT_FILE, fontData);
+    doc.addFont(TITLE_FONT_FILE, TITLE_FONT, "normal");
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+// Navy title; anchored by its right edge, or left edge with align "left".
+// A right-aligned title that would reach left of minX (into the logo) is
+// shrunk just enough to fit; otherwise it stays at TITLE_SIZE.
+const drawTitle = (doc, title, x, baseline, align = "right", minX = null) => {
+  if (doc.hasTitleFont) {
+    doc.setFont(TITLE_FONT, "normal");
+    doc.setFontSize(TITLE_SIZE);
+    doc.setTextColor(...NAVY);
+    let width = doc.getTextWidth(title);
+    if (align === "right" && minX != null && x - width < minX) {
+      doc.setFontSize((TITLE_SIZE * (x - minX)) / width);
+      width = doc.getTextWidth(title);
+    }
+    doc.text(title, align === "right" ? x - width : x, baseline);
+    return;
+  }
+  font(doc, TITLE_SIZE, "bold", NAVY);
   const width = doc.getTextWidth(title) * TITLE_SCALE;
   doc.text(title, align === "right" ? x - width : x, baseline, {
     horizontalScale: TITLE_SCALE,
@@ -697,12 +707,17 @@ const descriptionCells = (doc, form, fontSize, width) => {
   return { cells, boldLines };
 };
 
-const newDoc = () => new jsPDF({ unit: "pt", format: "letter" });
+// A Letter-size document with the title font registered when it loaded
+const newDoc = async () => {
+  const doc = new jsPDF({ unit: "pt", format: "letter" });
+  doc.hasTitleFont = useTitleFont(doc, await loadTitleFont());
+  return doc;
+};
 
 const money = (n) => formatMoney(n);
 
-export const generatePurchaseOrder = async (form) => {
-  const doc = newDoc();
+export const generatePurchaseOrder = async (form, options = {}) => {
+  const doc = await newDoc();
   const logo = await loadLogo();
   const L = 52;
 
@@ -715,11 +730,11 @@ export const generatePurchaseOrder = async (form) => {
     size: 7.1,
     linkSize: 7.8,
   });
-  drawTitle(doc, `PURCHASE ORDER # ${text(form.docNumber)}`, 556, 93, 19.5);
+  drawTitle(doc, `PURCHASE ORDER # ${text(form.docNumber)}`, 556, 95, "right", 270);
   font(doc, 10);
   const dateValue = text(form.date);
-  doc.text(dateValue, 557, 107, { align: "right" });
-  doc.text("Date:", 557 - doc.getTextWidth(dateValue) - 10, 107, {
+  doc.text(dateValue, 557, 113, { align: "right" });
+  doc.text("Date:", 557 - doc.getTextWidth(dateValue) - 10, 113, {
     align: "right",
   });
 
@@ -819,11 +834,11 @@ export const generatePurchaseOrder = async (form) => {
   );
 
   drawPageNumbers(doc);
-  doc.save(`${DOC_TYPES.po.filePrefix} ${text(form.docNumber)}.pdf`);
+  return finish(doc, documentFileName("po", form), options);
 };
 
-export const generatePackingSlip = async (form) => {
-  const doc = newDoc();
+export const generatePackingSlip = async (form, options = {}) => {
+  const doc = await newDoc();
   const logo = await loadLogo();
   const L = 52;
 
@@ -836,7 +851,7 @@ export const generatePackingSlip = async (form) => {
     size: 8.4,
     linkSize: 9.2,
   });
-  drawTitle(doc, "Packing Slip", 384, 122, 30, "left");
+  drawTitle(doc, "Packing Slip", 384, 122, "left");
   drawMetaBox(
     doc,
     [
@@ -876,11 +891,11 @@ export const generatePackingSlip = async (form) => {
   drawFooterLine(doc, y + 14, 8.6);
 
   drawPageNumbers(doc);
-  doc.save(`${DOC_TYPES.packing.filePrefix} ${text(form.docNumber)}.pdf`);
+  return finish(doc, documentFileName("packing", form), options);
 };
 
-export const generateProformaInvoice = async (form) => {
-  const doc = newDoc();
+export const generateProformaInvoice = async (form, options = {}) => {
+  const doc = await newDoc();
   const logo = await loadLogo();
   const L = 20;
 
@@ -893,7 +908,7 @@ export const generateProformaInvoice = async (form) => {
     size: 7.8,
     linkSize: 8.6,
   });
-  drawTitle(doc, `Proforma Invoice # ${text(form.docNumber)}`, 549, 82, 27);
+  drawTitle(doc, `Proforma Invoice # ${text(form.docNumber)}`, 549, 82, "right", 214);
   drawMetaBox(
     doc,
     [
@@ -1003,11 +1018,223 @@ export const generateProformaInvoice = async (form) => {
 
   drawFooterLine(doc, bankY - 1, 7);
   drawPageNumbers(doc);
-  doc.save(`${DOC_TYPES.proforma.filePrefix} ${text(form.docNumber)}.pdf`);
+  return finish(doc, documentFileName("proforma", form), options);
 };
 
 export const GENERATORS = {
   proforma: generateProformaInvoice,
   packing: generatePackingSlip,
   po: generatePurchaseOrder,
+};
+
+// ---------------------------------------------------------------------------
+// Backend records (document history)
+// ---------------------------------------------------------------------------
+// Bumped whenever the PDF layout changes, so audits can tell layouts apart
+export const TEMPLATE_VERSION = "2026-11-06";
+
+// Our form types ↔ the backend's document_type and save endpoint
+export const DOCUMENT_API = {
+  proforma: { documentType: "proforma_invoice", endpoint: "/proforma-invoices" },
+  packing: { documentType: "packing_slip", endpoint: "/packing-slips" },
+  po: { documentType: "purchase_order", endpoint: "/purchase-orders" },
+};
+export const typeFromDocumentType = (documentType) =>
+  Object.keys(DOCUMENT_API).find(
+    (type) => DOCUMENT_API[type].documentType === documentType,
+  );
+
+export const documentFileName = (type, form) =>
+  `${DOC_TYPES[type].filePrefix} ${text(form.docNumber)}.pdf`;
+
+// Downloads the PDF, or returns it ({ blob, fileName }) with { output: "blob" }
+const finish = (doc, fileName, { output } = {}) => {
+  if (output === "blob") return { blob: doc.output("blob"), fileName };
+  doc.save(fileName);
+  return { fileName };
+};
+
+const lines = (value) =>
+  text(value)
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+const toMoney = (value) => round2(num(value));
+
+// The record the backend stores for a generated document: a snapshot of the
+// form as printed plus what the history list needs to search and group by
+export const buildDocumentPayload = (
+  type,
+  form,
+  { orderNo, orderNos, vendor = null },
+) => {
+  const totals = getTotals(form);
+  const warrantyBlock = {
+    apply_to_all: Boolean(form.warrantyForAll),
+    value: text(form.warranty),
+  };
+  const items = form.items.map((item) => {
+    const base = {
+      order_no: item.orderNo,
+      sku: text(item.sku),
+      description: text(item.description),
+    };
+    if (type === "packing") return { ...base, qty: Math.round(num(item.qty)) };
+    return {
+      ...base,
+      ...(type === "po" ? { condition: text(item.condition) } : {}),
+      warranty: itemWarranty(form, item),
+      qty: Math.round(num(item.qty)),
+      unit_price: toMoney(item.unitPrice),
+      amount: itemAmount(item),
+    };
+  });
+
+  let data;
+  if (type === "proforma") {
+    data = {
+      invoice_no: text(form.docNumber),
+      date: text(form.date),
+      customer_po: text(form.poNumber),
+      payment_terms: text(form.paymentTerms),
+      shipping_method: text(form.shippingMethod),
+      sales_rep: text(form.salesRep),
+      payment_status: PROFORMA_PAYMENT_STATUS,
+      tracking: PROFORMA_TRACKING,
+      bill_to: { first_line: text(form.billToName), address_lines: lines(form.billTo) },
+      ship_to: { lines: lines(form.shipTo) },
+      warranty: warrantyBlock,
+      items,
+      totals: {
+        subtotal: totals.subtotal,
+        discount: totals.discount,
+        tax: totals.tax,
+        shipping: totals.shipping,
+        total: totals.total,
+      },
+      note: text(form.note),
+    };
+  } else if (type === "packing") {
+    data = {
+      order_no: text(form.docNumber),
+      date: text(form.date),
+      customer_po: text(form.poNumber),
+      shipping_method: text(form.shippingMethod),
+      bill_to: { first_line: text(form.billToName), address_lines: lines(form.billTo) },
+      ship_to: { lines: lines(form.shipTo) },
+      items,
+      total_qty: items.reduce((acc, item) => acc + item.qty, 0),
+      note: text(form.note),
+    };
+  } else {
+    data = {
+      po_no: text(form.docNumber),
+      date: text(form.date),
+      vendor: {
+        company: text(form.vendorCompany),
+        name: text(form.vendorContact),
+        address_lines: lines(form.vendorAddress),
+        phone: text(form.vendorPhone),
+        email: text(form.vendorEmail),
+      },
+      ship_to: { lines: lines(form.shipTo) },
+      requisitioner: text(form.requisitioner),
+      shipped_via: text(form.shippedVia),
+      shipping_method: text(form.shippingMethod),
+      warranty: warrantyBlock,
+      items,
+      totals: {
+        subtotal: totals.subtotal,
+        pkg_charges: totals.extra,
+        tax: totals.tax,
+        shipping: totals.shipping,
+        total: totals.total,
+      },
+      comments: text(form.comments),
+    };
+  }
+
+  return {
+    document_type: DOCUMENT_API[type].documentType,
+    document_number: text(form.docNumber),
+    file_name: documentFileName(type, form),
+    order_no: text(orderNo),
+    base_order_no: baseOrderNumber(orderNo),
+    order_nos: orderNos,
+    vendor: type === "po" ? vendor : null,
+    total: type === "packing" ? null : totals.total,
+    generated_at: new Date().toISOString(),
+    template_version: TEMPLATE_VERSION,
+    data,
+  };
+};
+
+// A saved record back into the form shape the PDF generators draw, so View PDF
+// shows the document as it was issued (the backend turns "" into null)
+export const formFromRecord = (type, record) => {
+  const d = record?.data || {};
+  const items = (d.items || []).map((item, index) => ({
+    key: `${text(item.order_no) || "line"}-${index}`,
+    orderNo: text(item.order_no),
+    sku: text(item.sku),
+    description: text(item.description),
+    condition: text(item.condition),
+    warranty: text(item.warranty),
+    qty: String(item.qty ?? ""),
+    unitPrice: item.unit_price == null ? "" : String(item.unit_price),
+    amount: item.amount == null ? "" : String(item.amount),
+  }));
+  const common = {
+    docNumber: text(record?.document_number),
+    date: text(d.date),
+    shipTo: (d.ship_to?.lines || []).map(text).join("\n"),
+    items,
+    // Each item keeps the warranty it was printed with
+    warrantyForAll: false,
+    warranty: text(d.warranty?.value),
+    tax: String(d.totals?.tax ?? 0),
+    shipping: String(d.totals?.shipping ?? 0),
+  };
+  const billTo = {
+    billToName: text(d.bill_to?.first_line),
+    billTo: (d.bill_to?.address_lines || []).map(text).join("\n"),
+  };
+  if (type === "proforma") {
+    return {
+      ...common,
+      ...billTo,
+      docNumber: text(d.invoice_no) || common.docNumber,
+      poNumber: text(d.customer_po),
+      paymentTerms: text(d.payment_terms),
+      shippingMethod: text(d.shipping_method),
+      salesRep: text(d.sales_rep),
+      discount: String(d.totals?.discount ?? 0),
+      note: text(d.note),
+    };
+  }
+  if (type === "packing") {
+    return {
+      ...common,
+      ...billTo,
+      docNumber: text(d.order_no) || common.docNumber,
+      poNumber: text(d.customer_po),
+      shippingMethod: text(d.shipping_method),
+      note: text(d.note),
+    };
+  }
+  return {
+    ...common,
+    docNumber: text(d.po_no) || common.docNumber,
+    vendorCompany: text(d.vendor?.company),
+    // "name" since the field was renamed; older records saved it as "contact"
+    vendorContact: text(d.vendor?.name ?? d.vendor?.contact),
+    vendorAddress: (d.vendor?.address_lines || []).map(text).join("\n"),
+    vendorPhone: text(d.vendor?.phone),
+    vendorEmail: text(d.vendor?.email),
+    requisitioner: text(d.requisitioner),
+    shippedVia: text(d.shipped_via),
+    shippingMethod: text(d.shipping_method),
+    pkgCharges: String(d.totals?.pkg_charges ?? 0),
+    comments: text(d.comments),
+  };
 };
