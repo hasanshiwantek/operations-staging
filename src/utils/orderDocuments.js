@@ -149,11 +149,19 @@ const firstValue = (orders, field) =>
 const sumField = (orders, field) =>
   round2(orders.reduce((acc, o) => acc + num(o?.[field]), 0));
 
+// Unit price = the line amount divided by the quantity
+export const unitPriceFor = (amount, qty) => {
+  const total = num(amount);
+  const count = Math.round(num(qty));
+  return total && count > 0 ? String(round2(total / count)) : "";
+};
+
 // One line item per order (each sheet row is one part)
 export const orderToItem = (order, { useCost = false } = {}) => {
   // Quantities are whole numbers on the documents; separators are ignored,
-  // so a sheet Qty of "1, 2" reads as 12
-  const qty = Math.max(1, Math.round(num(order?.Qty)));
+  // so a sheet Qty of "1, 2" reads as 12. A Qty of 0 is left empty for the
+  // user to fill in (Qty is required and must be above 0)
+  const qty = Math.max(0, Math.round(num(order?.Qty)));
   const total = num(useCost ? order?.Cost : order?.Price);
   return {
     key: text(order?.["Order#"]) || `line-${Math.random()}`,
@@ -164,8 +172,8 @@ export const orderToItem = (order, { useCost = false } = {}) => {
     condition: text(order?.Condition),
     // Used when "Apply same warranty to all items" is off
     warranty: DEFAULT_WARRANTY,
-    qty: String(qty),
-    unitPrice: total ? String(round2(total / qty)) : "",
+    qty: qty ? String(qty) : "",
+    unitPrice: unitPriceFor(total, qty),
     // The order's own Price (or Cost) is the line amount, so it matches the
     // sheet exactly instead of being rebuilt from a rounded unit price
     amount: String(round2(total)),
@@ -290,11 +298,12 @@ export const REQUIRED_FIELDS = {
   ],
 };
 // SKU, Qty and Unit price come straight from the order and are not editable,
-// so only the description has to be typed in
+// so only the description, the quantity (above 0) and the condition on
+// Purchase Orders are required
 const REQUIRED_ITEM_FIELDS = {
-  proforma: ["description"],
-  packing: ["description"],
-  po: ["description"],
+  proforma: ["description", "qty"],
+  packing: ["description", "qty"],
+  po: ["description", "qty", "condition"],
 };
 
 export const isItemFieldRequired = (type, field) =>

@@ -9,15 +9,15 @@ import {
   Search,
   X,
 } from "lucide-react";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
+import { getIsFinance } from "../utils/constant";
 import {
   fetchDocumentHistory,
   fetchDocumentRecord,
 } from "../utils/documentHistoryApi";
-import { getIsFinance } from "../utils/constant";
 import {
   DOC_TYPES,
   formatMoney,
@@ -47,7 +47,10 @@ const formatWhen = (value) => {
       month: "short",
       year: "numeric",
     }),
-    time: date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }),
+    time: date.toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
   };
 };
 
@@ -155,7 +158,9 @@ const DocumentHistory = () => {
     (row) => {
       if (row.userName) return row.userName;
       if (user && String(user.id) === String(row.userId)) return user.name;
-      const match = (users || []).find((u) => String(u.id) === String(row.userId));
+      const match = (users || []).find(
+        (u) => String(u.id) === String(row.userId),
+      );
       return match?.name || (row.userId ? `User #${row.userId}` : "-");
     },
     [user, users],
@@ -174,7 +179,7 @@ const DocumentHistory = () => {
   }, [rows, query, typeFilter, isFinance]);
 
   const viewPdf = async (row) => {
-    setOpening(row.id);
+    setOpening(row.referenceId);
     try {
       // The list only carries a summary; load the saved record for this row
       const record = await fetchDocumentRecord(row);
@@ -196,7 +201,9 @@ const DocumentHistory = () => {
         );
       } else if (!err?.response?.data?.message) {
         // The API client already shows the backend's own message
-        toast.error("This document could not be opened. Try again in a moment.");
+        toast.error(
+          "This document could not be opened. Try again in a moment.",
+        );
       }
     } finally {
       setOpening(null);
@@ -220,8 +227,8 @@ const DocumentHistory = () => {
         <div>
           <h1 className="text-xl font-semibold">Document History</h1>
           <p className="text-sm text-gray-500">
-            Every Proforma Invoice, Packing Slip and Purchase Order generated from
-            the order sheet.
+            Every Proforma Invoice, Packing Slip and Purchase Order generated
+            from the order sheet.
           </p>
         </div>
 
@@ -243,11 +250,13 @@ const DocumentHistory = () => {
             onChange={(e) => setTypeFilter(e.target.value)}
             className="h-9 border border-gray-300 rounded-md px-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           >
-            {TYPE_FILTERS.filter((f) => !(isFinance && f.value === "po")).map((f) => (
-              <option key={f.value} value={f.value}>
-                {f.label}
-              </option>
-            ))}
+            {TYPE_FILTERS.filter((f) => !(isFinance && f.value === "po")).map(
+              (f) => (
+                <option key={f.value} value={f.value}>
+                  {f.label}
+                </option>
+              ),
+            )}
           </select>
           <button
             type="button"
@@ -285,7 +294,11 @@ const DocumentHistory = () => {
               <tr>
                 <td colSpan={7} className="p-6 text-center text-red-600">
                   The document history could not be loaded.{" "}
-                  <button type="button" onClick={load} className="underline font-medium">
+                  <button
+                    type="button"
+                    onClick={load}
+                    className="underline font-medium"
+                  >
                     Try again
                   </button>
                 </td>
@@ -302,7 +315,10 @@ const DocumentHistory = () => {
               visible.map((row) => {
                 const when = formatWhen(row.createdAt);
                 return (
-                  <tr key={row.id} className="hover:bg-gray-50 align-top">
+                  <tr
+                    key={row.referenceId}
+                    className="hover:bg-gray-50 align-top"
+                  >
                     <td className="p-3 border whitespace-nowrap">
                       <div className="text-gray-800">{when.day}</div>
                       <div className="text-xs text-gray-500">{when.time}</div>
@@ -322,22 +338,30 @@ const DocumentHistory = () => {
                       </div>
                     </td>
                     <td className="p-3 border text-gray-700">
-                      {row.orderNos.length ? row.orderNos.join(", ") : row.orderNo || "-"}
+                      {row.orderNos.length
+                        ? row.orderNos.join(", ")
+                        : row.orderNo || "-"}
                     </td>
-                    <td className="p-3 border text-gray-700">{row.vendor || "-"}</td>
+                    <td className="p-3 border text-gray-700">
+                      {row.vendor || "-"}
+                    </td>
                     <td className="p-3 border text-right tabular-nums text-gray-800">
                       {row.total == null ? "-" : formatMoney(row.total)}
                     </td>
-                    <td className="p-3 border text-gray-700">{userName(row)}</td>
+                    <td className="p-3 border text-gray-700">
+                      {userName(row)}
+                    </td>
                     <td className="p-3 border">
                       <button
                         type="button"
                         onClick={() => viewPdf(row)}
-                        disabled={opening === row.id}
+                        disabled={opening === row.referenceId}
                         className="flex items-center gap-1.5 py-1 px-3 border border-[#06245f] text-[#06245f] text-xs font-semibold hover:bg-indigo-50 disabled:opacity-60 whitespace-nowrap"
                       >
                         <FileText size={14} />
-                        {opening === row.id ? "Opening..." : "View PDF"}
+                        {opening === row.referenceId
+                          ? "Opening..."
+                          : "View PDF"}
                       </button>
                     </td>
                   </tr>

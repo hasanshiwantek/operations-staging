@@ -1,15 +1,14 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { FaArrowLeft, FaUserCircle } from "react-icons/fa";
-import OrderTab from "../components/OrderDetails/OrderTab";
-import InvoiceTab from "../components/OrderDetails/InvoiceTab";
-import CustomerTab from "../components/OrderDetails/CustomerTab";
-import VendorTab from "../components/OrderDetails/VendorTab";
-import TotalPriceProfitTab from "../components/OrderDetails/TotalPriceProfitTab";
 import { useDispatch, useSelector } from "react-redux";
+import { useNavigate, useParams } from "react-router-dom";
 import NotAllowed from "../components/notallowed/NotAllowed";
-import { fetchSingleOrder, fetchSingleOrderAdmin } from "../store/usersSlice";
-import { AlertTriangle } from "lucide-react";
+import CustomerTab from "../components/OrderDetails/CustomerTab";
+import InvoiceTab from "../components/OrderDetails/InvoiceTab";
+import OrderTab from "../components/OrderDetails/OrderTab";
+import TotalPriceProfitTab from "../components/OrderDetails/TotalPriceProfitTab";
+import VendorTab from "../components/OrderDetails/VendorTab";
+import { fetchSingleOrderAdmin } from "../store/usersSlice";
 import { toNumber } from "../utils/constant";
 
 const OrderDetails = () => {
@@ -25,7 +24,11 @@ const OrderDetails = () => {
     { label: "Vendor", path: "vendor" },
     { label: "Total price & Profit", path: "total-price-profit" },
   ];
-  const { singleOrder, orderloading, error: usersError } = useSelector((state) => state.users);
+  const {
+    singleOrder,
+    orderloading,
+    error: usersError,
+  } = useSelector((state) => state.users);
   const [activeTab, setActiveTab] = useState("order");
   const { storeId, user: authUser } = useSelector((state) => state.auth);
   const { user } = useSelector((state) => state?.auth);
@@ -36,82 +39,86 @@ const OrderDetails = () => {
   const hasDash = String(singleOrder?.order_id)?.includes("-");
   // const hasDash = String(order?.order_id)?.includes("-");
   // Format order data
-  const formattedOrder = singleOrder?.data ? {
-    orderId: singleOrder.data["Order#"],
-    chargedDate: singleOrder.data["Charged Date"],
-    chargedVendor: singleOrder.data["Charged Vendor"],
-    leadSource: singleOrder.data["Lead Source"],
-    procuredBy: singleOrder.data["Procured By"],
-    orderDate: singleOrder.data["Order Date"],
-    refundDate: singleOrder.data["Refund Date"],
-    salesAgent: singleOrder.data["Sales Agent"],
-    invoiceNo: singleOrder.data["Invoice#"],
-    orderSource: singleOrder.data["Order Source"],
-    paymentStatus: singleOrder.data["Payment Status"],
-    brand: singleOrder.data["Brands"],
-    category: singleOrder.data["Category"],
-    partNumber: singleOrder.data["Part#"],
-    condition: singleOrder.data["Condition"],
-    shippingAccount: singleOrder.data["Shipping A/C"],
-    billTo: singleOrder.data["Bill to address"],
-    shipTo: singleOrder.data["Ship to address"],
-    city: singleOrder.data["City"],
-    state: singleOrder.data["State"],
-    country: singleOrder.data["Country"],
-    carrier: singleOrder.data["Carrier"],
-    tracking: singleOrder.data["Tracking"],
-    status: singleOrder.data["Order Status"],
-    reason: singleOrder.data["Reasons (IF any)"],
-    customerName: singleOrder.data["Customer"],
-    customerCompany: singleOrder.data["Customer Company"],
-    customerEmail: singleOrder.data["Email"],
-    customerPhone: singleOrder.data["Phone"],
-    paidVia: singleOrder.data["Paid Via"],
-    ccPaypal: toNumber(singleOrder?.data["CC/Paypal 4%"]?.value),
-    qty: singleOrder.data["Qty"],
-    price: toNumber(singleOrder.data["Price"]?.value),
-    shipping: toNumber(singleOrder.data["Shipping"]?.value),
-    tax: toNumber(singleOrder.data["Tax"]?.value),
-    cost: toNumber(singleOrder.data["Cost"]?.value),
-    vendorShipping: toNumber(singleOrder.data["Vendor Shipping"]?.value),
-    vendorTax: toNumber(singleOrder.data["Vendor Tax"]?.value),
-    totalPriceValue: toNumber(singleOrder.data["Total Price"]?.value),
-    vendor: singleOrder.data["Vendor"],
-    vendorOrder: singleOrder.data["Vendor order#"],
-    vendorPart: singleOrder.data["Vendor Part#"],
-    entryReason: singleOrder.data["Entry Reason"],
-    comment: singleOrder.data["Comment"],
-    entryCheck: singleOrder.data["Entry Check"],
-    attachedOrder: singleOrder.data["Attached To Order"],
+  const formattedOrder = singleOrder?.data
+    ? {
+        orderId: singleOrder.data["Order#"],
+        chargedDate: singleOrder.data["Charged Date"],
+        chargedVendor: singleOrder.data["Charged Vendor"],
+        leadSource: singleOrder.data["Lead Source"],
+        procuredBy: singleOrder.data["Procured By"],
+        orderDate: singleOrder.data["Order Date"],
+        refundDate: singleOrder.data["Refund Date"],
+        salesAgent: singleOrder.data["Sales Agent"],
+        invoiceNo: singleOrder.data["Invoice#"],
+        orderSource: singleOrder.data["Order Source"],
+        paymentStatus: singleOrder.data["Payment Status"],
+        brand: singleOrder.data["Brands"],
+        category: singleOrder.data["Category"],
+        partNumber: singleOrder.data["Part#"],
+        condition: singleOrder.data["Condition"],
+        shippingAccount: singleOrder.data["Shipping A/C"],
+        billTo: singleOrder.data["Bill to address"],
+        shipTo: singleOrder.data["Ship to address"],
+        city: singleOrder.data["City"],
+        state: singleOrder.data["State"],
+        country: singleOrder.data["Country"],
+        carrier: singleOrder.data["Carrier"],
+        tracking: singleOrder.data["Tracking"],
+        status: singleOrder.data["Order Status"],
+        reason: singleOrder.data["Reasons (IF any)"],
+        customerName: singleOrder.data["Customer"],
+        customerCompany: singleOrder.data["Customer Company"],
+        customerEmail: singleOrder.data["Email"],
+        customerPhone: singleOrder.data["Phone"],
+        paidVia: singleOrder.data["Paid Via"],
+        ccPaypal: toNumber(singleOrder?.data["CC/Paypal 4%"]?.value),
+        qty: singleOrder.data["Qty"],
+        price: toNumber(singleOrder.data["Price"]?.value),
+        shipping: toNumber(singleOrder.data["Shipping"]?.value),
+        tax: toNumber(singleOrder.data["Tax"]?.value),
+        cost: toNumber(singleOrder.data["Cost"]?.value),
+        vendorShipping: toNumber(singleOrder.data["Vendor Shipping"]?.value),
+        vendorTax: toNumber(singleOrder.data["Vendor Tax"]?.value),
+        totalPriceValue: toNumber(singleOrder.data["Total Price"]?.value),
+        vendor: singleOrder.data["Vendor"],
+        vendorOrder: singleOrder.data["Vendor order#"],
+        vendorPart: singleOrder.data["Vendor Part#"],
+        entryReason: singleOrder.data["Entry Reason"],
+        comment: singleOrder.data["Comment"],
+        entryCheck: singleOrder.data["Entry Check"],
+        attachedOrder: singleOrder.data["Attached To Order"],
 
-    // ---- totals and profits ----
-    totalPrice: singleOrder.total_price?.total_price,
-    totalPricePrice: singleOrder.total_price?.price,
-    totalPriceTax: singleOrder.total_price?.tax,
-    totalCost: toNumber(singleOrder.data["Total Cost"]?.value),
-    // totalCost: singleOrder.total_cost?.total_cost,
+        // ---- totals and profits ----
+        totalPrice: singleOrder.total_price?.total_price,
+        totalPricePrice: singleOrder.total_price?.price,
+        totalPriceTax: singleOrder.total_price?.tax,
+        totalCost: toNumber(singleOrder.data["Total Cost"]?.value),
+        // totalCost: singleOrder.total_cost?.total_cost,
 
-    totalCostValue: singleOrder.total_cost?.Cost,
-    totalCostVendorTax: singleOrder.total_cost?.["Vendor Tax"],
+        totalCostValue: singleOrder.total_cost?.Cost,
+        totalCostVendorTax: singleOrder.total_cost?.["Vendor Tax"],
 
-    totalCostWith4Percent: singleOrder["total_cost + 4%"]?.total_cost_4,
-    totalCost4Percent: toNumber(singleOrder?.data["Total Cost+4%"]?.value),
-    // totalCost4Percent: singleOrder?.data["Gross Profit"],
-    // totalCost4Percent: singleOrder["total_cost + 4%"]?.total_Cost,
-    ccPaypal4Percent: singleOrder["total_cost + 4%"]?.["CC/Paypal 4%"],
+        totalCostWith4Percent: singleOrder["total_cost + 4%"]?.total_cost_4,
+        totalCost4Percent: toNumber(singleOrder?.data["Total Cost+4%"]?.value),
+        // totalCost4Percent: singleOrder?.data["Gross Profit"],
+        // totalCost4Percent: singleOrder["total_cost + 4%"]?.total_Cost,
+        ccPaypal4Percent: singleOrder["total_cost + 4%"]?.["CC/Paypal 4%"],
 
-    grossProfit: toNumber(singleOrder?.data["Gross Profit"]),
-    grossProfitTotalPrice: singleOrder.gross_profit?.total_price,
-    grossProfitTotalCost: singleOrder.gross_profit?.total_cost,
+        grossProfit: toNumber(singleOrder?.data["Gross Profit"]),
+        grossProfitTotalPrice: singleOrder.gross_profit?.total_price,
+        grossProfitTotalCost: singleOrder.gross_profit?.total_cost,
 
-    grossProfitMinus4: toNumber(singleOrder?.data["Gross Profit-4%"]),
-    grossProfitMinus4TotalPrice: singleOrder["gross_profit - 4%"]?.total_price,
-    grossProfitMinus4TotalCost: singleOrder["gross_profit - 4%"]?.["total_cost+4%"],
+        grossProfitMinus4: toNumber(singleOrder?.data["Gross Profit-4%"]),
+        grossProfitMinus4TotalPrice:
+          singleOrder["gross_profit - 4%"]?.total_price,
+        grossProfitMinus4TotalCost:
+          singleOrder["gross_profit - 4%"]?.["total_cost+4%"],
 
-    profit: singleOrder.data["Profit %"],
-    profitTotalPrice: singleOrder.profit?.total_price,
-    profitTotalCostMinus4: singleOrder.profit?.["total_cost-4%"],
-  } : null;
+        profit: singleOrder.data["Profit %"],
+        profitTotalPrice: singleOrder.profit?.total_price,
+        profitTotalCostMinus4: singleOrder.profit?.["total_cost-4%"],
+      }
+    : null;
   // User access logic
   const userAccess = user?.page_access?.page_name
     ? Array.isArray(user.page_access.page_name)
@@ -119,7 +126,7 @@ const OrderDetails = () => {
       : Object.values(user.page_access.page_name)
     : [];
 
-  const pageAccess = user
+  const pageAccess = user;
   const hasPermission = (slug) => {
     if (roleId === 1 || roleId === 2) return true;
     return permissions.some((p) => p.slug === slug);
@@ -150,11 +157,13 @@ const OrderDetails = () => {
     dispatch(fetchSingleOrderAdmin({ orderId: orderId, role_id: storeId?.id }));
   }, [authUser?.role_id, dispatch, orderId]);
 
-
   useEffect(() => {
     const firstAccessible = tabs.find((tab) => hasAccess(tab.label));
     if (firstAccessible && userAccess.length) {
-      const key = firstAccessible.path === "total-price-profit" ? "total price & profit" : firstAccessible.path;
+      const key =
+        firstAccessible.path === "total-price-profit"
+          ? "total price & profit"
+          : firstAccessible.path;
       setActiveTab(key);
     }
   }, [userAccess]);
@@ -211,13 +220,11 @@ const OrderDetails = () => {
     );
   }
 
-
   const handleTabClick = (tabPath) => {
-    const tabKey = tabPath === "total-price-profit" ? "total price & profit" : tabPath;
+    const tabKey =
+      tabPath === "total-price-profit" ? "total price & profit" : tabPath;
     setActiveTab(tabKey);
   };
-
-  console.log("formattedOrder", formattedOrder);
 
   return (
     <>
@@ -230,7 +237,9 @@ const OrderDetails = () => {
           >
             <FaArrowLeft className="text-gray-600" />
           </button>
-          <h1 className={`text-2xl font-semibold flex items-center gap-2 ${hasDash ? "text-gray-700" : "text-gray-700"}`}>
+          <h1
+            className={`text-2xl font-semibold flex items-center gap-2 ${hasDash ? "text-gray-700" : "text-gray-700"}`}
+          >
             {/* Order #{singleOrder?.order_id || 0} */}
             Order #{singleOrder?.data?.["Order#"] || 0}
             {/* {hasDash && <AlertTriangle size={20} className="text-red-600" />} */}
@@ -266,10 +275,11 @@ const OrderDetails = () => {
               <button
                 key={tab.path}
                 onClick={() => handleTabClick(tab.path)}
-                className={`px-5 py-2 rounded-full text-sm font-medium ${activeTab === tabKey
-                  ? "bg-indigo-600 text-white"
-                  : "bg-gray-100 text-gray-600"
-                  }`}
+                className={`px-5 py-2 rounded-full text-sm font-medium ${
+                  activeTab === tabKey
+                    ? "bg-indigo-600 text-white"
+                    : "bg-gray-100 text-gray-600"
+                }`}
               >
                 {tab.label}
               </button>
@@ -281,40 +291,53 @@ const OrderDetails = () => {
           </span>
         </div>
         {/* === ORDER TAB === */}
-        {activeTab === "order" && (
-          hasAccess("Order")
-            ? <OrderTab orderData={formattedOrder} handleUpdateField={handleUpdateField} />
-            : <NotAllowed />
-        )}
+        {activeTab === "order" &&
+          (hasAccess("Order") ? (
+            <OrderTab
+              orderData={formattedOrder}
+              handleUpdateField={handleUpdateField}
+            />
+          ) : (
+            <NotAllowed />
+          ))}
 
         {/* === INVOICE TAB === */}
-        {activeTab === "invoice" && (
-          hasAccess("Invoice")
-            ? <InvoiceTab orderData={formattedOrder} handleUpdateField={handleUpdateField} />
-            : <NotAllowed />
-        )}
+        {activeTab === "invoice" &&
+          (hasAccess("Invoice") ? (
+            <InvoiceTab
+              orderData={formattedOrder}
+              handleUpdateField={handleUpdateField}
+            />
+          ) : (
+            <NotAllowed />
+          ))}
 
         {/* === CUSTOMER TAB === */}
-        {activeTab === "customer" && (
-          hasAccess("Customer")
-            ? <CustomerTab orderData={formattedOrder} />
-            : <NotAllowed />
-        )}
+        {activeTab === "customer" &&
+          (hasAccess("Customer") ? (
+            <CustomerTab orderData={formattedOrder} />
+          ) : (
+            <NotAllowed />
+          ))}
 
         {/* === VENDOR TAB === */}
-        {activeTab === "vendor" && (
-          hasAccess("Vendor")
-            ? <VendorTab orderData={formattedOrder} />
-            : <NotAllowed />
-        )}
-
+        {activeTab === "vendor" &&
+          (hasAccess("Vendor") ? (
+            <VendorTab orderData={formattedOrder} />
+          ) : (
+            <NotAllowed />
+          ))}
 
         {/* === TOTAL PRICE & PROFIT TAB === */}
-        {activeTab === "total price & profit" && (
-          hasAccess("Total price & Profit")
-            ? <TotalPriceProfitTab orderData={formattedOrder} handleUpdateField={handleUpdateField} />
-            : <NotAllowed />
-        )}
+        {activeTab === "total price & profit" &&
+          (hasAccess("Total price & Profit") ? (
+            <TotalPriceProfitTab
+              orderData={formattedOrder}
+              handleUpdateField={handleUpdateField}
+            />
+          ) : (
+            <NotAllowed />
+          ))}
       </div>
     </>
   );

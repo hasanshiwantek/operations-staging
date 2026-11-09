@@ -326,6 +326,8 @@ const EditOrderDetailModal = ({
         withDefaultShippingAccount({
           ...order,
           "Order Date": formatToday(),
+          // A new part order starts with Qty and CC/Paypal 4% at 0 (editable)
+          ...(isCreatePartMode && { Qty: "0", "CC/Paypal 4%": "0.00" }),
         }),
       );
       const { Status, ...rest } = calculated;

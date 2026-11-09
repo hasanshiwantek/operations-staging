@@ -21,6 +21,7 @@ import {
   groupByVendor,
   isItemFieldRequired,
   itemAmount,
+  unitPriceFor,
   REQUIRED_FIELDS,
 } from "../utils/orderDocuments";
 import { normalizeOrderOptions } from "../utils/constant";
@@ -298,9 +299,14 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
   const setItem = (key, name, value) =>
     setForm((prev) => ({
       ...prev,
-      items: prev.items.map((item) =>
-        item.key === key ? { ...item, [name]: value } : item,
-      ),
+      items: prev.items.map((item) => {
+        if (item.key !== key) return item;
+        if (name !== "qty") return { ...item, [name]: value };
+        // Whole numbers only; the line amount stays the order's own total,
+        // so the unit price follows the quantity
+        const qty = String(value).replace(/D/g, "").replace(/^0+(?=d)/, "");
+        return { ...item, qty, unitPrice: unitPriceFor(item.amount, qty) };
+      }),
     }));
 
   // Unticking "Apply same warranty to all items" starts every item with the
@@ -467,6 +473,7 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
       <Tag
         rows={opts.multiline ? 2 : undefined}
         type={opts.multiline ? undefined : "text"}
+        inputMode={opts.inputMode}
         value={item[name] ?? ""}
         placeholder={
           opts.placeholder ||
@@ -703,8 +710,14 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
                       {hasWarranty && (
                         <th className="py-1.5 pr-2 w-[170px]">Warranty</th>
                       )}
-                      {isPO && <th className="py-1.5 pr-2 w-[90px]">Cond</th>}
-                      <th className="py-1.5 pr-2 w-[70px]">Qty</th>
+                      {isPO && (
+                        <th className="py-1.5 pr-2 w-[90px]">
+                          Cond <span className="text-red-500">*</span>
+                        </th>
+                      )}
+                      <th className="py-1.5 pr-2 w-[80px]">
+                        Qty <span className="text-red-500">*</span>
+                      </th>
                       {showPrice && (
                         <>
                           <th className="py-1.5 pr-2 w-[110px]">Unit price</th>
@@ -762,18 +775,27 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
                                   onChange={(value) =>
                                     setItem(item.key, "condition", value)
                                   }
-                                  state="ok"
+                                  state={
+                                    missing.items[item.key]?.condition
+                                      ? showErrors
+                                        ? "error"
+                                        : "missing"
+                                      : "ok"
+                                  }
                                   disabled={optionsLoading}
-                                  placeholder="New"
+                                  placeholder="Select"
                                 />
                               ) : (
-                                itemCell(item, "condition", { placeholder: "New" })
+                                itemCell(item, "condition", { placeholder: "Required" })
                               );
                             })()}
                           </td>
                         )}
-                        <td className="py-2 px-2 pt-3 text-gray-800">
-                          {text(item.qty) || "-"}
+                        <td className="py-2 pr-2">
+                          {itemCell(item, "qty", {
+                            placeholder: "0",
+                            inputMode: "numeric",
+                          })}
                         </td>
                         {showPrice && (
                           <>

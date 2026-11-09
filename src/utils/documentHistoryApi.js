@@ -89,7 +89,7 @@ export const fetchDocumentHistory = async () => {
 // document is never shown.
 export const fetchDocumentRecord = async (row) => {
   if (row.record) return row.record;
-  const response = await axiosInstance.get(`/document-histories/${row.id}`);
+  const response = await axiosInstance.get(`/document-histories/${row.referenceId}`);
   const record = response.data?.data;
   if (!record || typeof record !== "object" || !record.data) {
     throw new Error("The saved document could not be loaded.");

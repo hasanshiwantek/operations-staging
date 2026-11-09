@@ -26,7 +26,6 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
     (state) => state.users,
   );
   const normalizedOptions = normalizeOrderOptions(orderOptions);
-  console.log({normalizedOptions})
   const [formData, setFormData] = useState({});
   const [isEditing, setIsEditing] = useState(isNewOrder);
   const columns = useBalancedColumns(Object.keys(formData).length);
@@ -36,7 +35,6 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
   };
 
   useEffect(() => {
-    console.log({order})
     if (order) {
       setFormData({ ...order });
     } else {

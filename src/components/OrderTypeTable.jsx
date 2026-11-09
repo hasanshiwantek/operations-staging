@@ -1,31 +1,23 @@
-import React, { useEffect, useState } from "react";
-import { Plus, Pencil, Trash2, ArrowLeft } from "lucide-react";
+import { ArrowLeft, Pencil, Plus, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import OrderTypeModal from "./OrderTypeModal";
 import {
-  fetchOrderTypes,
   createOrderType,
-  updateOrderType,
   deleteOrderType,
+  fetchOrderTypes,
+  updateOrderType,
 } from "../store/orderTypeSlice"; // ← make sure path is correct
-
-
-
+import OrderTypeModal from "./OrderTypeModal";
 
 const OrderTypeTable = () => {
   const [showModal, setShowModal] = useState(false);
   const [editData, setEditData] = useState(null);
 
   const { storeId } = useSelector((state) => state.auth);
-  const {
-    orderTypes,
-    loading,
-    createLoading,
-    updateLoading,
-    deleteLoading,
-  } = useSelector((state) => state.orderTypes);
+  const { orderTypes, loading, createLoading, updateLoading, deleteLoading } =
+    useSelector((state) => state.orderTypes);
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -48,12 +40,11 @@ const OrderTypeTable = () => {
     setEditData(item);
     setShowModal(true);
   };
-  console.log("orderTypes", orderTypes);
 
   // Delete
   const handleDelete = async (item) => {
     const confirmDelete = window.confirm(
-      `Are you sure you want to delete "${item.type}"?`
+      `Are you sure you want to delete "${item.type}"?`,
     );
 
     if (!confirmDelete) return;
@@ -77,7 +68,7 @@ const OrderTypeTable = () => {
             id: editData.id,
             type: data.type,
             color_code: data.color_code,
-          })
+          }),
         ).unwrap();
 
         toast.success("Order type updated successfully");
@@ -88,7 +79,7 @@ const OrderTypeTable = () => {
             type: data.type,
             color_code: data.color_code,
             role_id: storeId.id,
-          })
+          }),
         ).unwrap();
 
         toast.success("Order type created successfully");
