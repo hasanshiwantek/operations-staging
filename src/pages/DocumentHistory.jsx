@@ -11,9 +11,9 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import { getIsFinance } from "../utils/constant";
+import { DOCUMENT_PERMISSIONS, getIsFinance } from "../utils/constant";
 import {
   fetchDocumentHistory,
   fetchDocumentRecord,
@@ -120,8 +120,19 @@ const DocumentHistory = () => {
   const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth);
   const { users } = useSelector((state) => state.users);
+  const { userPermissions, userPermissionsLoaded } = useSelector(
+    (state) => state.permissions,
+  );
   // Finance users cannot see vendor details on the sheet, so no Purchase Orders
   const isFinance = getIsFinance();
+
+  // Super Admin / Admin → full access
+  const isAdminRole = user?.role_id === 1 || user?.role_id === 2;
+  const hasPermission = (slug) =>
+    isAdminRole || userPermissions?.some((p) => p.slug === slug);
+  const canSeeHistory = hasPermission(DOCUMENT_PERMISSIONS.history);
+  const canViewPdf = hasPermission(DOCUMENT_PERMISSIONS.viewPdf);
+  const columnCount = canViewPdf ? 7 : 6;
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -145,8 +156,8 @@ const DocumentHistory = () => {
   }, []);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    if (canSeeHistory) load();
+  }, [load, canSeeHistory]);
 
   // Free the PDF's memory when the viewer closes
   useEffect(
@@ -209,6 +220,18 @@ const DocumentHistory = () => {
       setOpening(null);
     }
   };
+
+  if (!canSeeHistory) {
+    // The user's permissions load after this page mounts on a refresh
+    if (!userPermissionsLoaded) {
+      return (
+        <div className="p-6 text-center">
+          <div className="inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      );
+    }
+    return <Navigate to="/dashboard" replace />;
+  }
 
   return (
     <div className="p-6">
@@ -280,19 +303,21 @@ const DocumentHistory = () => {
               <th className="p-3 border text-left">Vendor</th>
               <th className="p-3 border text-right">Total</th>
               <th className="p-3 border text-left">By</th>
-              <th className="p-3 border text-left w-[120px]"></th>
+              {canViewPdf && (
+                <th className="p-3 border text-left w-[120px]"></th>
+              )}
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="p-6 text-center">
+                <td colSpan={columnCount} className="p-6 text-center">
                   <div className="inline-block w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
                 </td>
               </tr>
             ) : failed ? (
               <tr>
-                <td colSpan={7} className="p-6 text-center text-red-600">
+                <td colSpan={columnCount} className="p-6 text-center text-red-600">
                   The document history could not be loaded.{" "}
                   <button
                     type="button"
@@ -305,7 +330,7 @@ const DocumentHistory = () => {
               </tr>
             ) : visible.length === 0 ? (
               <tr>
-                <td colSpan={7} className="p-6 text-center text-gray-500">
+                <td colSpan={columnCount} className="p-6 text-center text-gray-500">
                   {rows.length
                     ? "No documents match this search."
                     : "No documents yet. Right-click an order on the sheet to generate a Proforma Invoice, Packing Slip or Purchase Order."}
@@ -351,19 +376,21 @@ const DocumentHistory = () => {
                     <td className="p-3 border text-gray-700">
                       {userName(row)}
                     </td>
-                    <td className="p-3 border">
-                      <button
-                        type="button"
-                        onClick={() => viewPdf(row)}
-                        disabled={opening === row.referenceId}
-                        className="flex items-center gap-1.5 py-1 px-3 border border-[#06245f] text-[#06245f] text-xs font-semibold hover:bg-indigo-50 disabled:opacity-60 whitespace-nowrap"
-                      >
-                        <FileText size={14} />
-                        {opening === row.referenceId
-                          ? "Opening..."
-                          : "View PDF"}
-                      </button>
-                    </td>
+                    {canViewPdf && (
+                      <td className="p-3 border">
+                        <button
+                          type="button"
+                          onClick={() => viewPdf(row)}
+                          disabled={opening === row.referenceId}
+                          className="flex items-center gap-1.5 py-1 px-3 border border-[#06245f] text-[#06245f] text-xs font-semibold hover:bg-indigo-50 disabled:opacity-60 whitespace-nowrap"
+                        >
+                          <FileText size={14} />
+                          {opening === row.referenceId
+                            ? "Opening..."
+                            : "View PDF"}
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 );
               })

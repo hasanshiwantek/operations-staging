@@ -223,6 +223,16 @@ export const getIsOperation = () => {
   return [5].includes(user?.role_id);
 };
 
+// Slugs the Super Admin grants from the "Documents" permission group. The
+// proforma / packing / po keys match the order document types.
+export const DOCUMENT_PERMISSIONS = {
+  proforma: "documents.proforma_invoice",
+  packing: "documents.packing_slip",
+  po: "documents.purchase_order",
+  history: "documents.history",
+  viewPdf: "documents.view_pdf",
+};
+
 // Operation users can tick only these fields (finance flow: check what isn't highlighted yet)
 const OPERATION_CHECKBOX_FIELDS = ["CC/Paypal 4%"];
 // Finance users tick every checkbox field except these (they don't handle the merchant fee)

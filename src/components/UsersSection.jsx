@@ -1,9 +1,12 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { MoreVertical } from "lucide-react";
 import addUserIcon from "../assets/adduser-icon.svg";
 import { useDispatch, useSelector } from "react-redux";
 import { deleteUser } from "../store/usersSlice";
 import { CreateUserModal } from "./CreateUserModal";
+
+// Room the Edit / Delete menu needs below its icon
+const MENU_SPACE_NEEDED = 90;
 
 // Updated UsersSection Component
 const UsersSection = ({
@@ -19,8 +22,23 @@ const UsersSection = ({
   const roleId = user?.role_id;
 
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [menuOpensUp, setMenuOpensUp] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const listRef = useRef(null);
+
+  const toggleMenu = (e, id) => {
+    if (openMenuId === id) {
+      setOpenMenuId(null);
+      return;
+    }
+    // Open upward when the menu would run past the bottom of the scrolling list
+    const spaceBelow =
+      listRef.current.getBoundingClientRect().bottom -
+      e.currentTarget.getBoundingClientRect().bottom;
+    setMenuOpensUp(spaceBelow < MENU_SPACE_NEEDED);
+    setOpenMenuId(id);
+  };
 
   const handleDeleteUser = (id) => {
     const confirmDelete = window.confirm("Are you sure you want to delete this user?");
@@ -63,7 +81,10 @@ const UsersSection = ({
           />
         </div>
 
-        <div className="space-y-3 relative z-10 h-[35rem] overflow-y-scroll">
+        <div
+          ref={listRef}
+          className="space-y-3 relative z-10 h-[35rem] overflow-y-scroll"
+        >
           {loading ? (
             <p className="text-sm text-gray-500 text-center py-4">
               Loading users...
@@ -106,14 +127,16 @@ const UsersSection = ({
                     {[1, 2].includes(roleId) && <MoreVertical
                       size={16}
                       className="text-gray-400 cursor-pointer"
-                      onClick={() =>
-                        setOpenMenuId(openMenuId === userId ? null : userId)
-                      }
+                      onClick={(e) => toggleMenu(e, userId)}
                     />}
 
 
                     {openMenuId === userId && (
-                      <div className="absolute right-0 top-6 z-10 w-28 bg-white border rounded-lg shadow-md">
+                      <div
+                        className={`absolute right-0 z-10 w-28 bg-white border rounded-lg shadow-md ${
+                          menuOpensUp ? "bottom-6" : "top-6"
+                        }`}
+                      >
                         <button
                           className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100"
                           onClick={() => handleEditUser(user)}

@@ -32,6 +32,7 @@ import {
 import {
   CHECKBOX_FIELDS,
   columnsOfSheet,
+  DOCUMENT_PERMISSIONS,
   FLAT_VALUE_FIELDS,
   flattenOrderValues,
   formatNumberCell,
@@ -1762,6 +1763,11 @@ function OrderListTable({ Orders, isActive = true }) {
     storeId,
   };
 
+  // Vendor details are hidden from finance users, so no Purchase Orders
+  const canCreateDocument = (type) =>
+    contextMenuRef.current.hasPermission(DOCUMENT_PERMISSIONS[type]) &&
+    !(type === "po" && getIsFinance());
+
   const contextMenu = useMemo(
     () => ({
       items: {
@@ -1919,6 +1925,8 @@ function OrderListTable({ Orders, isActive = true }) {
           hidden: function () {
             const selected = this.getSelectedLast();
             if (!selected || selected[0] < 0) return true;
+            if (!["proforma", "packing", "po"].some(canCreateDocument))
+              return true;
             return !canGenerateDocuments(getOrderAtRow(selected[0]));
           },
         },
@@ -1936,12 +1944,11 @@ function OrderListTable({ Orders, isActive = true }) {
                 if (!selected || selected[0] < 0) return true;
                 if (!canGenerateDocuments(getOrderAtRow(selected[0])))
                   return true;
-                // Vendor details are hidden from finance users
-                return type === "po" && getIsFinance();
+                return !canCreateDocument(type);
               },
               callback: (key, selection) => {
                 const order = getOrderAtRow(selection[0].start.row);
-                if (canGenerateDocuments(order))
+                if (canGenerateDocuments(order) && canCreateDocument(type))
                   setDocumentRequest({ type, order });
               },
             },

@@ -10,6 +10,7 @@ import { createSheetStore } from "../store/usersSlice";
 import { CreateUserModal } from "./CreateUserModal";
 import { SuperAdminProfileModal } from "./SuperAdminProfileModal";
 import { getPermissionsByStoreId } from "../store/permissionsSlice";
+import { DOCUMENT_PERMISSIONS } from "../utils/constant";
 
 const Header = () => {
   const navigate = useNavigate();
@@ -21,6 +22,11 @@ const Header = () => {
   const [showLogoutModal, setShowLogoutModal] = React.useState(false);
   const [showProfileModal, setShowProfileModal] = React.useState(false);
   const roleId = user?.role_id;
+  const { userPermissions } = useSelector((state) => state.permissions);
+  const canSeeDocumentHistory =
+    roleId === 1 ||
+    roleId === 2 ||
+    userPermissions?.some((p) => p.slug === DOCUMENT_PERMISSIONS.history);
   const {
     formState: { errors },
   } = useForm();
@@ -97,14 +103,16 @@ const Header = () => {
             </>
           )}
 
-          <button
-            onClick={() => navigate("/document-history")}
-            className="p-2 hover:bg-gray-100 rounded-full transition"
-            title="Document history"
-            aria-label="Document history"
-          >
-            <FileClock size={20} className="text-gray-600" />
-          </button>
+          {canSeeDocumentHistory && (
+            <button
+              onClick={() => navigate("/document-history")}
+              className="p-2 hover:bg-gray-100 rounded-full transition"
+              title="Document history"
+              aria-label="Document history"
+            >
+              <FileClock size={20} className="text-gray-600" />
+            </button>
+          )}
 
           <button
             onClick={() => setShowLogoutModal(true)}
