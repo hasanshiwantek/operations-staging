@@ -230,7 +230,6 @@ export const DOCUMENT_PERMISSIONS = {
   packing: "documents.packing_slip",
   po: "documents.purchase_order",
   history: "documents.history",
-  viewPdf: "documents.view_pdf",
 };
 
 // Operation users can tick only these fields (finance flow: check what isn't highlighted yet)

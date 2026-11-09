@@ -68,20 +68,29 @@ const normalizeRow = (row) => {
   };
 };
 
-// Every saved document, newest first. Handles a plain array or a paginated
-// { data: [...], meta } body
+// The saved documents in the order the API sent them. Handles a plain array or
+// a paginated { data: [...], meta } body
 export const normalizeHistory = (responseBody) => {
   const body = responseBody?.data;
   const rows = Array.isArray(body) ? body : Array.isArray(body?.data) ? body.data : [];
-  return rows
-    .map(normalizeRow)
-    .filter(Boolean)
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  return rows.map(normalizeRow).filter(Boolean);
 };
 
-export const fetchDocumentHistory = async () => {
-  const response = await axiosInstance.get("/document-histories");
-  return normalizeHistory(response.data);
+// filters: { type, order_no, vendor, sortBy, sortDir, per_page, page };
+// empty values are left out of the request
+export const fetchDocumentHistory = async (filters = {}) => {
+  const params = Object.fromEntries(
+    Object.entries(filters).filter(([, value]) => value !== "" && value != null),
+  );
+  const response = await axiosInstance.get("/document-histories", { params });
+  const body = response.data;
+  // Paging details sit in meta, or directly on a Laravel paginator
+  const meta = body?.meta || body?.data?.meta || body?.data || {};
+  return {
+    rows: normalizeHistory(body),
+    lastPage: Number(meta.last_page) || 1,
+    total: meta.total ?? null,
+  };
 };
 
 // The full saved record behind a history row, for View PDF. Throws when the

@@ -21,6 +21,7 @@ import {
   groupByVendor,
   isItemFieldRequired,
   itemAmount,
+  parseVendorDetails,
   unitPriceFor,
   REQUIRED_FIELDS,
 } from "../utils/orderDocuments";
@@ -225,6 +226,37 @@ const Section = ({ title, children, aside }) => (
   </section>
 );
 
+// What was read from the pasted vendor details, so a wrong split is easy to spot
+const VendorPreview = ({ form }) => {
+  if (!text(form.vendorDetails)) return null;
+  const parts = [
+    ["Vendor name", form.vendorContact, true],
+    ["Address", form.vendorAddress, true],
+    ["Office phone", form.vendorPhone],
+    ["Email", form.vendorEmail],
+  ];
+  return (
+    <dl className="sm:col-span-2 grid grid-cols-[6rem_1fr] gap-x-2 gap-y-1 rounded-md bg-gray-50 border border-gray-200 px-3 py-2 text-xs">
+      {parts.map(([label, value, required]) => (
+        <React.Fragment key={label}>
+          <dt className="font-semibold text-gray-500">{label}</dt>
+          <dd
+            className={`min-w-0 break-words whitespace-pre-line ${
+              value
+                ? "text-gray-800"
+                : required
+                  ? "text-red-600"
+                  : "text-gray-400"
+            }`}
+          >
+            {value || (required ? "Missing" : "Not provided")}
+          </dd>
+        </React.Fragment>
+      ))}
+    </dl>
+  );
+};
+
 // ---------------------------------------------------------------------------
 // Modal
 // ---------------------------------------------------------------------------
@@ -296,6 +328,13 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
   const setField = (name, value) =>
     setForm((prev) => ({ ...prev, [name]: value }));
 
+  const setVendorDetails = (name, value) =>
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
+      ...parseVendorDetails(value),
+    }));
+
   const setItem = (key, name, value) =>
     setForm((prev) => ({
       ...prev,
@@ -304,7 +343,7 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
         if (name !== "qty") return { ...item, [name]: value };
         // Whole numbers only; the line amount stays the order's own total,
         // so the unit price follows the quantity
-        const qty = String(value).replace(/D/g, "").replace(/^0+(?=d)/, "");
+        const qty = String(value).replace(/\D/g, "").replace(/^0+(?=\d)/, "");
         return { ...item, qty, unitPrice: unitPriceFor(item.amount, qty) };
       }),
     }));
@@ -657,16 +696,23 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
                     {...fieldProps("vendorCompany")}
                     disabled
                   />
-                  <Field label="Vendor name" {...fieldProps("vendorContact")} />
                   <Field
-                    label="Address"
+                    label="Vendor details"
                     multiline
-                    rows={3}
+                    rows={6}
                     className="sm:col-span-2"
-                    {...fieldProps("vendorAddress")}
+                    placeholder={
+                      "Paste one item per line:\nVendor name\nAddress (any number of lines)\nPhone and / or email"
+                    }
+                    {...fieldProps("vendorDetails")}
+                    onChange={setVendorDetails}
+                    required
+                    missing={Boolean(
+                      missing.fields.vendorContact ||
+                        missing.fields.vendorAddress,
+                    )}
                   />
-                  <Field label="Office phone" {...fieldProps("vendorPhone")} />
-                  <Field label="Email" type="email" {...fieldProps("vendorEmail")} />
+                  <VendorPreview form={form} />
                 </div>
               </Section>
               <Section title="Ship To">

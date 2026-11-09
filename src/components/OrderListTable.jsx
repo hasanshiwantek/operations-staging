@@ -40,7 +40,6 @@ import {
   getFieldHighlight,
   getFieldValue,
   getIsAdmin,
-  getIsFinance,
   setCheckboxChangeHandler,
 } from "../utils/constant";
 import EditOrderDetailModal from "./EditOrderDetailModal";
@@ -1763,10 +1762,8 @@ function OrderListTable({ Orders, isActive = true }) {
     storeId,
   };
 
-  // Vendor details are hidden from finance users, so no Purchase Orders
   const canCreateDocument = (type) =>
-    contextMenuRef.current.hasPermission(DOCUMENT_PERMISSIONS[type]) &&
-    !(type === "po" && getIsFinance());
+    contextMenuRef.current.hasPermission(DOCUMENT_PERMISSIONS[type]);
 
   const contextMenu = useMemo(
     () => ({

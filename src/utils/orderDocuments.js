@@ -265,6 +265,7 @@ export const buildPurchaseOrderForm = (selected, clicked) => {
     docNumber: pick("Order#"),
     date: pick("Order Date") || formatToday(),
     vendorCompany: vendor,
+    vendorDetails: "",
     vendorContact: "",
     vendorAddress: "",
     vendorPhone: "",
@@ -280,6 +281,60 @@ export const buildPurchaseOrderForm = (selected, clicked) => {
     pkgCharges: "0",
     tax: String(sumField(selected, "Vendor Tax")),
     shipping: String(sumField(selected, "Vendor Shipping")),
+  };
+};
+
+const EMAIL_PATTERN = /[^\s<>(),;:|]+@[^\s<>(),;:|]+\.[a-z]{2,}/gi;
+const CONTACT_LABELS =
+  /\b(?:office|phone|telephone|tel|mobile|cell|fax|contact|ph|number|no|e-?mail)\b\.?\s*[:#-]?|\b[petmf]\s*:/gi;
+
+const isPhone = (value) => {
+  const main = value.replace(/\s*(?:x|ext\.?|extension)\s*\d+$/i, "");
+  const digits = main.replace(/\D/g, "").length;
+  return /^\+?[\d\s().\-/]+$/.test(main) && digits >= 7 && digits <= 15;
+};
+
+// { phones, emails } when a line holds nothing but contact details, else null
+const readContactLine = (line) => {
+  const emails = line.match(EMAIL_PATTERN) || [];
+  const phones = line
+    .replace(EMAIL_PATTERN, " ")
+    .replace(CONTACT_LABELS, " ")
+    .split(/[|,;]|\s\/\s/)
+    .map((part) => part.replace(/^[\s\-–•·]+|[\s\-–•·]+$/g, ""))
+    .filter(Boolean);
+  if (!emails.length && !phones.length) return null;
+  return phones.every(isPhone) ? { phones, emails } : null;
+};
+
+// Pasted vendor block → form fields. The first line is the name, lines that
+// are only a phone and / or email are contact details (either may be absent),
+// and every other line belongs to the address, however many there are.
+export const parseVendorDetails = (raw) => {
+  const cleaned = String(raw ?? "").trim().replace(/^"|"$/g, "");
+  let lines = cleaned.split(/\r?\n|\t/).map((l) => l.trim()).filter(Boolean);
+  // All pasted on one line: commas separate the parts
+  if (lines.length === 1) {
+    lines = lines[0].split(",").map((l) => l.trim()).filter(Boolean);
+  }
+  const [name = "", ...rest] = lines;
+  const address = [];
+  const phones = [];
+  const emails = [];
+  rest.forEach((line) => {
+    const contact = readContactLine(line);
+    if (contact) {
+      phones.push(...contact.phones);
+      emails.push(...contact.emails);
+    } else {
+      address.push(line);
+    }
+  });
+  return {
+    vendorContact: name,
+    vendorAddress: address.join("\n"),
+    vendorPhone: phones.join(" / "),
+    vendorEmail: emails.join(", "),
   };
 };
 
