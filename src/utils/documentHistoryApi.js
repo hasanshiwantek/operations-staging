@@ -76,7 +76,7 @@ export const normalizeHistory = (responseBody) => {
   return rows.map(normalizeRow).filter(Boolean);
 };
 
-// filters: { type, order_no, vendor, sortBy, sortDir, per_page, page };
+// filters: { type, order_no, vendor, user_name, sortBy, sortDir, per_page, page };
 // empty values are left out of the request
 export const fetchDocumentHistory = async (filters = {}) => {
   const params = Object.fromEntries(
@@ -88,7 +88,7 @@ export const fetchDocumentHistory = async (filters = {}) => {
   const meta = body?.meta || body?.data?.meta || body?.data || {};
   return {
     rows: normalizeHistory(body),
-    lastPage: Number(meta.last_page) || 1,
+    lastPage: Number(meta.last_page) || null,
     total: meta.total ?? null,
   };
 };

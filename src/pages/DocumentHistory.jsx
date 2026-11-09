@@ -148,7 +148,7 @@ const UserFilterSelect = ({ value, options, onChange }) => {
     };
   }, [open]);
 
-  const items = [{ value: "all", name: "All users" }, ...options];
+  const items = [{ value: "", name: "All users" }, ...options];
   const selected = items.find((o) => o.value === value) || items[0];
 
   return (
@@ -227,9 +227,9 @@ const DocumentHistory = () => {
   const [vendor, setVendor] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [sort, setSort] = useState(SORT_OPTIONS[0].value);
-  const [byFilter, setByFilter] = useState("all");
+  const [byFilter, setByFilter] = useState("");
   const [page, setPage] = useState(1);
-  const [lastPage, setLastPage] = useState(1);
+  const [lastPage, setLastPage] = useState(null);
   const [total, setTotal] = useState(null);
   const [opening, setOpening] = useState(null);
   const [viewer, setViewer] = useState(null);
@@ -245,6 +245,7 @@ const DocumentHistory = () => {
         type: DOC_TYPES[typeFilter]?.title,
         order_no: orderNo,
         vendor,
+        user_name: byFilter,
         sortBy,
         sortDir,
         per_page: PAGE_SIZE,
@@ -262,7 +263,7 @@ const DocumentHistory = () => {
     } finally {
       if (request === latestRequest.current) setLoading(false);
     }
-  }, [typeFilter, orderNo, vendor, sort, page]);
+  }, [typeFilter, orderNo, vendor, byFilter, sort, page]);
 
   useEffect(() => {
     if (canSeeHistory) load();
@@ -306,39 +307,30 @@ const DocumentHistory = () => {
     [user, users],
   );
 
-  // Rows are matched by user id; rows saved without one fall back to the name
-  const isRowBy = useCallback(
-    (row, option) =>
-      row.userId != null && option.id != null
-        ? String(row.userId) === String(option.id)
-        : userName(row) === option.name,
-    [userName],
-  );
-
+  // The API filters by name, so each name is listed once
   const byOptions = useMemo(() => {
-    const options = (users || []).map((u) => ({
-      value: `id:${u.id}`,
-      id: u.id,
-      name: u.name,
-      role: (roles || []).find((r) => String(r.id) === String(u.role_id))?.name,
-    }));
-    // Keep anyone who generated a document but is not in the users list
-    rows.forEach((row) => {
-      const name = userName(row);
-      if (name === "-" || options.some((o) => isRowBy(row, o))) return;
-      options.push({ value: `name:${name}`, name });
-    });
-    return options.sort((a, b) => a.name.localeCompare(b.name));
-  }, [users, roles, rows, userName, isRowBy]);
+    const options = new Map();
+    const add = (name, role) => {
+      if (name && !options.has(name)) {
+        options.set(name, { value: name, name, role });
+      }
+    };
+    (users || []).forEach((u) =>
+      add(
+        u.name,
+        (roles || []).find((r) => String(r.id) === String(u.role_id))?.name,
+      ),
+    );
+    // Keep anyone who generated a document but is not in the users list, and
+    // the current choice even when it returned no rows
+    rows.forEach((row) => add(row.userName));
+    add(byFilter);
+    return [...options.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [users, roles, rows, byFilter]);
 
-  // The API has no user filter, so By applies to the page it returned
-  const visible = useMemo(() => {
-    const byOption = byOptions.find((o) => o.value === byFilter);
-    return byOption ? rows.filter((row) => isRowBy(row, byOption)) : rows;
-  }, [rows, byFilter, byOptions, isRowBy]);
-
-  const hasFilters =
-    typeFilter !== "all" || orderNo || vendor || byFilter !== "all";
+  const hasFilters = typeFilter !== "all" || orderNo || vendor || byFilter;
+  // Without a page count from the API, a full page means there may be more
+  const hasNextPage = lastPage ? page < lastPage : rows.length === PAGE_SIZE;
 
   const viewPdf = async (row) => {
     setOpening(row.referenceId);
@@ -449,7 +441,10 @@ const DocumentHistory = () => {
           <UserFilterSelect
             value={byFilter}
             options={byOptions}
-            onChange={setByFilter}
+            onChange={(value) => {
+              setByFilter(value);
+              setPage(1);
+            }}
           />
           <select
             id="document-history-sort"
@@ -512,7 +507,7 @@ const DocumentHistory = () => {
                   </button>
                 </td>
               </tr>
-            ) : visible.length === 0 ? (
+            ) : rows.length === 0 ? (
               <tr>
                 <td colSpan={7} className="p-6 text-center text-gray-500">
                   {hasFilters
@@ -521,7 +516,7 @@ const DocumentHistory = () => {
                 </td>
               </tr>
             ) : (
-              visible.map((row) => {
+              rows.map((row) => {
                 const when = formatWhen(row.createdAt);
                 return (
                   <tr
@@ -581,10 +576,11 @@ const DocumentHistory = () => {
         </table>
       </div>
 
-      {lastPage > 1 && (
+      {!failed && (rows.length > 0 || page > 1) && (
         <div className="flex items-center justify-between gap-3 mt-4">
           <p className="text-sm text-gray-500">
-            Page {page} of {lastPage}
+            Page {page}
+            {lastPage && ` of ${lastPage}`}
             {total != null && ` (${total} documents)`}
           </p>
           <div className="flex items-center gap-1">
@@ -599,7 +595,7 @@ const DocumentHistory = () => {
             <button
               type="button"
               onClick={() => setPage(page + 1)}
-              disabled={page >= lastPage || loading}
+              disabled={!hasNextPage || loading}
               className="px-3 py-2 border rounded-md text-sm bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Next
