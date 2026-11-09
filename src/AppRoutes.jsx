@@ -22,6 +22,7 @@ import Attributes from "./pages/Attributes";
 import AttributeDetails from "./pages/AttributeDetails";
 import OrderType from "./pages/OrderType";
 import UserLogs from "./components/UserLogs";
+import NotificationListener from "./components/NotificationListener";
 
 // Public Route wrapper → if already logged in, redirect to /store
 const PublicRoute = ({ children }) => {
@@ -197,6 +198,7 @@ const AppRoutes = () => {
         />
       </Routes>
 
+      <NotificationListener />
       <ToastContainer
         position="top-right"
         autoClose={3000}

@@ -9,6 +9,7 @@ import { logoutManual } from "../store/authSlice";
 import { createSheetStore } from "../store/usersSlice";
 import { CreateUserModal } from "./CreateUserModal";
 import { SuperAdminProfileModal } from "./SuperAdminProfileModal";
+import NotificationBell from "./NotificationBell";
 import { getPermissionsByStoreId } from "../store/permissionsSlice";
 import { DOCUMENT_PERMISSIONS } from "../utils/constant";
 
@@ -102,6 +103,8 @@ const Header = () => {
               </button>
             </>
           )}
+
+          <NotificationBell />
 
           {canSeeDocumentHistory && (
             <button

@@ -1,9 +1,10 @@
 import { Filter, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { useDispatch, useSelector } from "react-redux";
-import { useNavigate } from "react-router-dom";
+import { useDispatch, useSelector, useStore } from "react-redux";
+import { useLocation, useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 import grossprofit from "../assets/grossprofit-icon.svg";
 import ordervalue from "../assets/ordervalue-icon.svg";
 import totalorders from "../assets/totalorders-icon.svg";
@@ -14,7 +15,11 @@ import Pagination from "../components/Pagination";
 import StatsCard from "../components/StatsCard";
 import UsersSection from "../components/UsersSection";
 import { OrderCardSkeleton } from "../components/Utils";
-import { fetchOrdersAdmin, fetchUsers } from "../store/usersSlice";
+import {
+  fetchOrdersAdmin,
+  fetchUsers,
+  setOrderSearch,
+} from "../store/usersSlice";
 import { toNumber } from "../utils/constant";
 
 const calculateTotalPrice = (order) => {
@@ -27,6 +32,11 @@ const calculateTotalPrice = (order) => {
 const Dashboard = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const store = useStore();
+  // Set when a notification toast is clicked; cleared once the order is shown
+  const focusOrderNo = useLocation().state?.focusOrderNo ?? null;
+  // Arriving from another page starts a fresh fetch, so that counts as the refetch
+  const focusRefetchedRef = useRef(focusOrderNo);
   // const [activeTab, setActiveTab] = useState("dashboard");
   const [activeTab, setActiveTab] = useState(() => {
     // Get saved tab from localStorage, fallback to "dashboard"
@@ -62,7 +72,9 @@ const Dashboard = () => {
     () => localStorage.getItem("dashboardOrderBasis") || "primary",
   );
   const { user, storeId } = useSelector((state) => state?.auth);
-  const { userPermissions } = useSelector((state) => state?.permissions);
+  const { userPermissions, userPermissionsLoaded } = useSelector(
+    (state) => state?.permissions,
+  );
   const roleId = user?.role_id;
   const permissions = userPermissions;
 
@@ -139,6 +151,21 @@ const Dashboard = () => {
   };
   const toggleUserModal = () => setShowUserModal((prev) => !prev);
 
+  const clearDashboardFilters = () => {
+    setStartDate(null);
+    setEndDate(null);
+    setSearchQuery("");
+    setSelectedFilter("All");
+    setSelectedAgent("All");
+    setSelectedProcuredBy("All");
+    setCurrentPage(1);
+  };
+
+  const finishOrderFocus = useCallback(() => {
+    focusRefetchedRef.current = null;
+    navigate("/dashboard", { replace: true, state: null });
+  }, [navigate]);
+
   // === Fetch Users Data (wait for token to be saved) ===
   useEffect(() => {
     // Simple delay and token check
@@ -206,6 +233,50 @@ const Dashboard = () => {
       selectedProcuredBy,
     ],
   );
+
+  // === Open the order from a clicked notification ===
+  useEffect(() => {
+    if (!focusOrderNo) return;
+    if (userPermissionsLoaded && !hasParentPermission("view_sheet")) {
+      toast.error("You don't have access to the order sheet.");
+      finishOrderFocus();
+      return;
+    }
+    // Read from the store: on first mount the fetch above has only just started
+    const { orderloading: isLoading, orderSearch } = store.getState().users;
+    if (isLoading) return;
+
+    const wanted = String(focusOrderNo);
+    if (!Orders?.some((order) => String(order?.["Order#"]) === wanted)) {
+      // New orders aren't in the list yet, and a sheet search narrows the fetch
+      if (orderSearch || focusRefetchedRef.current !== focusOrderNo) {
+        focusRefetchedRef.current = focusOrderNo;
+        if (orderSearch) dispatch(setOrderSearch(""));
+        dispatch(fetchOrdersAdmin(storeId?.id));
+        return;
+      }
+      toast.error(`Order ${focusOrderNo} was not found in the order list.`);
+      finishOrderFocus();
+      return;
+    }
+
+    if (!filteredOrders.some((order) => String(order?.order_id) === wanted)) {
+      clearDashboardFilters();
+    }
+    setActiveTab("view-sheet");
+  }, [
+    focusOrderNo,
+    Orders,
+    orderloading,
+    filteredOrders,
+    userPermissionsLoaded,
+    userPermissions,
+    store,
+    dispatch,
+    storeId?.id,
+    finishOrderFocus,
+  ]);
+
   const hasUserFilter =
     selectedFilter !== "All" ||
     selectedAgent !== "All" ||
@@ -425,13 +496,7 @@ const Dashboard = () => {
         <button
           onClick={() => {
             setShowDateFilter(false);
-            setStartDate(null);
-            setEndDate(null);
-            setSearchQuery("");
-            setSelectedFilter("All");
-            setSelectedAgent("All");
-            setSelectedProcuredBy("All");
-            setCurrentPage(1);
+            clearDashboardFilters();
           }}
           className="flex items-center gap-2 bg-white border px-4 py-2 rounded-full text-sm text-gray-700 shadow-sm hover:bg-gray-100"
         >
@@ -601,6 +666,8 @@ const Dashboard = () => {
           <OrderListTable
             Orders={sheetOrdersRef.current}
             isActive={isSheetTab}
+            focusOrderNo={focusOrderNo}
+            onFocusHandled={finishOrderFocus}
           />
         </div>
       )}

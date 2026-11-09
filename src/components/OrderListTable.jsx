@@ -423,7 +423,15 @@ const canGenerateDocuments = (order) => {
 };
 
 // isActive: false while the sheet stays mounted but hidden behind another tab
-function OrderListTable({ Orders, isActive = true }) {
+const FOCUS_HIGHLIGHT_MS = 8000;
+
+// focusOrderNo: Order# to reveal and highlight; onFocusHandled runs once it is
+function OrderListTable({
+  Orders,
+  isActive = true,
+  focusOrderNo = null,
+  onFocusHandled,
+}) {
   const dispatch = useDispatch();
   const hotRef = useRef(null);
   const isRightClickRef = useRef(false);
@@ -479,6 +487,9 @@ function OrderListTable({ Orders, isActive = true }) {
   const findInputRef = useRef(null);
   // Read by afterRenderer to highlight cells: "physicalRow:col" keys
   const findHighlightRef = useRef({ matches: new Set(), current: "" });
+  // Read by afterRenderer: the Order# of the row opened from a notification
+  const focusHighlightRef = useRef(null);
+  const focusHighlightTimerRef = useRef(null);
   const [selectionSummary, setSelectionSummary] = useState({
     sum: 0,
     count: 0,
@@ -763,6 +774,60 @@ function OrderListTable({ Orders, isActive = true }) {
     syncVisibleOrders();
     selectSavedRows(hot);
   }, [filteredOrders, tableData, syncVisibleOrders]);
+
+  // ---------- Jump to an order (notification click) ----------
+  // Runs after the data effect above, so the grid already holds these rows.
+  // Filters are cleared only when they are what hides the order.
+  useEffect(() => {
+    if (!focusOrderNo || !isActive) return;
+    const hot = hotRef.current?.hotInstance;
+    if (!hot || hot.isDestroyed) return;
+
+    setSearchInput(orderSearch || "");
+
+    const wanted = String(focusOrderNo);
+    const isWanted = (order) => String(order?.["Order#"]) === wanted;
+    // Refetched orders reach this table a render after they reach the store
+    if (!tableOrders.some(isWanted)) return;
+    if (!filteredOrders.some(isWanted)) {
+      setOrderTypeFilter("all");
+      return;
+    }
+
+    const physicalRow = gridDataRef.current.findIndex(isWanted);
+    if (physicalRow < 0) return;
+    if (hot.toVisualRow(physicalRow) === null) {
+      const filters = hot.getPlugin("filters");
+      filters.clearConditions();
+      filters.filter();
+    }
+
+    focusHighlightRef.current = wanted;
+    pendingSelectIdsRef.current = [wanted];
+    selectSavedRows(hot);
+    hot.render();
+    // The sheet sits below the stats cards and fits the window, so centring
+    // it brings the row (already scrolled to inside the grid) into view
+    hot.rootElement.scrollIntoView({ block: "center" });
+
+    clearTimeout(focusHighlightTimerRef.current);
+    focusHighlightTimerRef.current = setTimeout(() => {
+      focusHighlightRef.current = null;
+      if (!hot.isDestroyed) hot.render();
+    }, FOCUS_HIGHLIGHT_MS);
+
+    onFocusHandled?.();
+  }, [
+    focusOrderNo,
+    isActive,
+    orderSearch,
+    tableOrders,
+    filteredOrders,
+    tableData,
+    onFocusHandled,
+  ]);
+
+  useEffect(() => () => clearTimeout(focusHighlightTimerRef.current), []);
 
   // ---------- Find (Ctrl+F) ----------
   // Re-run the search as the query/options change, and whenever the data,
@@ -1656,6 +1721,8 @@ function OrderListTable({ Orders, isActive = true }) {
 
     const id = setTimeout(() => {
       hot.refreshDimensions();
+      // Also runs on mount; don't undo the jump to a notification's order
+      if (focusHighlightRef.current) return;
       const row = isFullScreen ? Math.max(hot.countRows() - 1, 0) : 0;
       hot.scrollViewportTo(row, 0);
     }, 60);
@@ -1694,6 +1761,12 @@ function OrderListTable({ Orders, isActive = true }) {
         matches.size && hot ? `${hot.toPhysicalRow(row)}:${col}` : "";
       td.classList.toggle("ht-find-match", Boolean(key) && matches.has(key));
       td.classList.toggle("ht-find-current", Boolean(key) && key === current);
+
+      td.classList.toggle(
+        "ht-focus-row",
+        focusHighlightRef.current !== null &&
+          String(order?.["Order#"]) === focusHighlightRef.current,
+      );
     },
     [getOrderAtRow],
   );
@@ -2481,6 +2554,10 @@ function OrderListTable({ Orders, isActive = true }) {
             }
             .handsontable td.ht-find-current.ht-find-current {
               background-color: #ffc53d !important;
+            }
+            .handsontable td.ht-focus-row.ht-focus-row {
+              background-color: #bfdbfe !important;
+              box-shadow: inset 0 2px 0 #2563eb, inset 0 -2px 0 #2563eb;
             }
           `}</style>
           {findOpen && (

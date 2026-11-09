@@ -232,6 +232,26 @@ export const DOCUMENT_PERMISSIONS = {
   history: "documents.history",
 };
 
+// What each store prints on its documents; `name` is the store API's field
+export const STORE_COMPANY_FIELDS = [
+  { name: "company_name", label: "Company name" },
+  { name: "company_phone", label: "Phone" },
+  { name: "company_address", label: "Company address", wide: true },
+  { name: "company_email", label: "Email" },
+  { name: "company_website", label: "Website" },
+];
+// In the order they print; `label` is also the label on the Proforma Invoice
+export const STORE_BANK_FIELDS = [
+  { name: "bank_account_number", label: "IBAN / Account Number" },
+  { name: "bank_routing_number", label: "Routing number (for Wire and ACH)" },
+  { name: "bank_swift_code", label: "BIC / Swift Code" },
+  { name: "bank_account_name", label: "Account Name" },
+  { name: "bank_address", label: "Bank Address" },
+  { name: "bank_account_type", label: "Type" },
+  { name: "bank_name", label: "Bank Name" },
+  { name: "bank_account_currency", label: "Account Currency" },
+];
+
 // Operation users can tick only these fields (finance flow: check what isn't highlighted yet)
 const OPERATION_CHECKBOX_FIELDS = ["CC/Paypal 4%"];
 // Finance users tick every checkbox field except these (they don't handle the merchant fee)

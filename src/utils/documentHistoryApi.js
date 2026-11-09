@@ -1,6 +1,17 @@
 // Saving generated documents to the backend and reading the document history
 import axiosInstance from "../Axios/axiosInstance";
-import { DOCUMENT_API, typeFromDocumentType } from "./orderDocuments";
+import {
+  companyFromStore,
+  DOCUMENT_API,
+  typeFromDocumentType,
+} from "./orderDocuments";
+
+// The selected store's current company details, read fresh for every document
+// so a store edit applies right away; null when the store has none yet
+export const fetchStoreCompany = async () => {
+  const response = await axiosInstance.get("/auth/get-role-by-store-id");
+  return companyFromStore(response.data?.store);
+};
 
 // Saves one generated document; resolves with the stored record's response
 export const saveDocumentRecord = async (type, payload) => {

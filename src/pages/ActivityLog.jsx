@@ -6,7 +6,7 @@ const ActivityLog = () => {
   const token = localStorage.getItem("token");
 
   useEffect(() => {
-    axios.get("http://127.0.0.1:5000/api/activity", {
+    axios.get(import.meta.env.VITE_ACTIVITY_API_URL, {
       headers: { Authorization: `Bearer ${token}` },
     }).then(res => setLogs(res.data));
   }, []);

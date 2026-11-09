@@ -7,7 +7,10 @@ import "react-datepicker/dist/react-datepicker.css";
 import { useSelector } from "react-redux";
 import { toast } from "react-toastify";
 import SearchableSelect from "./SearchableSelect";
-import { saveDocumentRecord } from "../utils/documentHistoryApi";
+import {
+  fetchStoreCompany,
+  saveDocumentRecord,
+} from "../utils/documentHistoryApi";
 import {
   buildCustomerForm,
   buildDocumentPayload,
@@ -384,9 +387,24 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
 
   // Saves the document to the backend's history first and downloads it only
   // once that worked, so no document leaves the portal without a record.
-  // Throws { stage: "save" | "pdf" } so the caller can say what failed.
+  // Throws { stage: "company" | "save" | "pdf" } so the caller can say what failed.
   const generateForm = async (key) => {
-    const f = forms[key];
+    const withStage = (err, stage) =>
+      Object.assign(err instanceof Error ? err : new Error(String(err)), { stage });
+
+    let company;
+    try {
+      company = await fetchStoreCompany();
+    } catch (err) {
+      throw withStage(err, "company");
+    }
+    if (!company) {
+      throw Object.assign(withStage("No company details", "company"), {
+        detailsMissing: true,
+      });
+    }
+
+    const f = { ...forms[key], company };
     const tab = tabs.find((t) => t.key === key);
     const payload = buildDocumentPayload(type, f, {
       orderNo: order?.["Order#"],
@@ -396,16 +414,12 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
     try {
       await saveDocumentRecord(type, payload);
     } catch (err) {
-      throw Object.assign(err instanceof Error ? err : new Error(String(err)), {
-        stage: "save",
-      });
+      throw withStage(err, "save");
     }
     try {
       await GENERATORS[type](f);
     } catch (err) {
-      throw Object.assign(err instanceof Error ? err : new Error(String(err)), {
-        stage: "pdf",
-      });
+      throw withStage(err, "pdf");
     }
   };
 
@@ -413,7 +427,15 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
   // as a toast by the API client when it sent one
   const reportFailure = (err, label) => {
     console.error(`${label} failed:`, err);
-    if (err?.stage === "save") {
+    if (err?.stage === "company") {
+      if (err.detailsMissing) {
+        toast.error(
+          "This store has no company name and address yet. Add them in the store's settings first.",
+        );
+      } else if (!err?.response?.data?.message) {
+        toast.error("This store's company details could not be loaded. Try again.");
+      }
+    } else if (err?.stage === "save") {
       if (!err?.response?.data?.message) {
         toast.error(
           `${label} was not saved to the document history, so it was not downloaded. Check your connection and try again.`,

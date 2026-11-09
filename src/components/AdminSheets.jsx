@@ -1,15 +1,9 @@
-import React, { useEffect, useState } from "react";
-import { useDispatch, useSelector } from "react-redux";
-import { toast } from "react-toastify";
-import { X, Plus, Edit, Trash2, ArrowLeft } from "lucide-react";
+import { ArrowLeft, Edit, ImagePlus, Plus, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import {
-  createSheetStore,
-  deleteSheet,
-  fetchSheets,
-  updateSheet,
-} from "../store/usersSlice";
+import { toast } from "react-toastify";
 import {
   fetchOrderEditRange,
   fetchOrderViewRange,
@@ -18,6 +12,43 @@ import {
   saveOrderEditRange,
   saveOrderViewRange,
 } from "../store/orderEditRangeSlice";
+import {
+  createSheetStore,
+  deleteSheet,
+  fetchSheets,
+  updateSheet,
+} from "../store/usersSlice";
+import { STORE_BANK_FIELDS, STORE_COMPANY_FIELDS } from "../utils/constant";
+
+// The PDF library can embed these two image types
+const LOGO_TYPES = ["image/png", "image/jpeg"];
+const MAX_LOGO_MB = 2;
+
+const StoreDetailFields = ({ title, fields, register, children }) => (
+  <fieldset className="border-t pt-2 mt-1">
+    <legend className="text-sm font-semibold text-gray-700 pr-2">
+      {title}
+    </legend>
+    {children}
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {fields.map(({ name, label, wide }) => (
+        <label
+          key={name}
+          className={`flex flex-col gap-1 text-xs font-medium text-gray-600 ${
+            wide ? "sm:col-span-2" : ""
+          }`}
+        >
+          {label}
+          <input
+            type="text"
+            {...register(name)}
+            className="border p-2 rounded-lg text-sm w-full font-normal text-gray-900"
+          />
+        </label>
+      ))}
+    </div>
+  </fieldset>
+);
 
 // One row of "Past N months" chips (used for the edit and view windows).
 // Chips wider than maxValue are disabled, with disabledTitle as the reason.
@@ -65,14 +96,24 @@ const AdminSheets = () => {
     updateLoading,
     deleteLoading,
     fetchLoading,
-    error
+    error,
   } = useSelector((state) => state.users);
 
   const sheetsData = sheets?.data || [];
   const [showModal, setShowModal] = useState(false);
   const [editingSheet, setEditingSheet] = useState(null); // track edit
   const [selectedFile, setSelectedFile] = useState(null);
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(false);
+  const [logoFile, setLogoFile] = useState(null); // a newly chosen logo
+  const logoFileUrl = useMemo(
+    () => (logoFile ? URL.createObjectURL(logoFile) : null),
+    [logoFile],
+  );
+  useEffect(
+    () => () => logoFileUrl && URL.revokeObjectURL(logoFileUrl),
+    [logoFileUrl],
+  );
+  const logoPreview = logoFileUrl || editingSheet?.logo_url;
   // Order edit window (months) for the store being edited; initial value tracks what's saved
   const [editRangeMonths, setEditRangeMonths] = useState(null);
   const [initialEditRangeMonths, setInitialEditRangeMonths] = useState(null);
@@ -87,7 +128,6 @@ const AdminSheets = () => {
     formState: { errors },
   } = useForm();
 
-
   useEffect(() => {
     dispatch(fetchSheets()); // fetch all sheets for table
   }, [dispatch]);
@@ -98,14 +138,34 @@ const AdminSheets = () => {
 
   const openCreateModal = () => {
     setEditingSheet(null);
+    setLogoFile(null);
     reset();
     setShowModal(true);
   };
 
+  const chooseLogo = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // so choosing the same file again still fires
+    if (!file) return;
+    if (!LOGO_TYPES.includes(file.type)) {
+      toast.error("The logo must be a PNG or JPG image");
+      return;
+    }
+    if (file.size > MAX_LOGO_MB * 1024 * 1024) {
+      toast.error(`The logo must be ${MAX_LOGO_MB} MB or smaller`);
+      return;
+    }
+    setLogoFile(file);
+  };
+
   const openEditModal = (sheet) => {
     setEditingSheet(sheet);
+    setLogoFile(null);
     setValue("name", sheet.name);
     setValue("store_name", sheet.store_name);
+    [...STORE_COMPANY_FIELDS, ...STORE_BANK_FIELDS].forEach(({ name }) =>
+      setValue(name, sheet[name] ?? ""),
+    );
     setEditRangeMonths(null);
     setInitialEditRangeMonths(null);
     setShowModal(true);
@@ -145,7 +205,8 @@ const AdminSheets = () => {
             updateSheet({
               id: editingSheet.id,
               ...data,
-            })
+              logo: logoFile,
+            }),
           ).unwrap(),
         ];
 
@@ -155,8 +216,8 @@ const AdminSheets = () => {
               saveOrderEditRange({
                 months: editRangeMonths,
                 storeId: editingSheet.id,
-              })
-            ).unwrap()
+              }),
+            ).unwrap(),
           );
         }
 
@@ -166,32 +227,27 @@ const AdminSheets = () => {
               saveOrderViewRange({
                 months: viewRangeMonths,
                 storeId: editingSheet.id,
-              })
-            ).unwrap()
+              }),
+            ).unwrap(),
           );
         }
 
         await Promise.all(requests);
-
       } else {
-        await dispatch(
-          createSheetStore(data)
-        ).unwrap();
-
+        await dispatch(createSheetStore({ ...data, logo: logoFile })).unwrap();
       }
 
       // ✅ API success ke immediately baad modal close
       setShowModal(false);
       setEditingSheet(null);
+      setLogoFile(null);
       reset();
 
       // ✅ Table refresh separately
       dispatch(fetchSheets());
-
     } catch (err) {
       console.error("Submit error:", err);
       toast.error(err || "Operation failed");
-
     } finally {
       setLoading(false);
     }
@@ -244,7 +300,6 @@ const AdminSheets = () => {
             <Plus size={16} /> Add Store
           </button>
 
-
           {/* Download Button */}
           {/* <div className="p-4 bg-gray-50 rounded-md shadow-sm max-w-full flex flex-col md:flex-row md:items-center md:gap-4">
             <p className="font-semibold text-gray-700 mb-2 md:mb-0">Example Files:</p>
@@ -268,7 +323,6 @@ const AdminSheets = () => {
         </div>
       </div>
 
-
       {/* ==== Table ==== */}
       <div className="overflow-x-auto">
         <table className="w-full min-w-[600px] border border-gray-200 rounded-lg overflow-hidden">
@@ -288,7 +342,10 @@ const AdminSheets = () => {
               </tr>
             ) : sheetsData.length ? (
               sheetsData.map((sheet) => (
-                <tr key={sheet.id} className="hover:bg-gray-50 text-center md:text-left">
+                <tr
+                  key={sheet.id}
+                  className="hover:bg-gray-50 text-center md:text-left"
+                >
                   <td className="p-2 ">{sheet.name}</td>
                   <td className="p-2 ">{sheet.store_name}</td>
                   <td className="p-2  flex gap-2 justify-center md:justify-start">
@@ -316,14 +373,13 @@ const AdminSheets = () => {
               </tr>
             )}
           </tbody>
-
         </table>
       </div>
 
       {/* ==== Create/Edit Modal ==== */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-          <div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-lg relative">
+          <div className="bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl p-6 shadow-lg relative">
             <button
               onClick={() => setShowModal(false)}
               className="absolute right-4 top-4 text-gray-400 hover:text-gray-600"
@@ -333,22 +389,35 @@ const AdminSheets = () => {
             <h2 className="text-lg font-semibold text-gray-800 mb-4 text-center">
               {editingSheet ? "Edit Store" : "Create New Store"}
             </h2>
-            <form className="flex flex-col gap-3" onSubmit={handleSubmit(onSubmit)}>
+            <form
+              className="flex flex-col gap-3"
+              onSubmit={handleSubmit(onSubmit)}
+            >
               <input
                 type="text"
                 placeholder="Name"
                 {...register("name", { required: "Name is required" })}
                 className="border p-2 rounded-lg text-sm w-full"
               />
-              {errors.name && <span className="text-red-500 text-xs">{errors.name.message}</span>}
+              {errors.name && (
+                <span className="text-red-500 text-xs">
+                  {errors.name.message}
+                </span>
+              )}
 
               <input
                 type="text"
                 placeholder="Store Name"
-                {...register("store_name", { required: "Store Name is required" })}
+                {...register("store_name", {
+                  required: "Store Name is required",
+                })}
                 className="border p-2 rounded-lg text-sm w-full"
               />
-              {errors.store_name && <span className="text-red-500 text-xs">{errors.store_name.message}</span>}
+              {errors.store_name && (
+                <span className="text-red-500 text-xs">
+                  {errors.store_name.message}
+                </span>
+              )}
 
               {editingSheet && (
                 <>
@@ -372,6 +441,47 @@ const AdminSheets = () => {
                   />
                 </>
               )}
+
+              <StoreDetailFields
+                title="Company details"
+                fields={STORE_COMPANY_FIELDS}
+                register={register}
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-32 h-14 shrink-0 border rounded-lg bg-gray-50 flex items-center justify-center overflow-hidden">
+                    {logoPreview ? (
+                      <img
+                        src={logoPreview}
+                        alt="Store logo"
+                        className="max-w-full max-h-full object-contain"
+                      />
+                    ) : (
+                      <ImagePlus size={20} className="text-gray-400" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <label className="inline-block cursor-pointer text-sm font-medium text-blue-600 hover:text-blue-800">
+                      {logoPreview ? "Change logo" : "Upload logo"}
+                      <input
+                        type="file"
+                        accept={LOGO_TYPES.join(",")}
+                        onChange={chooseLogo}
+                        className="hidden"
+                      />
+                    </label>
+                    <p className="text-xs text-gray-500">
+                      PNG or JPG, up to {MAX_LOGO_MB} MB
+                    </p>
+                  </div>
+                </div>
+              </StoreDetailFields>
+
+              <StoreDetailFields
+                title="Bank details"
+                fields={STORE_BANK_FIELDS}
+                register={register}
+              />
+
               <button
                 type="submit"
                 disabled={loading}
@@ -385,7 +495,6 @@ const AdminSheets = () => {
         </div>
       )}
     </div>
-
   );
 };
 

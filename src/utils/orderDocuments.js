@@ -4,12 +4,15 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import logoUrl from "../assets/serverblink-logo.png";
 import titleFontUrl from "../assets/fonts/Anton-Regular.ttf?url";
-import { formatToday } from "./constant";
+import { formatToday, STORE_BANK_FIELDS } from "./constant";
 
 // ---------------------------------------------------------------------------
 // Company profile printed on every document
 // ---------------------------------------------------------------------------
-export const COMPANY = {
+// Only for rebuilding documents issued before each store had its own details;
+// every one of those was issued under this company
+const LEGACY_COMPANY = {
+  logoUrl,
   name: "Server Blink, LLC",
   address: "2210 Goldsmith Lane Ste 126-5001 Louisville, KY 40218 USA",
   phone: "(502) 206-2022",
@@ -29,6 +32,34 @@ export const COMPANY = {
     ["Bank Name", "Community Federal Savings Bank"],
     ["Account Currency", "USD"],
   ],
+};
+
+// A store from the API → the company printed on its documents; null until the
+// store has at least a company name and address
+export const companyFromStore = (store) => {
+  const name = String(store?.company_name ?? "").trim();
+  const address = String(store?.company_address ?? "").trim();
+  if (!name || !address) return null;
+  const hasBank = STORE_BANK_FIELDS.some((f) =>
+    String(store[f.name] ?? "").trim(),
+  );
+  const bank = hasBank
+    ? STORE_BANK_FIELDS.flatMap(({ name: field, label }) => {
+        const row = [label, String(store[field] ?? "").trim()];
+        return field === "bank_account_name"
+          ? [row, ["Company Address", address]]
+          : [row];
+      }).filter(([, value]) => value)
+    : [];
+  return {
+    name,
+    address,
+    phone: String(store.company_phone ?? "").trim(),
+    email: String(store.company_email ?? "").trim(),
+    website: String(store.company_website ?? "").trim(),
+    logoUrl: store.logo_url || null,
+    bank,
+  };
 };
 
 export const DOC_TYPES = {
@@ -411,40 +442,85 @@ const font = (doc, size, style = "normal", color = BLACK) => {
   doc.setTextColor(...color);
 };
 
-let logoPromise = null;
-const loadLogo = () => {
-  if (!logoPromise) {
-    logoPromise = fetch(logoUrl)
-      .then((res) => (res.ok ? res.arrayBuffer() : null))
-      .then((buf) => (buf ? new Uint8Array(buf) : null))
-      .catch(() => null)
-      .then((logo) => {
-        if (!logo) logoPromise = null; // try again next time
-        return logo;
-      });
+const logoCache = new Map();
+const loadLogo = (url) => {
+  if (!url) return Promise.resolve(null);
+  if (!logoCache.has(url)) {
+    logoCache.set(
+      url,
+      fetch(url)
+        .then((res) => (res.ok ? res.arrayBuffer() : null))
+        .then((buf) => (buf ? new Uint8Array(buf) : null))
+        .catch(() => null)
+        .then((logo) => {
+          if (!logo) logoCache.delete(url); // try again next time
+          return logo;
+        }),
+    );
   }
-  return logoPromise;
+  return logoCache.get(url);
 };
 
-// Logo, then address / phone / website lines under it
-const drawCompany = (doc, logo, { x, y, w, textX, lines, size, linkSize }) => {
-  if (logo) {
-    doc.addImage(logo, "PNG", x, y, w, w * LOGO_RATIO);
-  } else {
-    font(doc, 20, "bold", NAVY);
-    doc.text(COMPANY.name, x, y + 30);
+// Store details can be any length: shrinks the current font so value fits
+const shrinkToFit = (doc, value, maxW) => {
+  const width = doc.getTextWidth(value);
+  if (width > maxW) doc.setFontSize((doc.getFontSize() * maxW) / width);
+};
+
+// Fits any logo shape inside the template's logo box; false if it can't be read
+const drawLogo = (doc, logo, x, y, w) => {
+  if (!logo) return false;
+  try {
+    const { width, height, fileType } = doc.getImageProperties(logo);
+    const scale = Math.min(w / width, (w * LOGO_RATIO) / height);
+    doc.addImage(logo, fileType, x, y, width * scale, height * scale);
+    return true;
+  } catch (err) {
+    console.error("The store logo could not be drawn:", err);
+    return false;
   }
-  font(doc, size);
-  doc.text(COMPANY.address, textX, lines[0]);
-  doc.text(`PH : ${COMPANY.phone} | EM: ${COMPANY.email}`, textX, lines[1]);
-  font(doc, linkSize, "normal", LINK);
-  doc.textWithLink(COMPANY.website, textX, lines[2], {
-    url: `https://${COMPANY.website}`,
+};
+
+// Logo, then address / phone / website lines under it (blank ones are skipped)
+const drawCompany = (
+  doc,
+  logo,
+  company,
+  { x, y, w, textX, lines, maxW, size, linkSize },
+) => {
+  if (!drawLogo(doc, logo, x, y, w)) {
+    const name = text(company.name);
+    font(doc, 20, "bold", NAVY);
+    shrinkToFit(doc, name, w);
+    doc.text(name, x, y + 30);
+  }
+  const rows = [
+    text(company.address),
+    [
+      text(company.phone) && `PH : ${text(company.phone)}`,
+      text(company.email) && `EM: ${text(company.email)}`,
+    ]
+      .filter(Boolean)
+      .join(" | "),
+  ].filter(Boolean);
+  rows.forEach((row, index) => {
+    font(doc, size);
+    shrinkToFit(doc, row, maxW);
+    doc.text(row, textX, lines[index]);
   });
-  const linkW = doc.getTextWidth(COMPANY.website);
+
+  const site = text(company.website);
+  if (!site) return;
+  const siteLabel = site.replace(/^https?:\/\//i, "");
+  const siteY = lines[rows.length];
+  font(doc, linkSize, "normal", LINK);
+  shrinkToFit(doc, siteLabel, maxW);
+  doc.textWithLink(siteLabel, textX, siteY, {
+    url: /^https?:\/\//i.test(site) ? site : `https://${site}`,
+  });
   doc.setDrawColor(...LINK);
   doc.setLineWidth(0.5);
-  doc.line(textX, lines[2] + 1.5, textX + linkW, lines[2] + 1.5);
+  doc.line(textX, siteY + 1.5, textX + doc.getTextWidth(siteLabel), siteY + 1.5);
 };
 
 // Title face: Anton (SIL Open Font License, see assets/fonts/Anton-OFL.txt),
@@ -732,14 +808,19 @@ const drawTotalsGrid = (doc, rows, { x, y, widths, labelSize, valueSize, totalFi
 };
 
 // Footer line printed right under the content, like the templates
-const drawFooterLine = (doc, y, size) => {
+const drawFooterLine = (doc, company, y, size) => {
+  const line = [
+    text(company.phone) && `Tel: ${text(company.phone)}`,
+    text(company.email) && `EM: ${text(company.email)}`,
+    text(company.website) && `Web: ${text(company.website)}`,
+  ]
+    .filter(Boolean)
+    .join(" | ");
+  if (!line) return;
+  const pageW = doc.internal.pageSize.getWidth();
   font(doc, size, "normal", LABEL_GREY);
-  doc.text(
-    `Tel: ${COMPANY.phone} | EM: ${COMPANY.email} | Web: ${COMPANY.website}`,
-    doc.internal.pageSize.getWidth() / 2,
-    y,
-    { align: "center" },
-  );
+  shrinkToFit(doc, line, pageW - 80);
+  doc.text(line, pageW / 2, y, { align: "center" });
 };
 
 // "Page 1 of 2" when a document runs over one page
@@ -782,15 +863,16 @@ const money = (n) => formatMoney(n);
 
 export const generatePurchaseOrder = async (form, options = {}) => {
   const doc = await newDoc();
-  const logo = await loadLogo();
+  const logo = await loadLogo(form.company.logoUrl);
   const L = 52;
 
-  drawCompany(doc, logo, {
+  drawCompany(doc, logo, form.company, {
     x: 58,
     y: 50,
     w: 200,
     textX: 92,
     lines: [152, 164, 176],
+    maxW: 460,
     size: 7.1,
     linkSize: 7.8,
   });
@@ -903,15 +985,16 @@ export const generatePurchaseOrder = async (form, options = {}) => {
 
 export const generatePackingSlip = async (form, options = {}) => {
   const doc = await newDoc();
-  const logo = await loadLogo();
+  const logo = await loadLogo(form.company.logoUrl);
   const L = 52;
 
-  drawCompany(doc, logo, {
+  drawCompany(doc, logo, form.company, {
     x: 62,
     y: 60,
     w: 228,
     textX: 53,
     lines: [181, 195, 210],
+    maxW: 320,
     size: 8.4,
     linkSize: 9.2,
   });
@@ -952,7 +1035,7 @@ export const generatePackingSlip = async (form, options = {}) => {
     font(doc, 7.6, "normal", [90, 90, 90]);
     doc.text(`Note: ${text(form.note)}`, 53, y);
   }
-  drawFooterLine(doc, y + 14, 8.6);
+  drawFooterLine(doc, form.company, y + 14, 8.6);
 
   drawPageNumbers(doc);
   return finish(doc, documentFileName("packing", form), options);
@@ -960,15 +1043,16 @@ export const generatePackingSlip = async (form, options = {}) => {
 
 export const generateProformaInvoice = async (form, options = {}) => {
   const doc = await newDoc();
-  const logo = await loadLogo();
+  const logo = await loadLogo(form.company.logoUrl);
   const L = 20;
 
-  drawCompany(doc, logo, {
+  drawCompany(doc, logo, form.company, {
     x: 38,
     y: 72,
     w: 164,
     textX: 20,
     lines: [159, 176, 192],
+    maxW: 390,
     size: 7.8,
     linkSize: 8.6,
   });
@@ -1043,25 +1127,33 @@ export const generateProformaInvoice = async (form, options = {}) => {
   }
 
   // Bank details (left) and totals (right)
-  y = ensureSpace(doc, y + 14, 18 + COMPANY.bank.length * 14.4);
+  const bankRows = form.company.bank || [];
+  // The totals grid needs about six rows' height even with no bank details
+  y = ensureSpace(doc, y + 14, 18 + Math.max(bankRows.length, 6) * 14.4);
   const top = y;
-  doc.setFillColor(...NAVY);
-  doc.rect(L, top, 345, 14.5, "F");
-  font(doc, 11, "bold", WHITE);
-  doc.text(`${COMPANY.name} - Bank Details`, L + 2, top + 11);
-  let bankY = top + 26;
-  COMPANY.bank.forEach(([label, value]) => {
-    font(doc, 9.2, "bold");
-    const labelText = `${label}: `;
-    doc.text(labelText, L + 2, bankY);
-    const labelW = doc.getTextWidth(labelText);
-    font(doc, 9.2);
-    doc.text(value, L + 2 + labelW, bankY);
-    bankY += 14.4;
-  });
+  let bankY = top;
+  if (bankRows.length > 0) {
+    const heading = `${text(form.company.name)} - Bank Details`;
+    doc.setFillColor(...NAVY);
+    doc.rect(L, top, 345, 14.5, "F");
+    font(doc, 11, "bold", WHITE);
+    shrinkToFit(doc, heading, 341);
+    doc.text(heading, L + 2, top + 11);
+    bankY = top + 26;
+    bankRows.forEach(([label, value]) => {
+      font(doc, 9.2, "bold");
+      const labelText = `${label}: `;
+      doc.text(labelText, L + 2, bankY);
+      const labelW = doc.getTextWidth(labelText);
+      font(doc, 9.2);
+      shrinkToFit(doc, text(value), 343 - labelW);
+      doc.text(text(value), L + 2 + labelW, bankY);
+      bankY += 14.4;
+    });
+  }
 
   const totals = getTotals(form);
-  drawTotalsGrid(
+  const totalsEnd = drawTotalsGrid(
     doc,
     [
       ["Subtotal", money(totals.subtotal)],
@@ -1080,7 +1172,7 @@ export const generateProformaInvoice = async (form, options = {}) => {
     },
   );
 
-  drawFooterLine(doc, bankY - 1, 7);
+  drawFooterLine(doc, form.company, Math.max(bankY - 1, totalsEnd + 12), 7);
   drawPageNumbers(doc);
   return finish(doc, documentFileName("proforma", form), options);
 };
@@ -1095,7 +1187,7 @@ export const GENERATORS = {
 // Backend records (document history)
 // ---------------------------------------------------------------------------
 // Bumped whenever the PDF layout changes, so audits can tell layouts apart
-export const TEMPLATE_VERSION = "2026-11-06";
+export const TEMPLATE_VERSION = "2026-11-10";
 
 // Our form types ↔ the backend's document_type and save endpoint
 export const DOCUMENT_API = {
@@ -1229,7 +1321,8 @@ export const buildDocumentPayload = (
     total: type === "packing" ? null : totals.total,
     generated_at: new Date().toISOString(),
     template_version: TEMPLATE_VERSION,
-    data,
+    // The company as printed, so later store edits don't change this document
+    data: { ...data, company: form.company },
   };
 };
 
@@ -1249,6 +1342,7 @@ export const formFromRecord = (type, record) => {
     amount: item.amount == null ? "" : String(item.amount),
   }));
   const common = {
+    company: d.company || LEGACY_COMPANY,
     docNumber: text(record?.document_number),
     date: text(d.date),
     shipTo: (d.ship_to?.lines || []).map(text).join("\n"),
