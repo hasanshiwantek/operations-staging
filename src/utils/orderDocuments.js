@@ -28,7 +28,7 @@ export const companyFromStore = (store) => {
     phone: String(store.company_phone ?? "").trim(),
     email: String(store.company_email ?? "").trim(),
     website: String(store.company_website ?? "").trim(),
-    logoUrl: store.logo_url || null,
+    logoUrl: store.logo || null,
     bank,
   };
 };

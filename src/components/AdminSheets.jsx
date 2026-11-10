@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
+import useEscapeKey from "../hooks/useEscapeKey";
 import {
   fetchOrderEditRange,
   fetchOrderViewRange,
@@ -19,10 +20,9 @@ import {
   updateSheet,
 } from "../store/usersSlice";
 import { STORE_BANK_FIELDS, STORE_COMPANY_FIELDS } from "../utils/constant";
-import useEscapeKey from "../hooks/useEscapeKey";
 
-// The PDF library can embed these two image types
-const LOGO_TYPES = ["image/png", "image/jpeg"];
+// The PDF library (jsPDF) can embed these image types
+const LOGO_TYPES = ["image/png", "image/jpeg", "image/webp"];
 const MAX_LOGO_MB = 2;
 
 // Every field of the add / edit store form
@@ -64,7 +64,9 @@ const STORE_FIELD_RULES = {
     patternMessage: "Enter a valid phone number (digits, +, -, spaces)",
     check: (value) => {
       const digits = value.replace(/\D/g, "").length;
-      return (digits >= 7 && digits <= 15) || "Phone number must have 7–15 digits";
+      return (
+        (digits >= 7 && digits <= 15) || "Phone number must have 7–15 digits"
+      );
     },
   }),
   company_address: textRule("Company address"),
@@ -224,7 +226,8 @@ const AdminSheets = () => {
     () => () => logoFileUrl && URL.revokeObjectURL(logoFileUrl),
     [logoFileUrl],
   );
-  const logoPreview = logoFileUrl || editingSheet?.logo_url;
+  const logoPreview = logoFileUrl || editingSheet?.logo;
+
   // Order edit window (months) for the store being edited; initial value tracks what's saved
   const [editRangeMonths, setEditRangeMonths] = useState(null);
   const [initialEditRangeMonths, setInitialEditRangeMonths] = useState(null);
@@ -261,7 +264,7 @@ const AdminSheets = () => {
     e.target.value = ""; // so choosing the same file again still fires
     if (!file) return;
     if (!LOGO_TYPES.includes(file.type)) {
-      toast.error("The logo must be a PNG or JPG image");
+      toast.error("The logo must be a PNG, JPG or WebP image");
       return;
     }
     if (file.size > MAX_LOGO_MB * 1024 * 1024) {
@@ -512,7 +515,7 @@ const AdminSheets = () => {
               onSubmit={(e) => {
                 // A logo is needed unless the store being edited already has one;
                 // checked alongside the fields so every error shows at once
-                const logoMissing = !logoFile && !editingSheet?.logo_url;
+                const logoMissing = !logoFile && !editingSheet?.logo;
                 setLogoError(logoMissing ? "Upload the store logo" : "");
                 return handleSubmit((data) => {
                   if (!logoMissing) return onSubmit(data);
@@ -589,7 +592,7 @@ const AdminSheets = () => {
                       />
                     </label>
                     <p className="text-xs text-gray-500">
-                      PNG or JPG, up to {MAX_LOGO_MB} MB{" "}
+                      PNG, JPG or WebP, up to {MAX_LOGO_MB} MB{" "}
                       <span className="text-red-500">*</span>
                     </p>
                     {logoError && (
