@@ -1,26 +1,26 @@
-import React from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useSelector } from "react-redux";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
-import Login from "./pages/Login";
-import ForgotPassword from "./pages/ForgotPassword";
-import ResetPassword from "./pages/ResetPassword";
-import Dashboard from "./pages/Dashboard";
-import UserManagement from "./pages/UserManagement";
-import ActivityLog from "./pages/ActivityLog";
-import OrderDetails from "./pages/OrderDetails";
-import ProtectedRoute from "./components/ProtectedRoute";
-import Layout from "./components/Layout";
-import StoreSelection from "./pages/StoreSelection";
-import ProtectedStore from "./components/ProtectedStore";
 import AdminSheets from "./components/AdminSheets";
+import Layout from "./components/Layout";
+import NotificationListener from "./components/NotificationListener";
+import ProtectedRoute from "./components/ProtectedRoute";
+import ProtectedStore from "./components/ProtectedStore";
 import PtotectecAdmin from "./components/PtotectecAdmin";
-import Attributes from "./pages/Attributes";
-import AttributeDetails from "./pages/AttributeDetails";
-import OrderType from "./pages/OrderType";
 import UserLogs from "./components/UserLogs";
+import AttributeDetails from "./pages/AttributeDetails";
+import Attributes from "./pages/Attributes";
+import Dashboard from "./pages/Dashboard";
+import DocumentHistory from "./pages/DocumentHistory";
+import ForgotPassword from "./pages/ForgotPassword";
+import Login from "./pages/Login";
+import OrderDetails from "./pages/OrderDetails";
+import OrderType from "./pages/OrderType";
+import ResetPassword from "./pages/ResetPassword";
+import StoreSelection from "./pages/StoreSelection";
+import UserManagement from "./pages/UserManagement";
 
 // Public Route wrapper → if already logged in, redirect to /store
 const PublicRoute = ({ children }) => {
@@ -161,11 +161,11 @@ const AppRoutes = () => {
         />
 
         <Route
-          path="/activity"
+          path="/document-history"
           element={
             <Layout>
               <ProtectedRoute>
-                <ActivityLog />
+                <DocumentHistory />
               </ProtectedRoute>
             </Layout>
           }
@@ -185,6 +185,7 @@ const AppRoutes = () => {
         />
       </Routes>
 
+      <NotificationListener />
       <ToastContainer
         position="top-right"
         autoClose={3000}

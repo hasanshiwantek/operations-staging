@@ -1,6 +1,10 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axiosInstance from "../Axios/axiosInstance";
-import { syncOrderDates } from "../utils/constant";
+import {
+  STORE_BANK_FIELDS,
+  STORE_COMPANY_FIELDS,
+  syncOrderDates,
+} from "../utils/constant";
 
 const initialState = {
   users: [],
@@ -67,18 +71,43 @@ export const deleteUser = createAsyncThunk(
   },
 );
 
+// A failed order save as { message, field, nextOrderNo }: field names the
+// form field the backend rejected (e.g. "Order#" when the number is taken or
+// lower than the latest), so the form can highlight and focus it
+const orderSaveError = (data, fallbackMessage) => {
+  const orderNoRejected =
+    data?.duplicate ||
+    data?.smaller ||
+    data?.next_order_no != null ||
+    Boolean(data?.errors?.["Order#"]);
+  const fieldErrors = data?.errors && typeof data.errors === "object"
+    ? Object.keys(data.errors)
+    : [];
+  return {
+    message: data?.message || fallbackMessage,
+    field: orderNoRejected ? "Order#" : fieldErrors[0] || null,
+    nextOrderNo: data?.next_order_no ?? null,
+  };
+};
+
 // Order Files
 export const postOrderFiles = createAsyncThunk(
   "orderFiles/postOrderFiles",
   async ({ payload, role_id }, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.post(`order-files`, payload);
+      if (response.data?.success === false) {
+        return rejectWithValue(
+          orderSaveError(response.data, "Failed to post order files"),
+        );
+      }
       return response.data;
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.message ||
-          error.message ||
-          "Failed to post order files",
+        orderSaveError(
+          error.response?.data,
+          error.message || "Failed to post order files",
+        ),
       );
     }
   },
@@ -105,12 +134,18 @@ export const updateOrderFiles = createAsyncThunk(
   async ({ id, data, role_id }, { rejectWithValue }) => {
     try {
       const response = await axiosInstance.put(`order-files/${id}`, data);
-      return response.data; // updated user return karo
+      if (response.data?.success === false) {
+        return rejectWithValue(
+          orderSaveError(response.data, "Failed to update order"),
+        );
+      }
+      return response.data;
     } catch (error) {
       return rejectWithValue(
-        error.response?.data?.message ||
-          error.message ||
-          "Failed to update user",
+        orderSaveError(
+          error.response?.data,
+          error.message || "Failed to update order",
+        ),
       );
     }
   },
@@ -191,14 +226,23 @@ export const fetchSingleOrderAdmin = createAsyncThunk(
   },
 );
 
+// The store's company and bank details, and its logo when a new one was chosen
+const appendStoreDetails = (formData, details) => {
+  [...STORE_COMPANY_FIELDS, ...STORE_BANK_FIELDS].forEach(({ name }) => {
+    formData.append(name, details[name] ?? "");
+  });
+  if (details.logo) formData.append("logo", details.logo);
+};
+
 // create order / role / sheet thunk (POST with form-data)
 export const createSheetStore = createAsyncThunk(
   "orders/createSheetStore",
-  async ({ name, store_name }, { rejectWithValue }) => {
+  async ({ name, store_name, ...details }, { rejectWithValue }) => {
     try {
       const formData = new FormData();
       formData.append("name", name);
       formData.append("store_name", store_name);
+      appendStoreDetails(formData, details);
 
       const response = await axiosInstance.post("/auth/admin/stores", formData);
 
@@ -267,13 +311,20 @@ export const deleteSheet = createAsyncThunk(
 // UPDATE a sheet by ID
 export const updateSheet = createAsyncThunk(
   "users/updateSheet",
-  async ({ id, name, store_name, sheet_id }, { rejectWithValue }) => {
+  async ({ id, name, store_name, sheet_id, ...details }, { rejectWithValue }) => {
     try {
-      const response = await axiosInstance.put(`auth/admin/stores/${id}`, {
-        name,
-        store_name,
-        sheet_id,
-      });
+      const formData = new FormData();
+      // PHP only reads a file upload from a POST, so Laravel is told it's a PUT
+      formData.append("_method", "PUT");
+      formData.append("name", name);
+      formData.append("store_name", store_name);
+      if (sheet_id != null) formData.append("sheet_id", sheet_id);
+      appendStoreDetails(formData, details);
+
+      const response = await axiosInstance.post(
+        `auth/admin/stores/${id}`,
+        formData,
+      );
       return response.data; // backend should return updated sheet object
     } catch (error) {
       return rejectWithValue(
@@ -466,7 +517,7 @@ const usersSlice = createSlice({
       })
       .addCase(updateOrderFiles.rejected, (state, action) => {
         state.pending = false;
-        state.error = action.payload;
+        state.error = action.payload?.message ?? action.payload;
       })
 
       .addCase(postOrderFiles.pending, (state) => {
@@ -478,7 +529,7 @@ const usersSlice = createSlice({
       })
       .addCase(postOrderFiles.rejected, (state, action) => {
         state.pending = false;
-        state.error = action.payload;
+        state.error = action.payload?.message ?? action.payload;
       })
 
       // DELETE USER - REJECTED

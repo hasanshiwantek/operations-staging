@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { X } from "lucide-react";
 import { useForm } from "react-hook-form";
+import useEscapeKey from "../hooks/useEscapeKey";
 
 const orderType = ["rma", "po", "cancelled", "incomplete"];
 
@@ -45,6 +46,8 @@ const OrderTypeModal = ({
     reset();
     onClose();
   };
+  // Esc closes the modal
+  useEscapeKey(handleClose, open);
 
   const submitHandler = async (data) => {
     const success = await onSubmit(data);

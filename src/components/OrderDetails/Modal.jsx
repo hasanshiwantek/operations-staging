@@ -1,7 +1,10 @@
 import React, { useState } from "react";
+import useEscapeKey from "../../hooks/useEscapeKey";
 
 const Modal = ({ title, options, selected, onSelect, onClose }) => {
   const [current, setCurrent] = useState(selected);
+  // Esc closes the picker without selecting
+  useEscapeKey(onClose);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50">

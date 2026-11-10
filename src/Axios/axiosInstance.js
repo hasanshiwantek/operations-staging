@@ -2,10 +2,9 @@
 import axios from "axios";
 import { toast } from "react-toastify";
 
-export const BASEURL = "https://optest.advertsedge.com/api"
+export const BASEURL = import.meta.env.VITE_API_BASE_URL;
 const axiosInstance = axios.create({
   baseURL: BASEURL,
-  //  baseURL: "https://operations.advertsedge.com/api",
 });
 
 axiosInstance.interceptors.request.use((config) => {
@@ -35,7 +34,8 @@ axiosInstance.interceptors.request.use((config) => {
 
 axiosInstance.interceptors.response.use(
   (response) => {
-    if (response.data?.message) {
+    // config.silent: background requests report their own state, not via toasts
+    if (response.data?.message && !response.config.silent) {
       toast.success(response.data.message, {
         style: {
           fontSize: "12px",
@@ -46,6 +46,8 @@ axiosInstance.interceptors.response.use(
     return response;
   },
   (error) => {
+    if (error.config?.silent) return Promise.reject(error);
+
     if (error.response?.data?.message) {
       toast.error(error.response.data.message, {
         style: {

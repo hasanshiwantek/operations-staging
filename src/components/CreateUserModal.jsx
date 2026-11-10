@@ -5,6 +5,7 @@ import { toast } from "react-toastify";
 import { getRoles, register } from "../store/authSlice";
 import { fetchUsers, updateUser } from "../store/usersSlice";
 import { Permissions } from "./Permissions";
+import useEscapeKey from "../hooks/useEscapeKey";
 
 const pageAccessOptions = [
   {
@@ -46,6 +47,8 @@ const convertPageNamesToPageAccess = (pageNames) => {
 
 // Updated CreateUserModal with Edit Support
 export const CreateUserModal = ({ onClose, editUser = null }) => {
+  // Esc closes the modal
+  useEscapeKey(onClose);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [expandedPages, setExpandedPages] = useState({});

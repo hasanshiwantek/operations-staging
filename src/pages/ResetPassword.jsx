@@ -1,7 +1,7 @@
-import React, { useState } from "react";
-import { useForm } from "react-hook-form";
-import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import axiosInstance from "../Axios/axiosInstance"; // adjust path
 
@@ -40,8 +40,6 @@ const ResetPassword = () => {
         password: data.password,
         password_confirmation: data.password_confirmation,
       };
-
-      // console.log("Reset Password Payload:", payload);
 
       const response = await axiosInstance.post("/reset-password", payload);
 
@@ -87,8 +85,9 @@ const ResetPassword = () => {
               <input
                 type={showPassword ? "text" : "password"}
                 placeholder="Enter new password"
-                className={`w-full border rounded-lg px-4 py-2 pr-10 focus:ring-2 focus:ring-indigo-500 outline-none ${errors.password ? "border-red-500" : "border-gray-300"
-                  }`}
+                className={`w-full border rounded-lg px-4 py-2 pr-10 focus:ring-2 focus:ring-indigo-500 outline-none ${
+                  errors.password ? "border-red-500" : "border-gray-300"
+                }`}
                 {...register("password", {
                   required: "Password is required",
                   minLength: {
@@ -107,7 +106,9 @@ const ResetPassword = () => {
             </div>
             <div className="h-5">
               {errors.password && (
-                <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>
+                <p className="text-red-500 text-xs mt-1">
+                  {errors.password.message}
+                </p>
               )}
             </div>
           </div>
@@ -121,8 +122,11 @@ const ResetPassword = () => {
               <input
                 type={showConfirmPassword ? "text" : "password"}
                 placeholder="Confirm new password"
-                className={`w-full border rounded-lg px-4 py-2 pr-10 focus:ring-2 focus:ring-indigo-500 outline-none ${errors.password_confirmation ? "border-red-500" : "border-gray-300"
-                  }`}
+                className={`w-full border rounded-lg px-4 py-2 pr-10 focus:ring-2 focus:ring-indigo-500 outline-none ${
+                  errors.password_confirmation
+                    ? "border-red-500"
+                    : "border-gray-300"
+                }`}
                 {...register("password_confirmation", {
                   required: "Please confirm your password",
                   validate: (value) =>

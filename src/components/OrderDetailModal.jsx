@@ -1,8 +1,9 @@
 import { X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { useSelector } from "react-redux";
+import { toast } from "react-toastify";
 import useBalancedColumns from "../hooks/useBalancedColumns";
 import {
   defaultOrder,
@@ -15,8 +16,14 @@ import {
 } from "../utils/constant";
 import ExpandableTextInput from "./ExpandableTextInput";
 import SearchableSelect from "./SearchableSelect";
+import { useModalShortcuts } from "../hooks/useEscapeKey";
 
 const lockedFields = ["Refund Date"];
+// Fields that must be filled before creating, in the order they are checked
+const REQUIRED_FIELDS = {
+  "Order#": "Enter an Order# before creating this order.",
+  Condition: "Select a Condition before creating this order.",
+};
 const dateFields = ["Charged Date", "Order Date", "Refund Date"];
 
 const OrderDetailModal = ({ order = null, onClose, onSave }) => {
@@ -25,9 +32,57 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
   const { pending, orderOptions, optionsLoading } = useSelector(
     (state) => state.users,
   );
+  // Esc closes the modal, Ctrl+S = Create Order
+  useModalShortcuts({
+    escape: onClose,
+    save: (e) => !pending && handleSubmit(e),
+  });
   const normalizedOptions = normalizeOrderOptions(orderOptions);
   const [formData, setFormData] = useState({});
   const [isEditing, setIsEditing] = useState(isNewOrder);
+  // Turned on by the first save attempt; a field clears once it is filled
+  const [showErrors, setShowErrors] = useState(false);
+  // Rejected by the backend: { field, message, value }; clears once that
+  // field's value is changed
+  const [serverError, setServerError] = useState(null);
+  const fieldsRef = useRef(null);
+
+  // { field: message } for every field that currently blocks saving
+  const getFieldErrors = (data) => {
+    const errors = {};
+    Object.entries(REQUIRED_FIELDS).forEach(([field, message]) => {
+      if (!String(data[field] ?? "").trim()) errors[field] = message;
+    });
+    if (
+      serverError &&
+      !errors[serverError.field] &&
+      String(data[serverError.field] ?? "") === serverError.value
+    ) {
+      errors[serverError.field] = serverError.message;
+    }
+    return errors;
+  };
+  const visibleErrors = getFieldErrors(formData);
+  if (!showErrors) {
+    // Before the first save attempt only a backend rejection shows
+    Object.keys(REQUIRED_FIELDS).forEach((field) => {
+      if (visibleErrors[field] === REQUIRED_FIELDS[field])
+        delete visibleErrors[field];
+    });
+  }
+
+  // Scroll a field into view and put the cursor in it (after this render)
+  const focusField = (field) => {
+    setTimeout(() => {
+      const box = fieldsRef.current?.querySelector(
+        `[data-field="${CSS.escape(field)}"]`,
+      );
+      box?.scrollIntoView({ block: "center", behavior: "smooth" });
+      box
+        ?.querySelector("input, textarea, select, button")
+        ?.focus({ preventScroll: true });
+    });
+  };
   const columns = useBalancedColumns(Object.keys(formData).length);
   // 6px = gap-x-1.5 between fields
   const fieldWidth = {
@@ -53,12 +108,41 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const errors = getFieldErrors(formData);
+    const [firstError] = Object.keys(errors);
+    if (firstError) {
+      setShowErrors(true);
+      toast.error(errors[firstError]);
+      focusField(firstError);
+      return;
+    }
     try {
       await onSave(normalizeNumberFields(formData), isNewOrder);
       onClose();
     } catch (err) {
       console.error("Save failed:", err);
-      // stay open
+      // Order# taken or too low and the backend named the next free one:
+      // fill it in so the user only has to save again
+      if (err?.field === "Order#" && err.nextOrderNo != null) {
+        const nextOrderNo = String(err.nextOrderNo);
+        setServerError(null);
+        setFormData((prev) => withMirroredField(prev, "Order#", nextOrderNo));
+        toast.info(
+          `Order# changed to ${nextOrderNo}. Press Create Order to save.`,
+        );
+        focusField("Order#");
+        return;
+      }
+      // Stay open; highlight and focus the field the backend rejected (its
+      // message is already shown as a toast)
+      if (err?.field && err.field in formData) {
+        setServerError({
+          field: err.field,
+          message: err.message,
+          value: String(formData[err.field] ?? ""),
+        });
+        focusField(err.field);
+      }
     }
   };
   // Date helpers
@@ -110,6 +194,7 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
         <div className="flex-1 overflow-y-auto p-3 sm:p-4 bg-white">
           {/* ================= FIELDS ================= */}
           <div
+            ref={fieldsRef}
             className="
                             flex
                             flex-wrap
@@ -128,31 +213,34 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
               const options = normalizedOptions[key] || [];
               const isLocked = lockedFields.includes(key);
               const fieldDisabled = !isEditing || optionsLoading || isLocked;
+              const fieldError = visibleErrors[key] || null;
               return (
                 <div
                   key={key}
+                  data-field={key}
                   style={fieldWidth}
-                  className="
+                  title={fieldError || undefined}
+                  className={`
                                         flex-none
                                         min-w-0
                                         border
-                                        border-gray-300
                                         rounded-sm
                                         overflow-hidden
                                         bg-white
-                                    "
+                                        ${fieldError ? "border-red-500 ring-2 ring-red-300" : "border-gray-300"}
+                                    `}
                 >
                   {/* ================= FIELD HEADER ================= */}
                   <div
-                    className="
+                    className={`
                                             min-h-[28px] 2xl:min-h-[34px]
                                             px-1
                                             py-[3px]
-                                            bg-indigo-600
+                                            ${fieldError ? "bg-red-600" : "bg-indigo-600"}
                                             flex
                                             items-center
                                             justify-center
-                                        "
+                                        `}
                   >
                     <label
                       className="
@@ -166,6 +254,9 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
                       title={key}
                     >
                       {key.replace(/([A-Z])/g, " $1").trim()}
+                      {key in REQUIRED_FIELDS && (
+                        <span className="text-red-200"> *</span>
+                      )}
                     </label>
                   </div>
 
@@ -308,6 +399,7 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
           <button
             onClick={handleSubmit}
             disabled={pending}
+            title="Create Order (Ctrl+S)"
             className="
                             w-full
                             sm:w-[170px]

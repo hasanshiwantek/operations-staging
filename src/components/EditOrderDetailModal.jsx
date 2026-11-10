@@ -4,6 +4,9 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "react-toastify";
+import useBalancedColumns from "../hooks/useBalancedColumns";
+import useDialogFocus from "../hooks/useDialogFocus";
+import { useModalShortcuts } from "../hooks/useEscapeKey";
 import { fetchOrderById } from "../store/usersSlice";
 import {
   ENTRY_CHECK_MAX_LENGTH,
@@ -17,8 +20,8 @@ import {
   withDefaultShippingAccount,
   withMirroredField,
 } from "../utils/constant";
-import useBalancedColumns from "../hooks/useBalancedColumns";
 import ExpandableTextInput from "./ExpandableTextInput";
+import OrderPrintSheet from "./OrderPrintSheet";
 import SearchableSelect from "./SearchableSelect";
 // Always locked fields
 
@@ -54,14 +57,23 @@ const isCancelledStatus = (status) =>
       .toLowerCase(),
   );
 
-// Fields that block saving, as { field: message }; add new checks here
-const validateForm = (data) => {
+// Fields that block saving, as { field: message }; add new checks here.
+// conditionEditable: false when this user can't change Condition (Finance, or
+// checked and locked on the sheet), so it can't block their save
+const validateForm = (data, { conditionEditable = true } = {}) => {
   const errors = {};
+  if (!String(data["Order#"] ?? "").trim()) {
+    errors["Order#"] = "Enter an Order# before saving this order.";
+  }
+  if (conditionEditable && !String(data.Condition ?? "").trim()) {
+    errors.Condition = "Select a Condition before saving this order.";
+  }
   if (
     isCancelledStatus(data["Order Status"]) &&
     !String(data["Entry Reason"] || "").trim()
   ) {
-    errors["Entry Reason"] = "Enter an Entry Reason before cancelling this order.";
+    errors["Entry Reason"] =
+      "Enter an Entry Reason before cancelling this order.";
   }
   return errors;
 };
@@ -98,6 +110,9 @@ const EditOrderDetailModal = ({
   const isFinance = getIsFinance();
   const isAdmin = getIsAdmin();
   const isCheckedLocked = (key) => !isAdmin && checkedFields.includes(key);
+  const validationOptions = {
+    conditionEditable: !isFinance && !isCheckedLocked("Condition"),
+  };
   const normalizedOptions = normalizeOrderOptions(orderOptions);
   const debounceRef = useRef(null);
   const lastFetchedId = useRef(null);
@@ -133,7 +148,9 @@ const EditOrderDetailModal = ({
     Boolean(isRMAMode) ||
     String(order?.order_type || "").toLowerCase() === "rma" ||
     isCancelledStatus(order?.["Order Status"]) ||
-    String(order?.["Order Status"] || "").trim().toLowerCase() === "incomplete" ||
+    String(order?.["Order Status"] || "")
+      .trim()
+      .toLowerCase() === "incomplete" ||
     String(order?.order_type || "").toLowerCase() === "incomplete" ||
     (Array.isArray(order?.rmaOrderNos) && order.rmaOrderNos.length > 0);
 
@@ -266,7 +283,7 @@ const EditOrderDetailModal = ({
     setFieldErrors((prev) => {
       const keys = Object.keys(prev);
       if (!keys.length) return prev;
-      const current = validateForm(formData);
+      const current = validateForm(formData, validationOptions);
       const next = Object.fromEntries(
         keys.filter((key) => current[key]).map((key) => [key, current[key]]),
       );
@@ -290,7 +307,7 @@ const EditOrderDetailModal = ({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const errors = validateForm(formData);
+    const errors = validateForm(formData, validationOptions);
     const [firstError] = Object.keys(errors);
     if (firstError) {
       setFieldErrors(errors);
@@ -298,7 +315,13 @@ const EditOrderDetailModal = ({
       focusField(firstError);
       return;
     }
-    onSave(normalizeNumberFields(formData));
+    // A field the backend rejected (e.g. Order# already taken) is
+    // highlighted and focused; its message is already shown as a toast
+    Promise.resolve(onSave(normalizeNumberFields(formData))).catch((err) => {
+      if (!err?.field || !(err.field in formData)) return;
+      setFieldErrors({ [err.field]: err.message });
+      focusField(err.field);
+    });
   };
 
   const hasChanges = () => {
@@ -320,12 +343,35 @@ const EditOrderDetailModal = ({
     setShowConfirm(false);
     onClose();
   };
+
+  // Esc = Cancel (asking first when there are unsaved changes),
+  // Ctrl+S = Save Changes, Ctrl+P = Print
+  useModalShortcuts({
+    escape: handleCloseAttempt,
+    save: (e) => !pending && handleSubmit(e),
+    print: () => window.print(),
+  });
+  // "Discard changes?" dialog: Esc = Keep Editing; Ctrl+S / Ctrl+P do nothing
+  // until it is answered
+  useModalShortcuts(
+    {
+      escape: () => setShowConfirm(false),
+      save: () => {},
+      print: () => {},
+    },
+    showConfirm,
+  );
+  // Keyboard-only: Discard is focused (Enter), Tab / arrows switch buttons
+  const confirmDialogRef = useRef(null);
+  useDialogFocus(confirmDialogRef, showConfirm);
   useEffect(() => {
     if (isCreatePartMode || isRMAMode) {
       const calculated = calculateFields(
         withDefaultShippingAccount({
           ...order,
           "Order Date": formatToday(),
+          // A new part order starts with Qty and CC/Paypal 4% at 0 (editable)
+          ...(isCreatePartMode && { Qty: "0", "CC/Paypal 4%": "0.00" }),
         }),
       );
       const { Status, ...rest } = calculated;
@@ -338,6 +384,17 @@ const EditOrderDetailModal = ({
 
   return (
     <div className="fixed inset-0 bg-black/60 flex z-[100]">
+      {/* What Print / Ctrl+P puts on paper: field names and full values */}
+      <OrderPrintSheet
+        order={formData}
+        title={
+          isRMAMode
+            ? "New RMA"
+            : isCreatePartMode
+              ? "New Part Order"
+              : "Order Details"
+        }
+      />
       <div className="bg-white w-full h-full overflow-hidden flex flex-col">
         {/* Header */}
         <div className="px-4 py-2.5 border-b flex justify-between items-center bg-gray-50 shrink-0">
@@ -478,7 +535,9 @@ const EditOrderDetailModal = ({
                 unlockField(key);
                 setTimeout(() =>
                   container
-                    ?.querySelector("input:not([type=hidden]), select, textarea")
+                    ?.querySelector(
+                      "input:not([type=hidden]), select, textarea",
+                    )
                     ?.focus(),
                 );
               };
@@ -545,10 +604,12 @@ const EditOrderDetailModal = ({
                                         "
                     >
                       {key.replace(/([A-Z])/g, " $1").trim()}
-                      {key === "Entry Reason" &&
-                        isCancelledStatus(formData["Order Status"]) && (
-                          <span className="text-red-200"> *</span>
-                        )}
+                      {((key === "Entry Reason" &&
+                        isCancelledStatus(formData["Order Status"])) ||
+                        (key === "Condition" &&
+                          validationOptions.conditionEditable)) && (
+                        <span className="text-red-200"> *</span>
+                      )}
                     </label>
 
                     {isCheckedLocked(key) && (
@@ -568,10 +629,10 @@ const EditOrderDetailModal = ({
                         key === "CC/Paypal 4%" &&
                         isCancelledStatus(formData["Order Status"])
                       ) && (
-                      <button
-                        type="button"
-                        onClick={unlockAndFocus}
-                        className="
+                        <button
+                          type="button"
+                          onClick={unlockAndFocus}
+                          className="
                                                 shrink-0
                                                 p-0.5
                                                 text-white/80
@@ -580,31 +641,35 @@ const EditOrderDetailModal = ({
                                                 rounded
                                                 transition-colors
                                             "
-                        title="Click to edit this field"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
+                          title="Click to edit this field"
                         >
-                          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                          <path d="m15 5 4 4" />
-                        </svg>
-                      </button>
-                    )}
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                            <path d="m15 5 4 4" />
+                          </svg>
+                        </button>
+                      )}
                   </div>
 
                   {/* DROPDOWN */}
 
                   <div
                     onClick={unlocksOnFieldClick ? unlockAndFocus : undefined}
-                    title={unlocksOnFieldClick ? "Click to edit this field" : undefined}
+                    title={
+                      unlocksOnFieldClick
+                        ? "Click to edit this field"
+                        : undefined
+                    }
                     className={`
                                         min-h-[38px] 2xl:min-h-[48px]
                                         flex
@@ -714,7 +779,9 @@ const EditOrderDetailModal = ({
                         type="text"
                         name={key}
                         inputMode={
-                          FLAT_VALUE_FIELDS.includes(key) ? "decimal" : undefined
+                          FLAT_VALUE_FIELDS.includes(key)
+                            ? "decimal"
+                            : undefined
                         }
                         value={formData[key] ?? ""}
                         onChange={handleChange}
@@ -763,6 +830,7 @@ const EditOrderDetailModal = ({
           <button
             type="button"
             onClick={handleCloseAttempt}
+            title="Cancel (Esc)"
             className="
       w-full
       sm:w-[150px]
@@ -786,6 +854,7 @@ const EditOrderDetailModal = ({
           <button
             onClick={handleSubmit}
             disabled={pending}
+            title="Save Changes (Ctrl+S)"
             className="
       w-full
       sm:w-[150px]
@@ -809,6 +878,7 @@ const EditOrderDetailModal = ({
           <button
             type="button"
             onClick={() => window.print()}
+            title="Print (Ctrl+P)"
             className="
       w-full
       sm:w-[150px]
@@ -831,7 +901,13 @@ const EditOrderDetailModal = ({
       {/* Confirmation Modal */}
       {showConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[110] p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden">
+          <div
+            ref={confirmDialogRef}
+            role="alertdialog"
+            aria-modal="true"
+            aria-label="Discard changes?"
+            className="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden"
+          >
             <div className="p-6">
               <h3 className="text-lg font-semibold text-gray-800 mb-2">
                 Discard changes?
@@ -843,14 +919,17 @@ const EditOrderDetailModal = ({
             </div>
             <div className="border-t p-4 flex gap-3 bg-gray-50">
               <button
+                type="button"
+                data-autofocus
                 onClick={() => setShowConfirm(false)}
-                className="flex-1 py-2.5 border border-gray-300 rounded-xl hover:bg-gray-100 font-medium text-gray-700"
+                className="flex-1 py-2.5 border border-gray-300 rounded-xl hover:bg-gray-100 font-medium text-gray-700 outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400"
               >
                 Keep Editing
               </button>
               <button
+                type="button"
                 onClick={handleConfirmClose}
-                className="flex-1 py-2.5 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700"
+                className="flex-1 py-2.5 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
               >
                 Discard
               </button>

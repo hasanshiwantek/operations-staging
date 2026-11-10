@@ -219,3 +219,83 @@ body {
 .handsontable .ht-current-row td {
   background: #eef2ff !important;
 }
+
+/* Order print sheet (OrderPrintSheet.jsx): never on screen; while an order
+   form is open, printing shows only this field / value table */
+.order-print-sheet {
+  display: none;
+}
+
+@media print {
+  @page {
+    margin: 12mm;
+  }
+
+  body.order-print-mode > *:not(.order-print-sheet) {
+    display: none !important;
+  }
+
+  body.order-print-mode {
+    background: #fff;
+    overflow: visible;
+  }
+
+  body.order-print-mode .order-print-sheet {
+    display: block;
+    color: #111827;
+    font-size: 10.5pt;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .order-print-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 2px solid #06245f;
+    padding-bottom: 6px;
+    margin-bottom: 10px;
+  }
+
+  .order-print-header h1 {
+    font-size: 16pt;
+    font-weight: 700;
+    color: #06245f;
+  }
+
+  .order-print-header span {
+    font-size: 9pt;
+    color: #6b7280;
+  }
+
+  .order-print-sheet table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+
+  .order-print-sheet tr {
+    break-inside: avoid;
+  }
+
+  .order-print-sheet th,
+  .order-print-sheet td {
+    border: 1px solid #d1d5db;
+    padding: 4px 8px;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .order-print-sheet th {
+    width: 32%;
+    background: #eef2ff;
+    font-weight: 600;
+    color: #1f2937;
+  }
+
+  /* Long values (addresses, links, comments) wrap in full */
+  .order-print-sheet td {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+}

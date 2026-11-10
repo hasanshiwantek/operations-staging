@@ -2,6 +2,7 @@ import React from "react";
 import { X } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "react-toastify";
+import useEscapeKey from "../hooks/useEscapeKey";
 
 const ValueModal = ({
   open,
@@ -33,10 +34,11 @@ const ValueModal = ({
     reset();
     onClose();
   };
+  // Esc closes the modal
+  useEscapeKey(handleClose, open);
 
   const submitHandler = async (data) => {
     const success = await onSubmit(data);
- console.log(success)
     if (success) {
       reset();
       onClose();
@@ -48,7 +50,6 @@ const ValueModal = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="w-full max-w-md rounded-xl bg-white shadow-xl">
-
         {/* Header */}
         <div className="flex items-center justify-between border-b px-6 py-4">
           <h2 className="text-xl font-semibold text-gray-800">
@@ -64,10 +65,7 @@ const ValueModal = ({
         </div>
 
         {/* Form */}
-        <form
-          onSubmit={handleSubmit(submitHandler)}
-          className="space-y-5 p-6"
-        >
+        <form onSubmit={handleSubmit(submitHandler)} className="space-y-5 p-6">
           <div>
             <label className="mb-2 block text-sm font-medium text-gray-700">
               Value <span className="text-red-500">*</span>
@@ -94,7 +92,6 @@ const ValueModal = ({
           </div>
 
           <div className="flex justify-end gap-3">
-
             <button
               type="button"
               onClick={handleClose}
@@ -112,13 +109,8 @@ const ValueModal = ({
                   : "bg-indigo-600 hover:bg-indigo-700"
               }`}
             >
-              {loading
-                ? "Saving..."
-                : editData
-                ? "Update"
-                : "Create"}
+              {loading ? "Saving..." : editData ? "Update" : "Create"}
             </button>
-
           </div>
         </form>
       </div>

@@ -5,7 +5,9 @@ const initialState = {
     permissions: [],
     permissionsLoading: false,
     error: null,
-    userPermissions: []
+    userPermissions: [],
+    // False until the first response, so pages can wait before denying access
+    userPermissionsLoaded: false
 };
 
 // GET /admin/permissions
@@ -78,11 +80,13 @@ const permissionsSlice = createSlice({
             .addCase(getPermissionsByStoreId.fulfilled, (state, action) => {
                 state.permissionsLoading = false;
                 state.userPermissions = action.payload?.permissions || [];
+                state.userPermissionsLoaded = true;
                 state.error = null;
             })
             .addCase(getPermissionsByStoreId.rejected, (state, action) => {
                 state.permissionsLoading = false;
                 state.userPermissions = [];
+                state.userPermissionsLoaded = true;
                 state.error = action.payload;
             });
     },

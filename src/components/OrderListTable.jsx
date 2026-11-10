@@ -32,6 +32,7 @@ import {
 import {
   CHECKBOX_FIELDS,
   columnsOfSheet,
+  DOCUMENT_PERMISSIONS,
   FLAT_VALUE_FIELDS,
   flattenOrderValues,
   formatNumberCell,
@@ -49,6 +50,8 @@ import ExportProgressModal, {
   yieldToBrowser,
 } from "./ExportProgressModal";
 import OrderDetailModal from "./OrderDetailModal";
+import OrderDocumentModal from "./OrderDocumentModal";
+import { useModalShortcuts } from "../hooks/useEscapeKey";
 
 registerAllModules();
 
@@ -402,8 +405,70 @@ const resolveCellColor = (order, column) => {
   return "";
 };
 
+// Incomplete orders (by status or order type) get no row actions at all:
+// no Edit, part order (PO), RMA or documents
+const isIncompleteOrder = (order) =>
+  String(order?.["Order Status"] || "").trim().toLowerCase() === "incomplete" ||
+  String(order?.order_type || "").trim().toLowerCase() === "incomplete";
+
+// Proforma Invoice / Packing Slip / Purchase Order are not offered for
+// cancelled orders, RMAs or incomplete orders
+const canGenerateDocuments = (order) => {
+  if (!order) return false;
+  if (isIncompleteOrder(order)) return false;
+  const type = String(order.order_type || "").toLowerCase();
+  const status = String(order["Order Status"] || "")
+    .trim()
+    .toLowerCase();
+  return type !== "rma" && status !== "cancelled" && status !== "canceled";
+};
+
+const DOCUMENT_ACTIONS = ["proforma", "packing", "po"];
+
+// Keyboard shortcuts for the row actions (right-click menu items) on the
+// selected row
+const ROW_ACTION_SHORTCUT_LABELS = {
+  edit: "Ctrl+E",
+  rma: "Ctrl+M",
+  part: "Alt+P",
+  proforma: "Ctrl+I",
+  packing: "F4",
+  po: "F2",
+};
+
+const getRowActionForKey = (e) => {
+  const ctrl = e.ctrlKey || e.metaKey;
+  if (ctrl && !e.altKey && !e.shiftKey) {
+    const key = e.key.toLowerCase();
+    if (key === "e") return "edit";
+    if (key === "m") return "rma";
+    if (key === "i") return "proforma";
+    return null;
+  }
+  // e.code: on a Mac, Option+P types "π"
+  if (e.altKey && !ctrl && !e.shiftKey && e.code === "KeyP") return "part";
+  if (!ctrl && !e.altKey && !e.shiftKey) {
+    if (e.key === "F2") return "po";
+    if (e.key === "F4") return "packing";
+  }
+  return null;
+};
+
+// Context menu item text with its shortcut, e.g. "Edit (Ctrl+E)". Plain
+// text: the grid has no HTML sanitizer configured
+const menuLabel = (label, shortcut) =>
+  shortcut ? `${label} (${shortcut})` : label;
+
 // isActive: false while the sheet stays mounted but hidden behind another tab
-function OrderListTable({ Orders, isActive = true }) {
+const FOCUS_HIGHLIGHT_MS = 8000;
+
+// focusOrderNo: Order# to reveal and highlight; onFocusHandled runs once it is
+function OrderListTable({
+  Orders,
+  isActive = true,
+  focusOrderNo = null,
+  onFocusHandled,
+}) {
   const dispatch = useDispatch();
   const hotRef = useRef(null);
   const isRightClickRef = useRef(false);
@@ -440,6 +505,8 @@ function OrderListTable({ Orders, isActive = true }) {
   const [isRMAMode, setIsRMAMode] = useState(false);
   const [isCreatePartMode, setIsCreatePartMode] = useState(false);
   const [isAddMode, setIsAddMode] = useState(false);
+  // Proforma Invoice / Packing Slip / Purchase Order form: { type, order } or null
+  const [documentRequest, setDocumentRequest] = useState(null);
   const [orderTypeFilter, setOrderTypeFilter] = useState("all");
   // Rows left visible by the column filters (null = no column filter active)
   const [visibleOrders, setVisibleOrders] = useState(null);
@@ -457,6 +524,9 @@ function OrderListTable({ Orders, isActive = true }) {
   const findInputRef = useRef(null);
   // Read by afterRenderer to highlight cells: "physicalRow:col" keys
   const findHighlightRef = useRef({ matches: new Set(), current: "" });
+  // Read by afterRenderer: the Order# of the row opened from a notification
+  const focusHighlightRef = useRef(null);
+  const focusHighlightTimerRef = useRef(null);
   const [selectionSummary, setSelectionSummary] = useState({
     sum: 0,
     count: 0,
@@ -741,6 +811,60 @@ function OrderListTable({ Orders, isActive = true }) {
     syncVisibleOrders();
     selectSavedRows(hot);
   }, [filteredOrders, tableData, syncVisibleOrders]);
+
+  // ---------- Jump to an order (notification click) ----------
+  // Runs after the data effect above, so the grid already holds these rows.
+  // Filters are cleared only when they are what hides the order.
+  useEffect(() => {
+    if (!focusOrderNo || !isActive) return;
+    const hot = hotRef.current?.hotInstance;
+    if (!hot || hot.isDestroyed) return;
+
+    setSearchInput(orderSearch || "");
+
+    const wanted = String(focusOrderNo);
+    const isWanted = (order) => String(order?.["Order#"]) === wanted;
+    // Refetched orders reach this table a render after they reach the store
+    if (!tableOrders.some(isWanted)) return;
+    if (!filteredOrders.some(isWanted)) {
+      setOrderTypeFilter("all");
+      return;
+    }
+
+    const physicalRow = gridDataRef.current.findIndex(isWanted);
+    if (physicalRow < 0) return;
+    if (hot.toVisualRow(physicalRow) === null) {
+      const filters = hot.getPlugin("filters");
+      filters.clearConditions();
+      filters.filter();
+    }
+
+    focusHighlightRef.current = wanted;
+    pendingSelectIdsRef.current = [wanted];
+    selectSavedRows(hot);
+    hot.render();
+    // The sheet sits below the stats cards and fits the window, so centring
+    // it brings the row (already scrolled to inside the grid) into view
+    hot.rootElement.scrollIntoView({ block: "center" });
+
+    clearTimeout(focusHighlightTimerRef.current);
+    focusHighlightTimerRef.current = setTimeout(() => {
+      focusHighlightRef.current = null;
+      if (!hot.isDestroyed) hot.render();
+    }, FOCUS_HIGHLIGHT_MS);
+
+    onFocusHandled?.();
+  }, [
+    focusOrderNo,
+    isActive,
+    orderSearch,
+    tableOrders,
+    filteredOrders,
+    tableData,
+    onFocusHandled,
+  ]);
+
+  useEffect(() => () => clearTimeout(focusHighlightTimerRef.current), []);
 
   // ---------- Find (Ctrl+F) ----------
   // Re-run the search as the query/options change, and whenever the data,
@@ -1602,22 +1726,17 @@ function OrderListTable({ Orders, isActive = true }) {
       dispatch(fetchOrderTypesMap(storeId.id));
     }
   }, [storeId?.id]);
-  // Esc closes the innermost layer first: an open Find bar, then full screen
-  const findOpenRef = useRef(findOpen);
-  findOpenRef.current = findOpen;
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key !== "Escape") return;
-      if (findOpenRef.current) {
-        setFindOpen(false);
-        hotRef.current?.hotInstance?.listen();
-        return;
-      }
-      setIsFullScreen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  // Esc closes the innermost layer first: an open modal (its own handler),
+  // then the Find bar, then full screen
+  useModalShortcuts(
+    {
+      escape: () => {
+        if (findOpen) closeFind();
+        else setIsFullScreen(false);
+      },
+    },
+    findOpen || isFullScreen,
+  );
   const hasPendingChecks = useMemo(() => {
     return (tableOrders || []).some((order) =>
       CHECKBOX_FIELDS.some((field) => {
@@ -1634,6 +1753,8 @@ function OrderListTable({ Orders, isActive = true }) {
 
     const id = setTimeout(() => {
       hot.refreshDimensions();
+      // Also runs on mount; don't undo the jump to a notification's order
+      if (focusHighlightRef.current) return;
       const row = isFullScreen ? Math.max(hot.countRows() - 1, 0) : 0;
       hot.scrollViewportTo(row, 0);
     }, 60);
@@ -1672,6 +1793,12 @@ function OrderListTable({ Orders, isActive = true }) {
         matches.size && hot ? `${hot.toPhysicalRow(row)}:${col}` : "";
       td.classList.toggle("ht-find-match", Boolean(key) && matches.has(key));
       td.classList.toggle("ht-find-current", Boolean(key) && key === current);
+
+      td.classList.toggle(
+        "ht-focus-row",
+        focusHighlightRef.current !== null &&
+          String(order?.["Order#"]) === focusHighlightRef.current,
+      );
     },
     [getOrderAtRow],
   );
@@ -1730,160 +1857,178 @@ function OrderListTable({ Orders, isActive = true }) {
     isRightClickRef.current = false;
   }, []);
 
+  // ----- Row actions: shared by the right-click menu and keyboard shortcuts -----
+  // offered = shown for this order at all; locked orders show the action
+  // greyed out (isOrderEditLocked) and it does nothing
+  const orderTypeOf = (order) => String(order?.order_type || "").toLowerCase();
+  const orderStatusOf = (order) =>
+    String(order?.["Order Status"] || "").toLowerCase();
+  const canCreateDocument = (type) =>
+    hasPermission(DOCUMENT_PERMISSIONS[type]);
+  const isRowActionOffered = (action, order) => {
+    if (!order) return false;
+    switch (action) {
+      case "edit":
+        return (
+          hasPermission("view_sheet.edit_order") && !isIncompleteOrder(order)
+        );
+      case "part":
+        return (
+          hasPermission("view_sheet.po") &&
+          !["po", "rma"].includes(orderTypeOf(order)) &&
+          orderStatusOf(order) !== "cancelled" &&
+          !isIncompleteOrder(order)
+        );
+      case "rma":
+        return (
+          hasPermission("view_sheet.rma") &&
+          orderTypeOf(order) !== "rma" &&
+          orderStatusOf(order) !== "cancelled" &&
+          !isIncompleteOrder(order)
+        );
+      default: // "proforma" | "packing" | "po" documents
+        return canGenerateDocuments(order) && canCreateDocument(action);
+    }
+  };
+  const isRowActionLocked = (action, order) =>
+    ["edit", "part", "rma"].includes(action) && isOrderEditLocked(order);
+
+  // New part order / RMA: a copy of the order under a freshly generated Order#
+  const openChildOrderForm = async (order, mode) => {
+    const { order_type, ...originalOrder } = order || {};
+    if (!originalOrder["Order#"]) return;
+    try {
+      const result = await dispatch(
+        createGenerateId({
+          orderId: String(originalOrder["Order#"]),
+          role_id: storeId?.id,
+        }),
+      ).unwrap();
+
+      if (result.success && result.generated_id) {
+        setIsCreatePartMode(mode === "part");
+        setIsRMAMode(mode === "rma");
+        setSelectedOrder({
+          ...originalOrder,
+          "Order#": result.generated_id, // only Order# changes
+        });
+      }
+    } catch (err) {
+      console.error("Failed to generate part number:", err);
+    }
+  };
+
+  // Runs a row action on a visual row; false if it isn't available there
+  const runRowAction = (action, row) => {
+    const order = getOrderAtRow(row);
+    if (!isRowActionOffered(action, order)) return false;
+    if (isRowActionLocked(action, order)) return false;
+    if (action === "edit") handleOrderClick(row);
+    else if (action === "part" || action === "rma")
+      openChildOrderForm(order, action);
+    else setDocumentRequest({ type: action, order });
+    return true;
+  };
+
   // The context menu is built once; its callbacks read the latest
   // permissions / handlers through this ref
   const contextMenuRef = useRef(null);
   contextMenuRef.current = {
-    isOrderEditLocked,
-    hasPermission,
-    handleOrderClick,
-    storeId,
+    isRowActionOffered,
+    isRowActionLocked,
+    runRowAction,
   };
 
-  const contextMenu = useMemo(
-    () => ({
-      items: {
-        edit: {
-          name: "Edit",
-          disabled: function () {
-            const selected = this.getSelectedLast();
-            if (!selected) return true;
-            return contextMenuRef.current.isOrderEditLocked(
-              getOrderAtRow(selected[0]),
-            );
-          },
-          hidden: function () {
-            // // Hide if user doesn't have permission
-            // if (!hasPermission("view_sheet.edit_order")) return true;
-            // return false;
-            const selected = this.getSelectedLast();
-            if (!selected || selected[0] < 0) return true;
-            if (!contextMenuRef.current.hasPermission("view_sheet.edit_order"))
-              return true;
-            return false;
-          },
-          callback: function (key, selection) {
-            const { isOrderEditLocked, handleOrderClick } =
-              contextMenuRef.current;
-            const row = selection[0].start.row;
-            if (isOrderEditLocked(getOrderAtRow(row))) return;
-            handleOrderClick(row); // your existing handler
-          },
-        },
-        create_part: {
-          name: "Create part order",
-          disabled: function () {
-            const selected = this.getSelectedLast();
-            if (!selected) return true;
-            return contextMenuRef.current.isOrderEditLocked(
-              getOrderAtRow(selected[0]),
-            );
-          },
-          hidden: function () {
-            const selected = this.getSelectedLast();
-            if (!selected || selected[0] < 0) return true;
-            // Hide if no permission
-            if (!contextMenuRef.current.hasPermission("view_sheet.po"))
-              return true;
-
-            if (!selected) return true;
-
-            const row = selected[0];
-            const order = getOrderAtRow(row);
-            const type = String(order?.order_type || "").toLowerCase();
-            const status = String(order?.["Order Status"] || "").toLowerCase();
-
-            return type === "po" || type === "rma" || status === "cancelled";
-          },
-          callback: async (key, selection) => {
-            const { isOrderEditLocked, storeId } = contextMenuRef.current;
-            const row = selection[0].start.row;
-            if (isOrderEditLocked(getOrderAtRow(row))) return;
-
-            let { order_type, ...originalOrder } = getOrderAtRow(row) || {};
-
-            if (!originalOrder["Order#"]) return;
-
-            try {
-              const result = await dispatch(
-                createGenerateId({
-                  orderId: String(originalOrder["Order#"]),
-                  role_id: storeId?.id,
-                }),
-              ).unwrap();
-
-              if (result.success && result.generated_id) {
-                const newOrderData = {
-                  ...originalOrder,
-                  "Order#": result.generated_id, // only Order# changes
-                };
-
-                setIsCreatePartMode(true); // ← mark as create mode
-                setSelectedOrder(newOrderData);
-              }
-            } catch (err) {
-              console.error("Failed to generate part number:", err);
-            }
-          },
-        },
-        rma: {
-          name: "RMA",
-          disabled: function () {
-            const selected = this.getSelectedLast();
-            if (!selected) return true;
-            return contextMenuRef.current.isOrderEditLocked(
-              getOrderAtRow(selected[0]),
-            );
-          },
-          hidden: function () {
-            const selected = this.getSelectedLast();
-            if (!selected || selected[0] < 0) return true;
-            if (!contextMenuRef.current.hasPermission("view_sheet.rma"))
-              return true;
-
-            if (!selected) return true;
-
-            const row = selected[0];
-            const order = getOrderAtRow(row);
-            const type = String(order?.order_type || "").toLowerCase();
-            const status = String(order?.["Order Status"] || "").toLowerCase();
-
-            return type === "rma" || status == "cancelled";
-          },
-          callback: async (key, selection) => {
-            const { isOrderEditLocked, storeId } = contextMenuRef.current;
-            const row = selection[0].start.row;
-            if (isOrderEditLocked(getOrderAtRow(row))) return;
-            let { order_type, ...originalOrder } = getOrderAtRow(row) || {};
-
-            if (!originalOrder["Order#"]) return;
-
-            try {
-              const result = await dispatch(
-                createGenerateId({
-                  orderId: String(originalOrder["Order#"]),
-                  role_id: storeId?.id,
-                }),
-              ).unwrap();
-
-              if (result.success && result.generated_id) {
-                const newOrderData = {
-                  ...originalOrder,
-                  "Order#": result.generated_id, // only Order# changes
-                };
-
-                setIsRMAMode(true); // ← mark as create mode
-                setSelectedOrder(newOrderData);
-              }
-            } catch (err) {
-              console.error("Failed to generate part number:", err);
-            }
-          },
-        },
+  const contextMenu = useMemo(() => {
+    const orderAtSelection = (hot) => {
+      const selected = hot.getSelectedLast();
+      if (!selected || selected[0] < 0) return undefined;
+      return getOrderAtRow(selected[0]);
+    };
+    const rowActionItem = (action, label) => ({
+      name: menuLabel(label, ROW_ACTION_SHORTCUT_LABELS[action]),
+      disabled: function () {
+        const order = orderAtSelection(this);
+        return !order || contextMenuRef.current.isRowActionLocked(action, order);
       },
-    }),
-    [dispatch, getOrderAtRow],
+      hidden: function () {
+        return !contextMenuRef.current.isRowActionOffered(
+          action,
+          orderAtSelection(this),
+        );
+      },
+      callback: (key, selection) => {
+        contextMenuRef.current.runRowAction(action, selection[0].start.row);
+      },
+    });
+
+    return {
+      items: {
+        edit: rowActionItem("edit", "Edit"),
+        create_part: rowActionItem("part", "Create part order"),
+        rma: rowActionItem("rma", "RMA"),
+        doc_separator: {
+          name: "---------",
+          hidden: function () {
+            const order = orderAtSelection(this);
+            return !DOCUMENT_ACTIONS.some((type) =>
+              contextMenuRef.current.isRowActionOffered(type, order),
+            );
+          },
+        },
+        doc_proforma: rowActionItem("proforma", "Proforma Invoice (PDF)"),
+        doc_packing: rowActionItem("packing", "Packing Slip (PDF)"),
+        doc_po: rowActionItem("po", "Purchase Order (PDF)"),
+      },
+    };
+  }, [getOrderAtRow]);
+
+  // Keyboard shortcuts for the row actions, on the selected row. Capture phase
+  // so they win over the grid's own keys (F2 = edit cell) and the browser's
+  // (Ctrl+E / Ctrl+I)
+  const anyModalOpen = Boolean(
+    selectedOrder || documentRequest || isAddMode || excelExport,
   );
+  const anyModalOpenRef = useRef(anyModalOpen);
+  anyModalOpenRef.current = anyModalOpen;
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.repeat || !isActiveRef.current || anyModalOpenRef.current) return;
+      const action = getRowActionForKey(e);
+      if (!action) return;
+      const hot = hotRef.current?.hotInstance;
+      // Only while the grid has the keyboard (not the search / find box) and
+      // no cell is being typed into
+      if (!hot || hot.isDestroyed || !hot.isListening()) return;
+      if (hot.getActiveEditor()?.isOpened()) return;
+      const range = hot.getSelectedRangeLast();
+      const row = range?.getTopStartCorner().row;
+      if (row === undefined || row < 0) return;
+
+      const ran = contextMenuRef.current.runRowAction(action, row);
+      // Keep Ctrl+E / Ctrl+I / Ctrl+M away from the browser even when the
+      // action isn't available for this order
+      if (ran || e.ctrlKey || e.metaKey) e.preventDefault();
+      if (ran) e.stopImmediatePropagation();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, []);
+
+  // A modal takes the keyboard from the grid; when the last one closes, hand
+  // it back so the arrow keys and shortcuts work again straight away
+  const hadModalOpenRef = useRef(false);
+  useEffect(() => {
+    const hot = hotRef.current?.hotInstance;
+    if (!hot || hot.isDestroyed) return;
+    if (anyModalOpen) {
+      hadModalOpenRef.current = true;
+      hot.unlisten();
+    } else if (hadModalOpenRef.current) {
+      hadModalOpenRef.current = false;
+      if (isActiveRef.current) hot.listen();
+    }
+  }, [anyModalOpen]);
   // if (orderloading) {
   //   return (
   //     <div style={{ padding: '40px', textAlign: 'center' }}>
@@ -1979,9 +2124,16 @@ function OrderListTable({ Orders, isActive = true }) {
                 .toLowerCase(),
             );
 
+            // Each request's promise goes back to the form, so a rejected
+            // field (e.g. Order#) can be highlighted there
+            const reportFailure = (label) => (err) => {
+              console.error(`${label} failed:`, err);
+              throw err;
+            };
+
             if (isCreatePartMode) {
               // ========== CREATE API ==========
-              dispatch(
+              return dispatch(
                 postOrderFiles({
                   payload: {
                     ...updatedOrder,
@@ -1998,11 +2150,9 @@ function OrderListTable({ Orders, isActive = true }) {
                   setSelectedOrder(null);
                   setIsCreatePartMode(false);
                 })
-                .catch((err) => {
-                  console.error("Create failed:", err);
-                });
+                .catch(reportFailure("Create"));
             } else if (isRMAMode) {
-              dispatch(
+              return dispatch(
                 postOrderFiles({
                   payload: {
                     ...updatedOrder,
@@ -2019,12 +2169,10 @@ function OrderListTable({ Orders, isActive = true }) {
                   setSelectedOrder(null);
                   setIsRMAMode(false);
                 })
-                .catch((err) => {
-                  console.error("Create failed:", err);
-                });
+                .catch(reportFailure("Create"));
             } else {
               // ========== UPDATE API ==========
-              dispatch(
+              return dispatch(
                 updateOrderFiles({
                   id: updatedOrder["Order#"],
                   data:
@@ -2042,11 +2190,17 @@ function OrderListTable({ Orders, isActive = true }) {
                   dispatch(fetchOrdersAdmin(storeId?.id));
                   setSelectedOrder(null);
                 })
-                .catch((err) => {
-                  console.error("Update failed:", err);
-                });
+                .catch(reportFailure("Update"));
             }
           }}
+        />
+      )}
+      {documentRequest && (
+        <OrderDocumentModal
+          type={documentRequest.type}
+          order={documentRequest.order}
+          orders={tableOrders}
+          onClose={() => setDocumentRequest(null)}
         />
       )}
       {isAddMode && (
@@ -2402,6 +2556,10 @@ function OrderListTable({ Orders, isActive = true }) {
             }
             .handsontable td.ht-find-current.ht-find-current {
               background-color: #ffc53d !important;
+            }
+            .handsontable td.ht-focus-row.ht-focus-row {
+              background-color: #bfdbfe !important;
+              box-shadow: inset 0 2px 0 #2563eb, inset 0 -2px 0 #2563eb;
             }
           `}</style>
           {findOpen && (
