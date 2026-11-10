@@ -20,6 +20,7 @@ import {
   updateSheet,
 } from "../store/usersSlice";
 import { STORE_BANK_FIELDS, STORE_COMPANY_FIELDS } from "../utils/constant";
+import { useConfirm } from "./ConfirmDialog";
 
 // The PDF library (jsPDF) can embed these image types
 const LOGO_TYPES = ["image/png", "image/jpeg", "image/webp"];
@@ -199,6 +200,7 @@ const isEditWiderThanView = (editMonths, viewMonths) =>
 
 const AdminSheets = () => {
   const dispatch = useDispatch();
+  const [confirm, confirmDialog] = useConfirm();
   const navigate = useNavigate();
   const {
     sheets,
@@ -373,7 +375,12 @@ const AdminSheets = () => {
     }
   };
   const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this sheet?")) return;
+    const confirmed = await confirm({
+      title: "Delete store?",
+      message: "Are you sure you want to delete this store? This can't be undone.",
+      confirmLabel: "Delete",
+    });
+    if (!confirmed) return;
 
     try {
       await dispatch(deleteSheet(id)).unwrap();
@@ -385,6 +392,7 @@ const AdminSheets = () => {
 
   return (
     <div className="p-6">
+      {confirmDialog}
       <div className="mb-6">
         <button
           type="button"

@@ -5,7 +5,6 @@ import "react-datepicker/dist/react-datepicker.css";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "react-toastify";
 import useBalancedColumns from "../hooks/useBalancedColumns";
-import useDialogFocus from "../hooks/useDialogFocus";
 import { useModalShortcuts } from "../hooks/useEscapeKey";
 import { fetchOrderById } from "../store/usersSlice";
 import {
@@ -20,6 +19,7 @@ import {
   withDefaultShippingAccount,
   withMirroredField,
 } from "../utils/constant";
+import ConfirmDialog from "./ConfirmDialog";
 import ExpandableTextInput from "./ExpandableTextInput";
 import OrderPrintSheet from "./OrderPrintSheet";
 import SearchableSelect from "./SearchableSelect";
@@ -351,19 +351,6 @@ const EditOrderDetailModal = ({
     save: (e) => !pending && handleSubmit(e),
     print: () => window.print(),
   });
-  // "Discard changes?" dialog: Esc = Keep Editing; Ctrl+S / Ctrl+P do nothing
-  // until it is answered
-  useModalShortcuts(
-    {
-      escape: () => setShowConfirm(false),
-      save: () => {},
-      print: () => {},
-    },
-    showConfirm,
-  );
-  // Keyboard-only: Discard is focused (Enter), Tab / arrows switch buttons
-  const confirmDialogRef = useRef(null);
-  useDialogFocus(confirmDialogRef, showConfirm);
   useEffect(() => {
     if (isCreatePartMode || isRMAMode) {
       const calculated = calculateFields(
@@ -898,45 +885,16 @@ const EditOrderDetailModal = ({
         </div>
       </div>
 
-      {/* Confirmation Modal */}
-      {showConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[110] p-4">
-          <div
-            ref={confirmDialogRef}
-            role="alertdialog"
-            aria-modal="true"
-            aria-label="Discard changes?"
-            className="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden"
-          >
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-2">
-                Discard changes?
-              </h3>
-              <p className="text-sm text-gray-600">
-                You have some unsaved changes. Are you sure you want to close
-                without saving?
-              </p>
-            </div>
-            <div className="border-t p-4 flex gap-3 bg-gray-50">
-              <button
-                type="button"
-                data-autofocus
-                onClick={() => setShowConfirm(false)}
-                className="flex-1 py-2.5 border border-gray-300 rounded-xl hover:bg-gray-100 font-medium text-gray-700 outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400"
-              >
-                Keep Editing
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmClose}
-                className="flex-1 py-2.5 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-              >
-                Discard
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* "Discard changes?" (Esc / Keep Editing closes it) */}
+      <ConfirmDialog
+        open={showConfirm}
+        title="Discard changes?"
+        message="You have some unsaved changes. Are you sure you want to close without saving?"
+        confirmLabel="Discard"
+        cancelLabel="Keep Editing"
+        onConfirm={handleConfirmClose}
+        onCancel={() => setShowConfirm(false)}
+      />
     </div>
   );
 };

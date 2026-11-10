@@ -6,6 +6,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { fetchAttributes, createAttribute,deleteAttribute, } from "../store/attributeSlice";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
+import { useConfirm } from "./ConfirmDialog";
 
 const AddAttributes = () => {
   const [showModal, setShowModal] = useState(false);
@@ -16,6 +17,7 @@ const AddAttributes = () => {
     (state) => state.attributes,
   );
   const dispatch = useDispatch();
+  const [confirm, confirmDialog] = useConfirm();
   const navigate = useNavigate();
 
  
@@ -27,9 +29,11 @@ const AddAttributes = () => {
   };
 
  const handleDelete = async (item) => {
-  const confirmDelete = window.confirm(
-    "Are you sure you want to delete this attribute?"
-  );
+  const confirmDelete = await confirm({
+    title: "Delete attribute?",
+    message: "Are you sure you want to delete this attribute? This can't be undone.",
+    confirmLabel: "Delete",
+  });
 
   if (!confirmDelete) return;
 
@@ -75,6 +79,7 @@ const AddAttributes = () => {
 
   return (
     <div className="p-6">
+      {confirmDialog}
       <div className="mb-6">
   <button
     type="button"

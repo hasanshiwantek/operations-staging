@@ -4,6 +4,7 @@ import { fetchUsers, deleteUser } from "../store/usersSlice";
 import { CreateUserModal } from "../components/CreateUserModal";
 import addUserIcon from "../assets/adduser-icon.svg?url";
 import { MoreVertical } from "lucide-react";
+import { useConfirm } from "../components/ConfirmDialog";
 
 // Room the Edit / Delete menu needs below its icon
 const MENU_SPACE_NEEDED = 90;
@@ -21,6 +22,7 @@ const UsersSection = ({
   const { storeId } = useSelector((state) => state.auth);
 
   const dispatch = useDispatch();
+  const [confirm, confirmDialog] = useConfirm();
   const roleId = user?.role_id;
   const [openMenuId, setOpenMenuId] = useState(null);
   const [menuOpensUp, setMenuOpensUp] = useState(false);
@@ -41,8 +43,12 @@ const UsersSection = ({
     setOpenMenuId(id);
   };
 
-  const handleDeleteUser = (id) => {
-    const confirmDelete = window.confirm("Are you sure you want to delete this user?");
+  const handleDeleteUser = async (id) => {
+    const confirmDelete = await confirm({
+      title: "Delete user?",
+      message: "Are you sure you want to delete this user? This can't be undone.",
+      confirmLabel: "Delete",
+    });
     if (!confirmDelete) return;
 
     dispatch(deleteUser(id));
@@ -61,6 +67,7 @@ const UsersSection = ({
 
   return (
     <>
+      {confirmDialog}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col gap-4 relative overflow-hidden">
         <div className="absolute bottom-6 right-6 w-28 h-28 bg-indigo-100 opacity-70 blur-3xl rounded-full pointer-events-none z-0" />
         <div className="flex justify-between items-center">
