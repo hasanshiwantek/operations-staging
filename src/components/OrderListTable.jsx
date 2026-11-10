@@ -2124,9 +2124,16 @@ function OrderListTable({
                 .toLowerCase(),
             );
 
+            // Each request's promise goes back to the form, so a rejected
+            // field (e.g. Order#) can be highlighted there
+            const reportFailure = (label) => (err) => {
+              console.error(`${label} failed:`, err);
+              throw err;
+            };
+
             if (isCreatePartMode) {
               // ========== CREATE API ==========
-              dispatch(
+              return dispatch(
                 postOrderFiles({
                   payload: {
                     ...updatedOrder,
@@ -2143,11 +2150,9 @@ function OrderListTable({
                   setSelectedOrder(null);
                   setIsCreatePartMode(false);
                 })
-                .catch((err) => {
-                  console.error("Create failed:", err);
-                });
+                .catch(reportFailure("Create"));
             } else if (isRMAMode) {
-              dispatch(
+              return dispatch(
                 postOrderFiles({
                   payload: {
                     ...updatedOrder,
@@ -2164,12 +2169,10 @@ function OrderListTable({
                   setSelectedOrder(null);
                   setIsRMAMode(false);
                 })
-                .catch((err) => {
-                  console.error("Create failed:", err);
-                });
+                .catch(reportFailure("Create"));
             } else {
               // ========== UPDATE API ==========
-              dispatch(
+              return dispatch(
                 updateOrderFiles({
                   id: updatedOrder["Order#"],
                   data:
@@ -2187,9 +2190,7 @@ function OrderListTable({
                   dispatch(fetchOrdersAdmin(storeId?.id));
                   setSelectedOrder(null);
                 })
-                .catch((err) => {
-                  console.error("Update failed:", err);
-                });
+                .catch(reportFailure("Update"));
             }
           }}
         />

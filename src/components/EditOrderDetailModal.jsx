@@ -56,9 +56,17 @@ const isCancelledStatus = (status) =>
       .toLowerCase(),
   );
 
-// Fields that block saving, as { field: message }; add new checks here
-const validateForm = (data) => {
+// Fields that block saving, as { field: message }; add new checks here.
+// conditionEditable: false when this user can't change Condition (Finance, or
+// checked and locked on the sheet), so it can't block their save
+const validateForm = (data, { conditionEditable = true } = {}) => {
   const errors = {};
+  if (!String(data["Order#"] ?? "").trim()) {
+    errors["Order#"] = "Enter an Order# before saving this order.";
+  }
+  if (conditionEditable && !String(data.Condition ?? "").trim()) {
+    errors.Condition = "Select a Condition before saving this order.";
+  }
   if (
     isCancelledStatus(data["Order Status"]) &&
     !String(data["Entry Reason"] || "").trim()
@@ -101,6 +109,9 @@ const EditOrderDetailModal = ({
   const isFinance = getIsFinance();
   const isAdmin = getIsAdmin();
   const isCheckedLocked = (key) => !isAdmin && checkedFields.includes(key);
+  const validationOptions = {
+    conditionEditable: !isFinance && !isCheckedLocked("Condition"),
+  };
   const normalizedOptions = normalizeOrderOptions(orderOptions);
   const debounceRef = useRef(null);
   const lastFetchedId = useRef(null);
@@ -271,7 +282,7 @@ const EditOrderDetailModal = ({
     setFieldErrors((prev) => {
       const keys = Object.keys(prev);
       if (!keys.length) return prev;
-      const current = validateForm(formData);
+      const current = validateForm(formData, validationOptions);
       const next = Object.fromEntries(
         keys.filter((key) => current[key]).map((key) => [key, current[key]]),
       );
@@ -295,7 +306,7 @@ const EditOrderDetailModal = ({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const errors = validateForm(formData);
+    const errors = validateForm(formData, validationOptions);
     const [firstError] = Object.keys(errors);
     if (firstError) {
       setFieldErrors(errors);
@@ -303,7 +314,13 @@ const EditOrderDetailModal = ({
       focusField(firstError);
       return;
     }
-    onSave(normalizeNumberFields(formData));
+    // A field the backend rejected (e.g. Order# already taken) is
+    // highlighted and focused; its message is already shown as a toast
+    Promise.resolve(onSave(normalizeNumberFields(formData))).catch((err) => {
+      if (!err?.field || !(err.field in formData)) return;
+      setFieldErrors({ [err.field]: err.message });
+      focusField(err.field);
+    });
   };
 
   const hasChanges = () => {
@@ -575,10 +592,12 @@ const EditOrderDetailModal = ({
                                         "
                     >
                       {key.replace(/([A-Z])/g, " $1").trim()}
-                      {key === "Entry Reason" &&
-                        isCancelledStatus(formData["Order Status"]) && (
-                          <span className="text-red-200"> *</span>
-                        )}
+                      {((key === "Entry Reason" &&
+                        isCancelledStatus(formData["Order Status"])) ||
+                        (key === "Condition" &&
+                          validationOptions.conditionEditable)) && (
+                        <span className="text-red-200"> *</span>
+                      )}
                     </label>
 
                     {isCheckedLocked(key) && (
