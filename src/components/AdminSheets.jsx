@@ -25,7 +25,103 @@ import useEscapeKey from "../hooks/useEscapeKey";
 const LOGO_TYPES = ["image/png", "image/jpeg"];
 const MAX_LOGO_MB = 2;
 
-const StoreDetailFields = ({ title, fields, register, children }) => (
+// Every field of the add / edit store form
+const STORE_FORM_FIELDS = [
+  "name",
+  "store_name",
+  ...STORE_COMPANY_FIELDS.map(({ name }) => name),
+  ...STORE_BANK_FIELDS.map(({ name }) => name),
+];
+
+// ----- Store form validation -----
+const trimValue = (v) => (typeof v === "string" ? v.trim() : v);
+
+// Required, trimmed, at most maxLength characters, optionally matching pattern;
+// check: extra test returning an error message or true
+const textRule = (
+  label,
+  { maxLength = 255, pattern, patternMessage, check } = {},
+) => ({
+  setValueAs: trimValue,
+  validate: (raw) => {
+    const value = String(raw ?? "").trim();
+    if (!value) return `${label} is required`;
+    if (value.length > maxLength)
+      return `${label} must be ${maxLength} characters or fewer`;
+    if (pattern && !pattern.test(value)) return patternMessage;
+    return check ? check(value) : true;
+  },
+});
+
+const STORE_FIELD_RULES = {
+  name: textRule("Name", { maxLength: 100 }),
+  store_name: textRule("Store Name", { maxLength: 100 }),
+  company_name: textRule("Company name", { maxLength: 150 }),
+  company_phone: textRule("Phone", {
+    maxLength: 25,
+    // Digits with optional +, spaces, dashes, dots, brackets; 7–15 digits
+    pattern: /^\+?[\d\s().-]*$/,
+    patternMessage: "Enter a valid phone number (digits, +, -, spaces)",
+    check: (value) => {
+      const digits = value.replace(/\D/g, "").length;
+      return (digits >= 7 && digits <= 15) || "Phone number must have 7–15 digits";
+    },
+  }),
+  company_address: textRule("Company address"),
+  company_email: textRule("Email", {
+    maxLength: 150,
+    pattern: /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/,
+    patternMessage: "Enter a valid email address",
+  }),
+  company_website: textRule("Website", {
+    maxLength: 150,
+    pattern:
+      /^(https?:\/\/)?([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(:\d+)?(\/\S*)?$/i,
+    patternMessage: "Enter a valid website, e.g. www.example.com",
+  }),
+  bank_account_number: textRule("IBAN / Account Number", {
+    maxLength: 34,
+    pattern: /^[A-Za-z0-9 ]{4,34}$/,
+    patternMessage: "Use 4–34 letters and digits",
+  }),
+  bank_routing_number: textRule("Routing number", {
+    maxLength: 9,
+    pattern: /^\d{9}$/,
+    patternMessage: "Routing number must be exactly 9 digits",
+  }),
+  bank_swift_code: textRule("BIC / Swift Code", {
+    maxLength: 11,
+    pattern: /^[A-Za-z]{6}[A-Za-z0-9]{2}([A-Za-z0-9]{3})?$/,
+    patternMessage: "Swift code must be 8 or 11 letters/digits, e.g. BOFAUS3N",
+  }),
+  bank_account_name: textRule("Account Name", { maxLength: 150 }),
+  bank_address: textRule("Bank Address"),
+  bank_account_type: textRule("Type", {
+    maxLength: 50,
+    pattern: /^[A-Za-z][A-Za-z\s/-]*$/,
+    patternMessage: "Use letters only, e.g. Checking or Savings",
+  }),
+  bank_name: textRule("Bank Name", { maxLength: 150 }),
+  bank_account_currency: textRule("Account Currency", {
+    maxLength: 30,
+    pattern: /^[A-Za-z][A-Za-z\s]{2,}$/,
+    patternMessage: "Use letters only, e.g. USD",
+  }),
+};
+
+const inputClass = (hasError) =>
+  `border p-2 rounded-lg text-sm w-full font-normal text-gray-900 outline-none focus:ring-2 ${
+    hasError
+      ? "border-red-400 focus:ring-red-200"
+      : "border-gray-300 focus:ring-blue-200"
+  }`;
+
+const FieldError = ({ error }) =>
+  error ? (
+    <span className="text-red-500 text-xs font-normal">{error.message}</span>
+  ) : null;
+
+const StoreDetailFields = ({ title, fields, register, errors, children }) => (
   <fieldset className="border-t pt-2 mt-1">
     <legend className="text-sm font-semibold text-gray-700 pr-2">
       {title}
@@ -39,12 +135,23 @@ const StoreDetailFields = ({ title, fields, register, children }) => (
             wide ? "sm:col-span-2" : ""
           }`}
         >
-          {label}
+          <span>
+            {label} <span className="text-red-500">*</span>
+          </span>
           <input
             type="text"
-            {...register(name)}
-            className="border p-2 rounded-lg text-sm w-full font-normal text-gray-900"
+            inputMode={
+              name === "company_email"
+                ? "email"
+                : name === "company_phone"
+                  ? "tel"
+                  : undefined
+            }
+            {...register(name, STORE_FIELD_RULES[name])}
+            aria-invalid={errors[name] ? "true" : "false"}
+            className={inputClass(errors[name])}
           />
+          <FieldError error={errors[name]} />
         </label>
       ))}
     </div>
@@ -108,6 +215,7 @@ const AdminSheets = () => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [logoFile, setLogoFile] = useState(null); // a newly chosen logo
+  const [logoError, setLogoError] = useState("");
   const logoFileUrl = useMemo(
     () => (logoFile ? URL.createObjectURL(logoFile) : null),
     [logoFile],
@@ -127,9 +235,8 @@ const AdminSheets = () => {
     register,
     handleSubmit,
     reset,
-    setValue,
     formState: { errors },
-  } = useForm();
+  } = useForm({ mode: "onTouched" });
 
   useEffect(() => {
     dispatch(fetchSheets()); // fetch all sheets for table
@@ -142,7 +249,10 @@ const AdminSheets = () => {
   const openCreateModal = () => {
     setEditingSheet(null);
     setLogoFile(null);
-    reset();
+    setLogoError("");
+    // Explicit blanks: a plain reset() would bring back the last edited store
+    // (reset(values) makes those the form's defaults); also clears old errors
+    reset(Object.fromEntries(STORE_FORM_FIELDS.map((name) => [name, ""])));
     setShowModal(true);
   };
 
@@ -159,15 +269,18 @@ const AdminSheets = () => {
       return;
     }
     setLogoFile(file);
+    setLogoError("");
   };
 
   const openEditModal = (sheet) => {
     setEditingSheet(sheet);
     setLogoFile(null);
-    setValue("name", sheet.name);
-    setValue("store_name", sheet.store_name);
-    [...STORE_COMPANY_FIELDS, ...STORE_BANK_FIELDS].forEach(({ name }) =>
-      setValue(name, sheet[name] ?? ""),
+    setLogoError("");
+    // reset (not setValue) so errors left from an earlier attempt are cleared
+    reset(
+      Object.fromEntries(
+        STORE_FORM_FIELDS.map((name) => [name, sheet[name] ?? ""]),
+      ),
     );
     setEditRangeMonths(null);
     setInitialEditRangeMonths(null);
@@ -244,6 +357,7 @@ const AdminSheets = () => {
       setShowModal(false);
       setEditingSheet(null);
       setLogoFile(null);
+      setLogoError("");
       reset();
 
       // ✅ Table refresh separately
@@ -394,33 +508,34 @@ const AdminSheets = () => {
             </h2>
             <form
               className="flex flex-col gap-3"
-              onSubmit={handleSubmit(onSubmit)}
+              noValidate
+              onSubmit={(e) => {
+                // A logo is needed unless the store being edited already has one;
+                // checked alongside the fields so every error shows at once
+                const logoMissing = !logoFile && !editingSheet?.logo_url;
+                setLogoError(logoMissing ? "Upload the store logo" : "");
+                return handleSubmit((data) => {
+                  if (!logoMissing) return onSubmit(data);
+                })(e);
+              }}
             >
               <input
                 type="text"
-                placeholder="Name"
-                {...register("name", { required: "Name is required" })}
-                className="border p-2 rounded-lg text-sm w-full"
+                placeholder="Name *"
+                {...register("name", STORE_FIELD_RULES.name)}
+                aria-invalid={errors.name ? "true" : "false"}
+                className={inputClass(errors.name)}
               />
-              {errors.name && (
-                <span className="text-red-500 text-xs">
-                  {errors.name.message}
-                </span>
-              )}
+              <FieldError error={errors.name} />
 
               <input
                 type="text"
-                placeholder="Store Name"
-                {...register("store_name", {
-                  required: "Store Name is required",
-                })}
-                className="border p-2 rounded-lg text-sm w-full"
+                placeholder="Store Name *"
+                {...register("store_name", STORE_FIELD_RULES.store_name)}
+                aria-invalid={errors.store_name ? "true" : "false"}
+                className={inputClass(errors.store_name)}
               />
-              {errors.store_name && (
-                <span className="text-red-500 text-xs">
-                  {errors.store_name.message}
-                </span>
-              )}
+              <FieldError error={errors.store_name} />
 
               {editingSheet && (
                 <>
@@ -449,6 +564,7 @@ const AdminSheets = () => {
                 title="Company details"
                 fields={STORE_COMPANY_FIELDS}
                 register={register}
+                errors={errors}
               >
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-32 h-14 shrink-0 border rounded-lg bg-gray-50 flex items-center justify-center overflow-hidden">
@@ -473,8 +589,12 @@ const AdminSheets = () => {
                       />
                     </label>
                     <p className="text-xs text-gray-500">
-                      PNG or JPG, up to {MAX_LOGO_MB} MB
+                      PNG or JPG, up to {MAX_LOGO_MB} MB{" "}
+                      <span className="text-red-500">*</span>
                     </p>
+                    {logoError && (
+                      <p className="text-red-500 text-xs">{logoError}</p>
+                    )}
                   </div>
                 </div>
               </StoreDetailFields>
@@ -483,6 +603,7 @@ const AdminSheets = () => {
                 title="Bank details"
                 fields={STORE_BANK_FIELDS}
                 register={register}
+                errors={errors}
               />
 
               <button

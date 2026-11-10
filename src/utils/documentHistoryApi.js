@@ -6,11 +6,21 @@ import {
   typeFromDocumentType,
 } from "./orderDocuments";
 
-// The selected store's current company details, read fresh for every document
-// so a store edit applies right away; null when the store has none yet
+// The selected store's current company details (store config: company, bank,
+// logo), read fresh for every document so a store edit applies right away;
+// null when the store has none yet
 export const fetchStoreCompany = async () => {
-  const response = await axiosInstance.get("/auth/get-role-by-store-id");
-  return companyFromStore(response.data?.store);
+  const response = await axiosInstance.get("/auth/admin/stores", {
+    silent: true, // the document form reports its own errors
+  });
+  // The selected store = the store-id header the request went out with
+  const storeId = String(response.config?.headers?.["store-id"] ?? "");
+  const data = response.data?.data ?? response.data;
+  const stores = Array.isArray(data) ? data : data ? [data] : [];
+  const store =
+    stores.find((s) => String(s?.id) === storeId) ||
+    (stores.length === 1 ? stores[0] : null);
+  return companyFromStore(store);
 };
 
 // Saves one generated document; resolves with the stored record's response

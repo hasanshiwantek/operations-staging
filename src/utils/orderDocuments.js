@@ -2,37 +2,8 @@
 // from sheet orders and drawing the PDFs (jsPDF + autoTable)
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import logoUrl from "../assets/serverblink-logo.png";
 import titleFontUrl from "../assets/fonts/Anton-Regular.ttf?url";
 import { formatToday, STORE_BANK_FIELDS } from "./constant";
-
-// ---------------------------------------------------------------------------
-// Company profile printed on every document
-// ---------------------------------------------------------------------------
-// Only for rebuilding documents issued before each store had its own details;
-// every one of those was issued under this company
-const LEGACY_COMPANY = {
-  logoUrl,
-  name: "Server Blink, LLC",
-  address: "2210 Goldsmith Lane Ste 126-5001 Louisville, KY 40218 USA",
-  phone: "(502) 206-2022",
-  email: "info@serverblink.com",
-  website: "www.serverblink.com",
-  bank: [
-    ["IBAN / Account Number", "822000451534"],
-    ["Routing number (for Wire and ACH)", "026073150"],
-    ["BIC / Swift Code", "CMFGUS33"],
-    ["Account Name", "Server Blink LLC"],
-    [
-      "Company Address",
-      "2210 Goldsmith Lane, Ste 126-5001, Louisville, KY 40218 USA",
-    ],
-    ["Bank Address", "89-16 Jamaica Ave, Woodhaven, NY 11421, USA"],
-    ["Type", "Checking"],
-    ["Bank Name", "Community Federal Savings Bank"],
-    ["Account Currency", "USD"],
-  ],
-};
 
 // A store from the API → the company printed on its documents; null until the
 // store has at least a company name and address
@@ -154,7 +125,12 @@ export const groupByVendor = (family) => {
     const key = vendor.toLowerCase() || NO_VENDOR_KEY;
     let group = groups.find((g) => g.key === key);
     if (!group) {
-      group = { key, vendor: vendor || "No vendor", noVendor: !vendor, orders: [] };
+      group = {
+        key,
+        vendor: vendor || "No vendor",
+        noVendor: !vendor,
+        orders: [],
+      };
       groups.push(group);
     }
     group.orders.push(order);
@@ -342,11 +318,19 @@ const readContactLine = (line) => {
 // are only a phone and / or email are contact details (either may be absent),
 // and every other line belongs to the address, however many there are.
 export const parseVendorDetails = (raw) => {
-  const cleaned = String(raw ?? "").trim().replace(/^"|"$/g, "");
-  let lines = cleaned.split(/\r?\n|\t/).map((l) => l.trim()).filter(Boolean);
+  const cleaned = String(raw ?? "")
+    .trim()
+    .replace(/^"|"$/g, "");
+  let lines = cleaned
+    .split(/\r?\n|\t/)
+    .map((l) => l.trim())
+    .filter(Boolean);
   // All pasted on one line: commas separate the parts
   if (lines.length === 1) {
-    lines = lines[0].split(",").map((l) => l.trim()).filter(Boolean);
+    lines = lines[0]
+      .split(",")
+      .map((l) => l.trim())
+      .filter(Boolean);
   }
   const [name = "", ...rest] = lines;
   const address = [];
@@ -371,8 +355,22 @@ export const parseVendorDetails = (raw) => {
 
 // Fields that must be filled before the PDF can be generated
 export const REQUIRED_FIELDS = {
-  proforma: ["docNumber", "date", "paymentTerms", "billToName", "billTo", "shipTo"],
-  packing: ["docNumber", "date", "shippingMethod", "billToName", "billTo", "shipTo"],
+  proforma: [
+    "docNumber",
+    "date",
+    "paymentTerms",
+    "billToName",
+    "billTo",
+    "shipTo",
+  ],
+  packing: [
+    "docNumber",
+    "date",
+    "shippingMethod",
+    "billToName",
+    "billTo",
+    "shipTo",
+  ],
   po: [
     "docNumber",
     "date",
@@ -409,7 +407,8 @@ export const findMissing = (type, form) => {
         field === "qty" || field === "unitPrice"
           ? !value || num(value) <= 0
           : !value;
-      if (missing) items[item.key] = { ...(items[item.key] || {}), [field]: true };
+      if (missing)
+        items[item.key] = { ...(items[item.key] || {}), [field]: true };
     });
   });
   const count =
@@ -520,7 +519,12 @@ const drawCompany = (
   });
   doc.setDrawColor(...LINK);
   doc.setLineWidth(0.5);
-  doc.line(textX, siteY + 1.5, textX + doc.getTextWidth(siteLabel), siteY + 1.5);
+  doc.line(
+    textX,
+    siteY + 1.5,
+    textX + doc.getTextWidth(siteLabel),
+    siteY + 1.5,
+  );
 };
 
 // Title face: Anton (SIL Open Font License, see assets/fonts/Anton-OFL.txt),
@@ -614,7 +618,16 @@ const drawParty = (
   doc,
   heading,
   body,
-  { x, y, w, headSize, size, lineH, headColor = LABEL_GREY, headStyle = "bold" },
+  {
+    x,
+    y,
+    w,
+    headSize,
+    size,
+    lineH,
+    headColor = LABEL_GREY,
+    headStyle = "bold",
+  },
 ) => {
   font(doc, headSize, headStyle, headColor);
   doc.text(heading, x, y);
@@ -670,7 +683,11 @@ const ensureSpace = (doc, y, needed) => {
 };
 
 // Navy header row over bordered value cells (Requisitioner / Shipped Via ...)
-const drawInfoStrip = (doc, cells, { x, y, widths, headSize, valueSize, valueStyle }) => {
+const drawInfoStrip = (
+  doc,
+  cells,
+  { x, y, widths, headSize, valueSize, valueStyle },
+) => {
   autoTable(doc, {
     startY: y,
     margin: { left: x, right: 0 },
@@ -685,9 +702,16 @@ const drawInfoStrip = (doc, cells, { x, y, widths, headSize, valueSize, valueSty
       textColor: BLACK,
       cellPadding: { top: 2.5, bottom: 2, left: 3, right: 3 },
     },
-    headStyles: { fillColor: NAVY, textColor: WHITE, fontStyle: "normal", fontSize: headSize },
+    headStyles: {
+      fillColor: NAVY,
+      textColor: WHITE,
+      fontStyle: "normal",
+      fontSize: headSize,
+    },
     bodyStyles: { fontSize: valueSize },
-    columnStyles: Object.fromEntries(widths.map((w, i) => [i, { cellWidth: w }])),
+    columnStyles: Object.fromEntries(
+      widths.map((w, i) => [i, { cellWidth: w }]),
+    ),
     didParseCell: (data) => {
       if (data.section === "body" && valueStyle) valueStyle(data);
     },
@@ -699,7 +723,19 @@ const drawInfoStrip = (doc, cells, { x, y, widths, headSize, valueSize, valueSty
 // above the first row and below the last
 const drawItemsTable = (
   doc,
-  { x, y, widths, head, body, headSize, headFill = NAVY, size, rowPad, columnStyles = {}, boldLines = {} },
+  {
+    x,
+    y,
+    widths,
+    head,
+    body,
+    headSize,
+    headFill = NAVY,
+    size,
+    rowPad,
+    columnStyles = {},
+    boldLines = {},
+  },
 ) => {
   const tableW = widths.reduce((a, b) => a + b, 0);
   const lastRow = body.length - 1;
@@ -754,7 +790,9 @@ const drawItemsTable = (
       const tail = data.cell.boldTail;
       if (!tail?.length) return;
       const { cell } = data;
-      const lineH = (cell.styles.fontSize * doc.getLineHeightFactor()) / doc.internal.scaleFactor;
+      const lineH =
+        (cell.styles.fontSize * doc.getLineHeightFactor()) /
+        doc.internal.scaleFactor;
       const startY =
         cell.y + cell.padding("top") + (cell.text.length + 0.78) * lineH;
       font(doc, cell.styles.fontSize, "bold");
@@ -775,7 +813,11 @@ const drawItemsTable = (
 };
 
 // Subtotal ... Total grid; the last row is the total
-const drawTotalsGrid = (doc, rows, { x, y, widths, labelSize, valueSize, totalFill }) => {
+const drawTotalsGrid = (
+  doc,
+  rows,
+  { x, y, widths, labelSize, valueSize, totalFill },
+) => {
   const last = rows.length - 1;
   autoTable(doc, {
     startY: y,
@@ -876,7 +918,14 @@ export const generatePurchaseOrder = async (form, options = {}) => {
     size: 7.1,
     linkSize: 7.8,
   });
-  drawTitle(doc, `PURCHASE ORDER # ${text(form.docNumber)}`, 556, 95, "right", 270);
+  drawTitle(
+    doc,
+    `PURCHASE ORDER # ${text(form.docNumber)}`,
+    556,
+    95,
+    "right",
+    270,
+  );
   font(doc, 10);
   const dateValue = text(form.date);
   doc.text(dateValue, 557, 113, { align: "right" });
@@ -1011,8 +1060,17 @@ export const generatePackingSlip = async (form, options = {}) => {
   );
 
   const party = { y: 283, headSize: 10, size: 9.2, lineH: 13.6 };
-  const billEnd = drawParty(doc, "Bill To:", partyBlock(form.billToName, form.billTo), { ...party, x: 53, w: 300 });
-  const shipEnd = drawParty(doc, "Ship To:", form.shipTo, { ...party, x: 382, w: 176 });
+  const billEnd = drawParty(
+    doc,
+    "Bill To:",
+    partyBlock(form.billToName, form.billTo),
+    { ...party, x: 53, w: 300 },
+  );
+  const shipEnd = drawParty(doc, "Ship To:", form.shipTo, {
+    ...party,
+    x: 382,
+    w: 176,
+  });
 
   let y = drawItemsTable(doc, {
     x: L,
@@ -1056,7 +1114,14 @@ export const generateProformaInvoice = async (form, options = {}) => {
     size: 7.8,
     linkSize: 8.6,
   });
-  drawTitle(doc, `Proforma Invoice # ${text(form.docNumber)}`, 549, 82, "right", 214);
+  drawTitle(
+    doc,
+    `Proforma Invoice # ${text(form.docNumber)}`,
+    549,
+    82,
+    "right",
+    214,
+  );
   drawMetaBox(
     doc,
     [
@@ -1070,8 +1135,17 @@ export const generateProformaInvoice = async (form, options = {}) => {
   );
 
   const party = { y: 221, headSize: 9.2, size: 8.6, lineH: 12.6 };
-  const billEnd = drawParty(doc, "Bill To:", partyBlock(form.billToName, form.billTo), { ...party, x: 20, w: 380 });
-  const shipEnd = drawParty(doc, "Ship To:", form.shipTo, { ...party, x: 420, w: 132 });
+  const billEnd = drawParty(
+    doc,
+    "Bill To:",
+    partyBlock(form.billToName, form.billTo),
+    { ...party, x: 20, w: 380 },
+  );
+  const shipEnd = drawParty(doc, "Ship To:", form.shipTo, {
+    ...party,
+    x: 420,
+    w: 132,
+  });
 
   let y = drawInfoStrip(
     doc,
@@ -1191,7 +1265,10 @@ export const TEMPLATE_VERSION = "2026-11-10";
 
 // Our form types ↔ the backend's document_type and save endpoint
 export const DOCUMENT_API = {
-  proforma: { documentType: "proforma_invoice", endpoint: "/proforma-invoices" },
+  proforma: {
+    documentType: "proforma_invoice",
+    endpoint: "/proforma-invoices",
+  },
   packing: { documentType: "packing_slip", endpoint: "/packing-slips" },
   po: { documentType: "purchase_order", endpoint: "/purchase-orders" },
 };
@@ -1257,7 +1334,10 @@ export const buildDocumentPayload = (
       sales_rep: text(form.salesRep),
       payment_status: PROFORMA_PAYMENT_STATUS,
       tracking: PROFORMA_TRACKING,
-      bill_to: { first_line: text(form.billToName), address_lines: lines(form.billTo) },
+      bill_to: {
+        first_line: text(form.billToName),
+        address_lines: lines(form.billTo),
+      },
       ship_to: { lines: lines(form.shipTo) },
       warranty: warrantyBlock,
       items,
@@ -1276,7 +1356,10 @@ export const buildDocumentPayload = (
       date: text(form.date),
       customer_po: text(form.poNumber),
       shipping_method: text(form.shippingMethod),
-      bill_to: { first_line: text(form.billToName), address_lines: lines(form.billTo) },
+      bill_to: {
+        first_line: text(form.billToName),
+        address_lines: lines(form.billTo),
+      },
       ship_to: { lines: lines(form.shipTo) },
       items,
       total_qty: items.reduce((acc, item) => acc + item.qty, 0),
@@ -1342,7 +1425,7 @@ export const formFromRecord = (type, record) => {
     amount: item.amount == null ? "" : String(item.amount),
   }));
   const common = {
-    company: d.company || LEGACY_COMPANY,
+    company: d.company || {},
     docNumber: text(record?.document_number),
     date: text(d.date),
     shipTo: (d.ship_to?.lines || []).map(text).join("\n"),
