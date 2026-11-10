@@ -15,6 +15,7 @@ import {
 } from "../utils/constant";
 import ExpandableTextInput from "./ExpandableTextInput";
 import SearchableSelect from "./SearchableSelect";
+import { useModalShortcuts } from "../hooks/useEscapeKey";
 
 const lockedFields = ["Refund Date"];
 const dateFields = ["Charged Date", "Order Date", "Refund Date"];
@@ -25,6 +26,11 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
   const { pending, orderOptions, optionsLoading } = useSelector(
     (state) => state.users,
   );
+  // Esc closes the modal, Ctrl+S = Create Order
+  useModalShortcuts({
+    escape: onClose,
+    save: (e) => !pending && handleSubmit(e),
+  });
   const normalizedOptions = normalizeOrderOptions(orderOptions);
   const [formData, setFormData] = useState({});
   const [isEditing, setIsEditing] = useState(isNewOrder);
@@ -308,6 +314,7 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
           <button
             onClick={handleSubmit}
             disabled={pending}
+            title="Create Order (Ctrl+S)"
             className="
                             w-full
                             sm:w-[170px]

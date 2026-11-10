@@ -1,6 +1,7 @@
 import React from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import useEscapeKey from "../hooks/useEscapeKey";
 
 // Let React paint (modal, progress) before the next chunk of heavy export work.
 // requestAnimationFrame never fires in a background tab, so a timeout keeps the export moving there.
@@ -22,6 +23,8 @@ export class ExportCancelledError extends Error {}
 
 // Blocking modal shown while a file export runs; progress is 0–1, or null for an indeterminate step
 const ExportProgressModal = ({ title, message, progress = null, onCancel }) => {
+  // Esc cancels the export (when it can be cancelled)
+  useEscapeKey(onCancel, Boolean(onCancel));
   const percent =
     progress === null ? null : Math.round(Math.min(Math.max(progress, 0), 1) * 100);
 

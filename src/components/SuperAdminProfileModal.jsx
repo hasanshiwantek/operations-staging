@@ -3,8 +3,11 @@ import { X, Eye, EyeOff } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { updateUser } from "../store/usersSlice";
 import { toast } from "react-toastify";
+import useEscapeKey from "../hooks/useEscapeKey";
 
 export const SuperAdminProfileModal = ({ onClose }) => {
+  // Esc closes the modal
+  useEscapeKey(onClose);
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
   const { updateLoading } = useSelector((state) => state.users);

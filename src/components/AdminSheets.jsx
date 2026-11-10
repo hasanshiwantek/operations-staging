@@ -19,6 +19,7 @@ import {
   updateSheet,
 } from "../store/usersSlice";
 import { STORE_BANK_FIELDS, STORE_COMPANY_FIELDS } from "../utils/constant";
+import useEscapeKey from "../hooks/useEscapeKey";
 
 // The PDF library can embed these two image types
 const LOGO_TYPES = ["image/png", "image/jpeg"];
@@ -101,6 +102,8 @@ const AdminSheets = () => {
 
   const sheetsData = sheets?.data || [];
   const [showModal, setShowModal] = useState(false);
+  // Esc closes the store form
+  useEscapeKey(() => setShowModal(false), showModal);
   const [editingSheet, setEditingSheet] = useState(null); // track edit
   const [selectedFile, setSelectedFile] = useState(null);
   const [loading, setLoading] = useState(false);

@@ -4,6 +4,9 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { useDispatch, useSelector } from "react-redux";
 import { toast } from "react-toastify";
+import useBalancedColumns from "../hooks/useBalancedColumns";
+import useDialogFocus from "../hooks/useDialogFocus";
+import { useModalShortcuts } from "../hooks/useEscapeKey";
 import { fetchOrderById } from "../store/usersSlice";
 import {
   ENTRY_CHECK_MAX_LENGTH,
@@ -17,7 +20,6 @@ import {
   withDefaultShippingAccount,
   withMirroredField,
 } from "../utils/constant";
-import useBalancedColumns from "../hooks/useBalancedColumns";
 import ExpandableTextInput from "./ExpandableTextInput";
 import SearchableSelect from "./SearchableSelect";
 // Always locked fields
@@ -61,7 +63,8 @@ const validateForm = (data) => {
     isCancelledStatus(data["Order Status"]) &&
     !String(data["Entry Reason"] || "").trim()
   ) {
-    errors["Entry Reason"] = "Enter an Entry Reason before cancelling this order.";
+    errors["Entry Reason"] =
+      "Enter an Entry Reason before cancelling this order.";
   }
   return errors;
 };
@@ -133,7 +136,9 @@ const EditOrderDetailModal = ({
     Boolean(isRMAMode) ||
     String(order?.order_type || "").toLowerCase() === "rma" ||
     isCancelledStatus(order?.["Order Status"]) ||
-    String(order?.["Order Status"] || "").trim().toLowerCase() === "incomplete" ||
+    String(order?.["Order Status"] || "")
+      .trim()
+      .toLowerCase() === "incomplete" ||
     String(order?.order_type || "").toLowerCase() === "incomplete" ||
     (Array.isArray(order?.rmaOrderNos) && order.rmaOrderNos.length > 0);
 
@@ -320,6 +325,27 @@ const EditOrderDetailModal = ({
     setShowConfirm(false);
     onClose();
   };
+
+  // Esc = Cancel (asking first when there are unsaved changes),
+  // Ctrl+S = Save Changes, Ctrl+P = Print
+  useModalShortcuts({
+    escape: handleCloseAttempt,
+    save: (e) => !pending && handleSubmit(e),
+    print: () => window.print(),
+  });
+  // "Discard changes?" dialog: Esc = Keep Editing; Ctrl+S / Ctrl+P do nothing
+  // until it is answered
+  useModalShortcuts(
+    {
+      escape: () => setShowConfirm(false),
+      save: () => {},
+      print: () => {},
+    },
+    showConfirm,
+  );
+  // Keyboard-only: Discard is focused (Enter), Tab / arrows switch buttons
+  const confirmDialogRef = useRef(null);
+  useDialogFocus(confirmDialogRef, showConfirm);
   useEffect(() => {
     if (isCreatePartMode || isRMAMode) {
       const calculated = calculateFields(
@@ -480,7 +506,9 @@ const EditOrderDetailModal = ({
                 unlockField(key);
                 setTimeout(() =>
                   container
-                    ?.querySelector("input:not([type=hidden]), select, textarea")
+                    ?.querySelector(
+                      "input:not([type=hidden]), select, textarea",
+                    )
                     ?.focus(),
                 );
               };
@@ -570,10 +598,10 @@ const EditOrderDetailModal = ({
                         key === "CC/Paypal 4%" &&
                         isCancelledStatus(formData["Order Status"])
                       ) && (
-                      <button
-                        type="button"
-                        onClick={unlockAndFocus}
-                        className="
+                        <button
+                          type="button"
+                          onClick={unlockAndFocus}
+                          className="
                                                 shrink-0
                                                 p-0.5
                                                 text-white/80
@@ -582,31 +610,35 @@ const EditOrderDetailModal = ({
                                                 rounded
                                                 transition-colors
                                             "
-                        title="Click to edit this field"
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
+                          title="Click to edit this field"
                         >
-                          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                          <path d="m15 5 4 4" />
-                        </svg>
-                      </button>
-                    )}
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                            <path d="m15 5 4 4" />
+                          </svg>
+                        </button>
+                      )}
                   </div>
 
                   {/* DROPDOWN */}
 
                   <div
                     onClick={unlocksOnFieldClick ? unlockAndFocus : undefined}
-                    title={unlocksOnFieldClick ? "Click to edit this field" : undefined}
+                    title={
+                      unlocksOnFieldClick
+                        ? "Click to edit this field"
+                        : undefined
+                    }
                     className={`
                                         min-h-[38px] 2xl:min-h-[48px]
                                         flex
@@ -716,7 +748,9 @@ const EditOrderDetailModal = ({
                         type="text"
                         name={key}
                         inputMode={
-                          FLAT_VALUE_FIELDS.includes(key) ? "decimal" : undefined
+                          FLAT_VALUE_FIELDS.includes(key)
+                            ? "decimal"
+                            : undefined
                         }
                         value={formData[key] ?? ""}
                         onChange={handleChange}
@@ -765,6 +799,7 @@ const EditOrderDetailModal = ({
           <button
             type="button"
             onClick={handleCloseAttempt}
+            title="Cancel (Esc)"
             className="
       w-full
       sm:w-[150px]
@@ -788,6 +823,7 @@ const EditOrderDetailModal = ({
           <button
             onClick={handleSubmit}
             disabled={pending}
+            title="Save Changes (Ctrl+S)"
             className="
       w-full
       sm:w-[150px]
@@ -811,6 +847,7 @@ const EditOrderDetailModal = ({
           <button
             type="button"
             onClick={() => window.print()}
+            title="Print (Ctrl+P)"
             className="
       w-full
       sm:w-[150px]
@@ -833,7 +870,13 @@ const EditOrderDetailModal = ({
       {/* Confirmation Modal */}
       {showConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-[110] p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden">
+          <div
+            ref={confirmDialogRef}
+            role="alertdialog"
+            aria-modal="true"
+            aria-label="Discard changes?"
+            className="bg-white rounded-2xl w-full max-w-md shadow-xl overflow-hidden"
+          >
             <div className="p-6">
               <h3 className="text-lg font-semibold text-gray-800 mb-2">
                 Discard changes?
@@ -845,14 +888,17 @@ const EditOrderDetailModal = ({
             </div>
             <div className="border-t p-4 flex gap-3 bg-gray-50">
               <button
+                type="button"
+                data-autofocus
                 onClick={() => setShowConfirm(false)}
-                className="flex-1 py-2.5 border border-gray-300 rounded-xl hover:bg-gray-100 font-medium text-gray-700"
+                className="flex-1 py-2.5 border border-gray-300 rounded-xl hover:bg-gray-100 font-medium text-gray-700 outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400"
               >
                 Keep Editing
               </button>
               <button
+                type="button"
                 onClick={handleConfirmClose}
-                className="flex-1 py-2.5 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700"
+                className="flex-1 py-2.5 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
               >
                 Discard
               </button>

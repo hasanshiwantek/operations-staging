@@ -1,6 +1,9 @@
 import React, { useState } from "react";
+import useEscapeKey from "../hooks/useEscapeKey";
 
 const UserModal = ({ onClose, onSave }) => {
+  // Esc closes the modal
+  useEscapeKey(onClose);
   const [form, setForm] = useState({ name: "", email: "", role: "Agent", permission: "View" });
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });

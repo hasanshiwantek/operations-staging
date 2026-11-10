@@ -1,5 +1,6 @@
 import { Maximize2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useModalShortcuts } from "../hooks/useEscapeKey";
 
 // Inline text input with an expand button that opens a large editor modal
 const ExpandableTextInput = ({
@@ -24,14 +25,12 @@ const ExpandableTextInput = ({
     setIsOpen(false);
   };
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKeyDown = (e) => {
-      if (e.key === "Escape") setIsOpen(false);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isOpen]);
+  // Esc closes only this editor (not the modal it sits in) without
+  // keeping the text; Ctrl+S = Done. Ctrl+P does nothing while it is open
+  useModalShortcuts(
+    { escape: () => setIsOpen(false), save: handleDone, print: () => {} },
+    isOpen,
+  );
 
   return (
     <>

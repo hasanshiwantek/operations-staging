@@ -21,6 +21,7 @@ import {
   setOrderSearch,
 } from "../store/usersSlice";
 import { toNumber } from "../utils/constant";
+import useEscapeKey from "../hooks/useEscapeKey";
 
 const calculateTotalPrice = (order) => {
   const price = Number(toNumber(order["Price"]?.value));
@@ -60,6 +61,8 @@ const Dashboard = () => {
   const [selectedAgent, setSelectedAgent] = useState("All");
   const [selectedProcuredBy, setSelectedProcuredBy] = useState("All");
   const [showDateFilter, setShowDateFilter] = useState(false);
+  // Esc closes the date filter
+  useEscapeKey(() => setShowDateFilter(false), showDateFilter);
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   const [userSearch, setUserSearch] = useState("");

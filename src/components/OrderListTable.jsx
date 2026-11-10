@@ -51,6 +51,7 @@ import ExportProgressModal, {
 } from "./ExportProgressModal";
 import OrderDetailModal from "./OrderDetailModal";
 import OrderDocumentModal from "./OrderDocumentModal";
+import { useModalShortcuts } from "../hooks/useEscapeKey";
 
 registerAllModules();
 
@@ -421,6 +422,42 @@ const canGenerateDocuments = (order) => {
     .toLowerCase();
   return type !== "rma" && status !== "cancelled" && status !== "canceled";
 };
+
+const DOCUMENT_ACTIONS = ["proforma", "packing", "po"];
+
+// Keyboard shortcuts for the row actions (right-click menu items) on the
+// selected row
+const ROW_ACTION_SHORTCUT_LABELS = {
+  edit: "Ctrl+E",
+  rma: "Ctrl+M",
+  part: "Alt+P",
+  proforma: "Ctrl+I",
+  packing: "F4",
+  po: "F2",
+};
+
+const getRowActionForKey = (e) => {
+  const ctrl = e.ctrlKey || e.metaKey;
+  if (ctrl && !e.altKey && !e.shiftKey) {
+    const key = e.key.toLowerCase();
+    if (key === "e") return "edit";
+    if (key === "m") return "rma";
+    if (key === "i") return "proforma";
+    return null;
+  }
+  // e.code: on a Mac, Option+P types "π"
+  if (e.altKey && !ctrl && !e.shiftKey && e.code === "KeyP") return "part";
+  if (!ctrl && !e.altKey && !e.shiftKey) {
+    if (e.key === "F2") return "po";
+    if (e.key === "F4") return "packing";
+  }
+  return null;
+};
+
+// Context menu item text with its shortcut, e.g. "Edit (Ctrl+E)". Plain
+// text: the grid has no HTML sanitizer configured
+const menuLabel = (label, shortcut) =>
+  shortcut ? `${label} (${shortcut})` : label;
 
 // isActive: false while the sheet stays mounted but hidden behind another tab
 const FOCUS_HIGHLIGHT_MS = 8000;
@@ -1689,22 +1726,17 @@ function OrderListTable({
       dispatch(fetchOrderTypesMap(storeId.id));
     }
   }, [storeId?.id]);
-  // Esc closes the innermost layer first: an open Find bar, then full screen
-  const findOpenRef = useRef(findOpen);
-  findOpenRef.current = findOpen;
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key !== "Escape") return;
-      if (findOpenRef.current) {
-        setFindOpen(false);
-        hotRef.current?.hotInstance?.listen();
-        return;
-      }
-      setIsFullScreen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  // Esc closes the innermost layer first: an open modal (its own handler),
+  // then the Find bar, then full screen
+  useModalShortcuts(
+    {
+      escape: () => {
+        if (findOpen) closeFind();
+        else setIsFullScreen(false);
+      },
+    },
+    findOpen || isFullScreen,
+  );
   const hasPendingChecks = useMemo(() => {
     return (tableOrders || []).some((order) =>
       CHECKBOX_FIELDS.some((field) => {
@@ -1825,209 +1857,178 @@ function OrderListTable({
     isRightClickRef.current = false;
   }, []);
 
+  // ----- Row actions: shared by the right-click menu and keyboard shortcuts -----
+  // offered = shown for this order at all; locked orders show the action
+  // greyed out (isOrderEditLocked) and it does nothing
+  const orderTypeOf = (order) => String(order?.order_type || "").toLowerCase();
+  const orderStatusOf = (order) =>
+    String(order?.["Order Status"] || "").toLowerCase();
+  const canCreateDocument = (type) =>
+    hasPermission(DOCUMENT_PERMISSIONS[type]);
+  const isRowActionOffered = (action, order) => {
+    if (!order) return false;
+    switch (action) {
+      case "edit":
+        return (
+          hasPermission("view_sheet.edit_order") && !isIncompleteOrder(order)
+        );
+      case "part":
+        return (
+          hasPermission("view_sheet.po") &&
+          !["po", "rma"].includes(orderTypeOf(order)) &&
+          orderStatusOf(order) !== "cancelled" &&
+          !isIncompleteOrder(order)
+        );
+      case "rma":
+        return (
+          hasPermission("view_sheet.rma") &&
+          orderTypeOf(order) !== "rma" &&
+          orderStatusOf(order) !== "cancelled" &&
+          !isIncompleteOrder(order)
+        );
+      default: // "proforma" | "packing" | "po" documents
+        return canGenerateDocuments(order) && canCreateDocument(action);
+    }
+  };
+  const isRowActionLocked = (action, order) =>
+    ["edit", "part", "rma"].includes(action) && isOrderEditLocked(order);
+
+  // New part order / RMA: a copy of the order under a freshly generated Order#
+  const openChildOrderForm = async (order, mode) => {
+    const { order_type, ...originalOrder } = order || {};
+    if (!originalOrder["Order#"]) return;
+    try {
+      const result = await dispatch(
+        createGenerateId({
+          orderId: String(originalOrder["Order#"]),
+          role_id: storeId?.id,
+        }),
+      ).unwrap();
+
+      if (result.success && result.generated_id) {
+        setIsCreatePartMode(mode === "part");
+        setIsRMAMode(mode === "rma");
+        setSelectedOrder({
+          ...originalOrder,
+          "Order#": result.generated_id, // only Order# changes
+        });
+      }
+    } catch (err) {
+      console.error("Failed to generate part number:", err);
+    }
+  };
+
+  // Runs a row action on a visual row; false if it isn't available there
+  const runRowAction = (action, row) => {
+    const order = getOrderAtRow(row);
+    if (!isRowActionOffered(action, order)) return false;
+    if (isRowActionLocked(action, order)) return false;
+    if (action === "edit") handleOrderClick(row);
+    else if (action === "part" || action === "rma")
+      openChildOrderForm(order, action);
+    else setDocumentRequest({ type: action, order });
+    return true;
+  };
+
   // The context menu is built once; its callbacks read the latest
   // permissions / handlers through this ref
   const contextMenuRef = useRef(null);
   contextMenuRef.current = {
-    isOrderEditLocked,
-    hasPermission,
-    handleOrderClick,
-    storeId,
+    isRowActionOffered,
+    isRowActionLocked,
+    runRowAction,
   };
 
-  const canCreateDocument = (type) =>
-    contextMenuRef.current.hasPermission(DOCUMENT_PERMISSIONS[type]);
+  const contextMenu = useMemo(() => {
+    const orderAtSelection = (hot) => {
+      const selected = hot.getSelectedLast();
+      if (!selected || selected[0] < 0) return undefined;
+      return getOrderAtRow(selected[0]);
+    };
+    const rowActionItem = (action, label) => ({
+      name: menuLabel(label, ROW_ACTION_SHORTCUT_LABELS[action]),
+      disabled: function () {
+        const order = orderAtSelection(this);
+        return !order || contextMenuRef.current.isRowActionLocked(action, order);
+      },
+      hidden: function () {
+        return !contextMenuRef.current.isRowActionOffered(
+          action,
+          orderAtSelection(this),
+        );
+      },
+      callback: (key, selection) => {
+        contextMenuRef.current.runRowAction(action, selection[0].start.row);
+      },
+    });
 
-  const contextMenu = useMemo(
-    () => ({
+    return {
       items: {
-        edit: {
-          name: "Edit",
-          disabled: function () {
-            const selected = this.getSelectedLast();
-            if (!selected) return true;
-            return contextMenuRef.current.isOrderEditLocked(
-              getOrderAtRow(selected[0]),
-            );
-          },
-          hidden: function () {
-            // // Hide if user doesn't have permission
-            // if (!hasPermission("view_sheet.edit_order")) return true;
-            // return false;
-            const selected = this.getSelectedLast();
-            if (!selected || selected[0] < 0) return true;
-            if (!contextMenuRef.current.hasPermission("view_sheet.edit_order"))
-              return true;
-            return isIncompleteOrder(getOrderAtRow(selected[0]));
-          },
-          callback: function (key, selection) {
-            const { isOrderEditLocked, handleOrderClick } =
-              contextMenuRef.current;
-            const row = selection[0].start.row;
-            if (isOrderEditLocked(getOrderAtRow(row))) return;
-            if (isIncompleteOrder(getOrderAtRow(row))) return;
-            handleOrderClick(row); // your existing handler
-          },
-        },
-        create_part: {
-          name: "Create part order",
-          disabled: function () {
-            const selected = this.getSelectedLast();
-            if (!selected) return true;
-            return contextMenuRef.current.isOrderEditLocked(
-              getOrderAtRow(selected[0]),
-            );
-          },
-          hidden: function () {
-            const selected = this.getSelectedLast();
-            if (!selected || selected[0] < 0) return true;
-            // Hide if no permission
-            if (!contextMenuRef.current.hasPermission("view_sheet.po"))
-              return true;
-
-            if (!selected) return true;
-
-            const row = selected[0];
-            const order = getOrderAtRow(row);
-            const type = String(order?.order_type || "").toLowerCase();
-            const status = String(order?.["Order Status"] || "").toLowerCase();
-
-            return (
-              type === "po" ||
-              type === "rma" ||
-              status === "cancelled" ||
-              isIncompleteOrder(order)
-            );
-          },
-          callback: async (key, selection) => {
-            const { isOrderEditLocked, storeId } = contextMenuRef.current;
-            const row = selection[0].start.row;
-            if (isOrderEditLocked(getOrderAtRow(row))) return;
-            if (isIncompleteOrder(getOrderAtRow(row))) return;
-
-            let { order_type, ...originalOrder } = getOrderAtRow(row) || {};
-
-            if (!originalOrder["Order#"]) return;
-
-            try {
-              const result = await dispatch(
-                createGenerateId({
-                  orderId: String(originalOrder["Order#"]),
-                  role_id: storeId?.id,
-                }),
-              ).unwrap();
-
-              if (result.success && result.generated_id) {
-                const newOrderData = {
-                  ...originalOrder,
-                  "Order#": result.generated_id, // only Order# changes
-                };
-
-                setIsCreatePartMode(true); // ← mark as create mode
-                setSelectedOrder(newOrderData);
-              }
-            } catch (err) {
-              console.error("Failed to generate part number:", err);
-            }
-          },
-        },
-        rma: {
-          name: "RMA",
-          disabled: function () {
-            const selected = this.getSelectedLast();
-            if (!selected) return true;
-            return contextMenuRef.current.isOrderEditLocked(
-              getOrderAtRow(selected[0]),
-            );
-          },
-          hidden: function () {
-            const selected = this.getSelectedLast();
-            if (!selected || selected[0] < 0) return true;
-            if (!contextMenuRef.current.hasPermission("view_sheet.rma"))
-              return true;
-
-            if (!selected) return true;
-
-            const row = selected[0];
-            const order = getOrderAtRow(row);
-            const type = String(order?.order_type || "").toLowerCase();
-            const status = String(order?.["Order Status"] || "").toLowerCase();
-
-            return (
-              type === "rma" ||
-              status == "cancelled" ||
-              isIncompleteOrder(order)
-            );
-          },
-          callback: async (key, selection) => {
-            const { isOrderEditLocked, storeId } = contextMenuRef.current;
-            const row = selection[0].start.row;
-            if (isOrderEditLocked(getOrderAtRow(row))) return;
-            if (isIncompleteOrder(getOrderAtRow(row))) return;
-            let { order_type, ...originalOrder } = getOrderAtRow(row) || {};
-
-            if (!originalOrder["Order#"]) return;
-
-            try {
-              const result = await dispatch(
-                createGenerateId({
-                  orderId: String(originalOrder["Order#"]),
-                  role_id: storeId?.id,
-                }),
-              ).unwrap();
-
-              if (result.success && result.generated_id) {
-                const newOrderData = {
-                  ...originalOrder,
-                  "Order#": result.generated_id, // only Order# changes
-                };
-
-                setIsRMAMode(true); // ← mark as create mode
-                setSelectedOrder(newOrderData);
-              }
-            } catch (err) {
-              console.error("Failed to generate part number:", err);
-            }
-          },
-        },
+        edit: rowActionItem("edit", "Edit"),
+        create_part: rowActionItem("part", "Create part order"),
+        rma: rowActionItem("rma", "RMA"),
         doc_separator: {
           name: "---------",
           hidden: function () {
-            const selected = this.getSelectedLast();
-            if (!selected || selected[0] < 0) return true;
-            if (!["proforma", "packing", "po"].some(canCreateDocument))
-              return true;
-            return !canGenerateDocuments(getOrderAtRow(selected[0]));
+            const order = orderAtSelection(this);
+            return !DOCUMENT_ACTIONS.some((type) =>
+              contextMenuRef.current.isRowActionOffered(type, order),
+            );
           },
         },
-        ...Object.fromEntries(
-          [
-            ["proforma", "Proforma Invoice (PDF)"],
-            ["packing", "Packing Slip (PDF)"],
-            ["po", "Purchase Order (PDF)"],
-          ].map(([type, name]) => [
-            `doc_${type}`,
-            {
-              name,
-              hidden: function () {
-                const selected = this.getSelectedLast();
-                if (!selected || selected[0] < 0) return true;
-                if (!canGenerateDocuments(getOrderAtRow(selected[0])))
-                  return true;
-                return !canCreateDocument(type);
-              },
-              callback: (key, selection) => {
-                const order = getOrderAtRow(selection[0].start.row);
-                if (canGenerateDocuments(order) && canCreateDocument(type))
-                  setDocumentRequest({ type, order });
-              },
-            },
-          ]),
-        ),
+        doc_proforma: rowActionItem("proforma", "Proforma Invoice (PDF)"),
+        doc_packing: rowActionItem("packing", "Packing Slip (PDF)"),
+        doc_po: rowActionItem("po", "Purchase Order (PDF)"),
       },
-    }),
-    [dispatch, getOrderAtRow],
+    };
+  }, [getOrderAtRow]);
+
+  // Keyboard shortcuts for the row actions, on the selected row. Capture phase
+  // so they win over the grid's own keys (F2 = edit cell) and the browser's
+  // (Ctrl+E / Ctrl+I)
+  const anyModalOpen = Boolean(
+    selectedOrder || documentRequest || isAddMode || excelExport,
   );
+  const anyModalOpenRef = useRef(anyModalOpen);
+  anyModalOpenRef.current = anyModalOpen;
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.repeat || !isActiveRef.current || anyModalOpenRef.current) return;
+      const action = getRowActionForKey(e);
+      if (!action) return;
+      const hot = hotRef.current?.hotInstance;
+      // Only while the grid has the keyboard (not the search / find box) and
+      // no cell is being typed into
+      if (!hot || hot.isDestroyed || !hot.isListening()) return;
+      if (hot.getActiveEditor()?.isOpened()) return;
+      const range = hot.getSelectedRangeLast();
+      const row = range?.getTopStartCorner().row;
+      if (row === undefined || row < 0) return;
+
+      const ran = contextMenuRef.current.runRowAction(action, row);
+      // Keep Ctrl+E / Ctrl+I / Ctrl+M away from the browser even when the
+      // action isn't available for this order
+      if (ran || e.ctrlKey || e.metaKey) e.preventDefault();
+      if (ran) e.stopImmediatePropagation();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, []);
+
+  // A modal takes the keyboard from the grid; when the last one closes, hand
+  // it back so the arrow keys and shortcuts work again straight away
+  const hadModalOpenRef = useRef(false);
+  useEffect(() => {
+    const hot = hotRef.current?.hotInstance;
+    if (!hot || hot.isDestroyed) return;
+    if (anyModalOpen) {
+      hadModalOpenRef.current = true;
+      hot.unlisten();
+    } else if (hadModalOpenRef.current) {
+      hadModalOpenRef.current = false;
+      if (isActiveRef.current) hot.listen();
+    }
+  }, [anyModalOpen]);
   // if (orderloading) {
   //   return (
   //     <div style={{ padding: '40px', textAlign: 'center' }}>

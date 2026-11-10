@@ -7,6 +7,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import { useSelector } from "react-redux";
 import { toast } from "react-toastify";
 import SearchableSelect from "./SearchableSelect";
+import { useModalShortcuts } from "../hooks/useEscapeKey";
 import {
   fetchStoreCompany,
   saveDocumentRecord,
@@ -547,6 +548,13 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
     );
   };
 
+  // Esc closes the form and Ctrl+S generates the PDF (the open tab),
+  // all ignored while a PDF is being generated
+  useModalShortcuts({
+    escape: () => !generating && onClose(),
+    save: () => !generating && handleGenerate(),
+  });
+
   const showPrice = type !== "packing";
   // Packing slips carry no warranty
   const hasWarranty = type !== "packing";
@@ -951,6 +959,7 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
           <button
             type="button"
             onClick={onClose}
+            title="Cancel (Esc)"
             className="py-1.5 px-5 border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-100"
           >
             Cancel
@@ -961,7 +970,11 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
                 type="button"
                 onClick={handleGenerate}
                 disabled={generating || activeNoVendor}
-                title={activeNoVendor ? "Add the Vendor on the sheet first" : undefined}
+                title={
+                activeNoVendor
+                  ? "Add the Vendor on the sheet first"
+                  : "Generate PDF (Ctrl+S)"
+              }
                 className="py-1.5 px-5 border border-[#06245f] text-[#06245f] text-sm font-medium hover:bg-indigo-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {activeNoVendor
@@ -987,7 +1000,11 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
               type="button"
               onClick={handleGenerate}
               disabled={generating || activeNoVendor}
-              title={activeNoVendor ? "Add the Vendor on the sheet first" : undefined}
+              title={
+                activeNoVendor
+                  ? "Add the Vendor on the sheet first"
+                  : "Generate PDF (Ctrl+S)"
+              }
               className="py-1.5 px-5 bg-[#06245f] hover:bg-[#041b4a] text-white text-sm font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {generating ? "Generating..." : "Generate PDF"}

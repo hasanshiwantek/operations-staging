@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Navigate, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
+import useEscapeKey from "../hooks/useEscapeKey";
 import { getRoles } from "../store/authSlice";
 import { fetchUsers } from "../store/usersSlice";
 import { DOCUMENT_PERMISSIONS } from "../utils/constant";
@@ -67,11 +68,7 @@ const formatWhen = (value) => {
 
 // The rebuilt PDF in a modal, with its own download button
 const PdfViewer = ({ viewer, onClose }) => {
-  useEffect(() => {
-    const onKey = (e) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useEscapeKey(onClose);
 
   const download = () => {
     const link = document.createElement("a");

@@ -2,6 +2,7 @@ import React from "react";
 import { X } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { toast } from "react-toastify";
+import useEscapeKey from "../hooks/useEscapeKey";
 
 const ValueModal = ({
   open,
@@ -33,6 +34,8 @@ const ValueModal = ({
     reset();
     onClose();
   };
+  // Esc closes the modal
+  useEscapeKey(handleClose, open);
 
   const submitHandler = async (data) => {
     const success = await onSubmit(data);
