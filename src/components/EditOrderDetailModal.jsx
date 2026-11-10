@@ -21,6 +21,7 @@ import {
   withMirroredField,
 } from "../utils/constant";
 import ExpandableTextInput from "./ExpandableTextInput";
+import OrderPrintSheet from "./OrderPrintSheet";
 import SearchableSelect from "./SearchableSelect";
 // Always locked fields
 
@@ -383,6 +384,17 @@ const EditOrderDetailModal = ({
 
   return (
     <div className="fixed inset-0 bg-black/60 flex z-[100]">
+      {/* What Print / Ctrl+P puts on paper: field names and full values */}
+      <OrderPrintSheet
+        order={formData}
+        title={
+          isRMAMode
+            ? "New RMA"
+            : isCreatePartMode
+              ? "New Part Order"
+              : "Order Details"
+        }
+      />
       <div className="bg-white w-full h-full overflow-hidden flex flex-col">
         {/* Header */}
         <div className="px-4 py-2.5 border-b flex justify-between items-center bg-gray-50 shrink-0">
