@@ -10,6 +10,7 @@ import {
   updateOrderType,
 } from "../store/orderTypeSlice"; // ← make sure path is correct
 import OrderTypeModal from "./OrderTypeModal";
+import { useConfirm } from "./ConfirmDialog";
 
 const OrderTypeTable = () => {
   const [showModal, setShowModal] = useState(false);
@@ -20,6 +21,7 @@ const OrderTypeTable = () => {
     useSelector((state) => state.orderTypes);
 
   const dispatch = useDispatch();
+  const [confirm, confirmDialog] = useConfirm();
   const navigate = useNavigate();
 
   // Fetch list
@@ -43,9 +45,11 @@ const OrderTypeTable = () => {
 
   // Delete
   const handleDelete = async (item) => {
-    const confirmDelete = window.confirm(
-      `Are you sure you want to delete "${item.type}"?`,
-    );
+    const confirmDelete = await confirm({
+      title: "Delete order type?",
+      message: `Are you sure you want to delete "${item.type}"? This can't be undone.`,
+      confirmLabel: "Delete",
+    });
 
     if (!confirmDelete) return;
 
@@ -98,6 +102,7 @@ const OrderTypeTable = () => {
 
   return (
     <div className="p-6">
+      {confirmDialog}
       {/* Back Button */}
       <div className="mb-6">
         <button

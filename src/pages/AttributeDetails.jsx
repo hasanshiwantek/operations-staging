@@ -7,9 +7,11 @@ import EditValueModal from "../components/EditValueModal";
 import ValueModal from "../components/ValueModal";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
+import { useConfirm } from "../components/ConfirmDialog";
 const AttributeDetails = () => {
   const { id } = useParams();
   const dispatch = useDispatch();
+  const [confirm, confirmDialog] = useConfirm();
   const [showValueModal, setShowValueModal] = useState(false);
   const [attributeName, setAttributeName] = useState("");
   const [showEditModal, setShowEditModal] = useState(false);
@@ -116,9 +118,11 @@ const handleUpdateAttribute = async () => {
   }
 };
  const handleDelete = async (item) => {
-  const confirmDelete = window.confirm(
-    "Are you sure you want to delete this value?"
-  );
+  const confirmDelete = await confirm({
+    title: "Delete value?",
+    message: "Are you sure you want to delete this value? This can't be undone.",
+    confirmLabel: "Delete",
+  });
 
   if (!confirmDelete) return;
 
@@ -154,6 +158,7 @@ useEffect(() => {
 }, [attributeDetail]);
   return (
     <div className="p-6">
+      {confirmDialog}
       <div className="mb-6">
   <button
     type="button"
