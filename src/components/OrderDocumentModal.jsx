@@ -6,8 +6,8 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { useSelector } from "react-redux";
 import { toast } from "react-toastify";
-import SearchableSelect from "./SearchableSelect";
 import { useModalShortcuts } from "../hooks/useEscapeKey";
+import { normalizeOrderOptions } from "../utils/constant";
 import {
   fetchStoreCompany,
   saveDocumentRecord,
@@ -26,10 +26,10 @@ import {
   isItemFieldRequired,
   itemAmount,
   parseVendorDetails,
-  unitPriceFor,
   REQUIRED_FIELDS,
+  unitPriceFor,
 } from "../utils/orderDocuments";
-import { normalizeOrderOptions } from "../utils/constant";
+import SearchableSelect from "./SearchableSelect";
 
 const text = (v) => String(v ?? "").trim();
 
@@ -60,7 +60,15 @@ const inputClass = (state) =>
   ].join(" ");
 
 // SearchableSelect inside a box styled like the other inputs
-const SelectBox = ({ name, value, options, onChange, state, disabled, placeholder }) => (
+const SelectBox = ({
+  name,
+  value,
+  options,
+  onChange,
+  state,
+  disabled,
+  placeholder,
+}) => (
   <div
     className={`${inputClass(state)} flex items-center !py-0 h-[34px]`}
     data-missing={state === "error" || state === "missing" ? "true" : undefined}
@@ -141,7 +149,9 @@ const Field = ({
           onChange={(value) => onChange(name, value)}
           state={state}
           disabled={disabled || optionsLoading}
-          placeholder={optionsLoading ? "Loading..." : placeholder || `Select ${label}`}
+          placeholder={
+            optionsLoading ? "Loading..." : placeholder || `Select ${label}`
+          }
         />
       </div>
     );
@@ -193,7 +203,15 @@ const formatDate = (date) => {
   return `${mm}/${dd}/${date.getFullYear()}`;
 };
 
-const DateField = ({ label, name, form, onChange, required, missing, showErrors }) => {
+const DateField = ({
+  label,
+  name,
+  form,
+  onChange,
+  required,
+  missing,
+  showErrors,
+}) => {
   const state = missing ? (showErrors ? "error" : "missing") : "ok";
   return (
     <label className="flex flex-col gap-1" data-field={name}>
@@ -349,7 +367,9 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
         if (name !== "qty") return { ...item, [name]: value };
         // Whole numbers only; the line amount stays the order's own total,
         // so the unit price follows the quantity
-        const qty = String(value).replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+        const qty = String(value)
+          .replace(/\D/g, "")
+          .replace(/^0+(?=\d)/, "");
         return { ...item, qty, unitPrice: unitPriceFor(item.amount, qty) };
       }),
     }));
@@ -365,14 +385,14 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
         : prev.items.map((item) => ({ ...item, warranty: prev.warranty })),
     }));
 
-
   // Shows the missing fields of a tab: switches to it and scrolls to the first
   const showMissing = (key, tabMissing) => {
     setShowErrors(true);
     setActiveKey(key);
-    const tabName = isPO && tabs.length > 1
-      ? ` (${tabs.find((t) => t.key === key)?.vendor})`
-      : "";
+    const tabName =
+      isPO && tabs.length > 1
+        ? ` (${tabs.find((t) => t.key === key)?.vendor})`
+        : "";
     toast.error(
       tabMissing.noItems
         ? `Add at least one item${tabName}.`
@@ -394,7 +414,9 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
   // format "jpg": the same PDF, drawn as an image and downloaded as a JPG
   const generateForm = async (key, format = "pdf") => {
     const withStage = (err, stage) =>
-      Object.assign(err instanceof Error ? err : new Error(String(err)), { stage });
+      Object.assign(err instanceof Error ? err : new Error(String(err)), {
+        stage,
+      });
 
     let company;
     try {
@@ -412,7 +434,9 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
     const tab = tabs.find((t) => t.key === key);
     const payload = buildDocumentPayload(type, f, {
       orderNo: order?.["Order#"],
-      orderNos: [...new Set(f.items.map((item) => item.orderNo).filter(Boolean))],
+      orderNos: [
+        ...new Set(f.items.map((item) => item.orderNo).filter(Boolean)),
+      ],
       vendor: isPO ? tab?.vendor : null,
     });
     try {
@@ -426,9 +450,8 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
           output: "blob",
         });
         // Only loaded when a JPG is asked for
-        const { pdfToJpgBlob, downloadBlob } = await import(
-          "../utils/pdfToImage"
-        );
+        const { pdfToJpgBlob, downloadBlob } =
+          await import("../utils/pdfToImage");
         downloadBlob(
           await pdfToJpgBlob(blob),
           fileName.replace(/.pdf$/i, ".jpg"),
@@ -451,7 +474,9 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
           "This store has no company name and address yet. Add them in the store's settings first.",
         );
       } else if (!err?.response?.data?.message) {
-        toast.error("This store's company details could not be loaded. Try again.");
+        toast.error(
+          "This store's company details could not be loaded. Try again.",
+        );
       }
     } else if (err?.stage === "save") {
       if (!err?.response?.data?.message) {
@@ -475,7 +500,9 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
   // The active tab's PDF (or, for a Packing Slip, JPG)
   const handleGenerate = async (format = "pdf") => {
     if (activeNoVendor) {
-      toast.error("Add the Vendor on the sheet first, then create this Purchase Order.");
+      toast.error(
+        "Add the Vendor on the sheet first, then create this Purchase Order.",
+      );
       return;
     }
     if (missing.count > 0) {
@@ -591,7 +618,10 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
           <div>
             <h2 className="text-lg font-semibold text-gray-800">
               {config.title} -{" "}
-              <span className="text-indigo-600">#{text(order?.["Order#"])}</span>
+              <span className="text-indigo-600">
+                {/* PO: the open vendor tab's PO # (as typed), else the order */}
+                #{(isPO && text(form?.docNumber)) || text(order?.["Order#"])}
+              </span>
             </h2>
             <p className="text-xs text-gray-500 mt-0.5">
               {isPO
@@ -638,7 +668,9 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
                   {tab.vendor}
                   <span
                     className={`text-[11px] px-1.5 rounded-full ${
-                      active ? "bg-[#06245f] text-white" : "bg-gray-100 text-gray-600"
+                      active
+                        ? "bg-[#06245f] text-white"
+                        : "bg-gray-100 text-gray-600"
                     }`}
                   >
                     {tab.orders.length}
@@ -657,7 +689,10 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
         )}
 
         {/* Body */}
-        <div ref={bodyRef} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+        <div
+          ref={bodyRef}
+          className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4"
+        >
           {activeNoVendor && (
             <p className="text-sm text-red-800 bg-red-50 border border-red-200 rounded-md px-3 py-2">
               {activeTab.orders.length === 1 ? "Order" : "Orders"}{" "}
@@ -672,11 +707,17 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
           <Section title="Document details">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <Field
-                label={isPO ? "PO #" : type === "packing" ? "Order #" : "Invoice #"}
+                label={
+                  isPO ? "PO #" : type === "packing" ? "Order #" : "Invoice #"
+                }
                 {...fieldProps("docNumber")}
+                className={!isPO ? "hidden" : undefined}
               />
+
               <DateField label="Date" {...fieldProps("date")} />
-              {!isPO && <Field label="Customer PO #" {...fieldProps("poNumber")} />}
+              {!isPO && (
+                <Field label="Customer PO #" {...fieldProps("poNumber")} />
+              )}
               {type === "proforma" && (
                 <Field
                   label="Payment terms"
@@ -697,7 +738,10 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
               )}
               {isPO && (
                 <>
-                  <Field label="Requisitioner" {...fieldProps("requisitioner")} />
+                  <Field
+                    label="Requisitioner"
+                    {...fieldProps("requisitioner")}
+                  />
                   <Field
                     label="Shipped via"
                     placeholder="e.g. UPS"
@@ -762,14 +806,19 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
                     required
                     missing={Boolean(
                       missing.fields.vendorContact ||
-                        missing.fields.vendorAddress,
+                      missing.fields.vendorAddress,
                     )}
                   />
                   <VendorPreview form={form} />
                 </div>
               </Section>
               <Section title="Ship To">
-                <Field label="Ship to" multiline rows={7} {...fieldProps("shipTo")} />
+                <Field
+                  label="Ship to"
+                  multiline
+                  rows={7}
+                  {...fieldProps("shipTo")}
+                />
               </Section>
             </div>
           ) : (
@@ -790,7 +839,12 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
                 </div>
               </Section>
               <Section title="Ship To">
-                <Field label="Ship to" multiline rows={5} {...fieldProps("shipTo")} />
+                <Field
+                  label="Ship to"
+                  multiline
+                  rows={5}
+                  {...fieldProps("shipTo")}
+                />
               </Section>
             </div>
           )}
@@ -827,7 +881,10 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
                   </thead>
                   <tbody>
                     {form.items.map((item) => (
-                      <tr key={item.key} className="border-b last:border-0 align-top">
+                      <tr
+                        key={item.key}
+                        className="border-b last:border-0 align-top"
+                      >
                         <td className="py-2 pr-2 text-xs text-gray-500 pt-3.5">
                           {item.orderNo || "Manual"}
                         </td>
@@ -837,7 +894,8 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
                         <td className="py-2 pr-2">
                           {itemCell(item, "description", {
                             multiline: true,
-                            placeholder: "Required, e.g. CA, 8SFF U.3 BP, NVMe, G10P",
+                            placeholder:
+                              "Required, e.g. CA, 8SFF U.3 BP, NVMe, G10P",
                           })}
                         </td>
                         {hasWarranty && (
@@ -885,7 +943,9 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
                                   placeholder="Select"
                                 />
                               ) : (
-                                itemCell(item, "condition", { placeholder: "Required" })
+                                itemCell(item, "condition", {
+                                  placeholder: "Required",
+                                })
                               );
                             })()}
                           </td>
@@ -934,7 +994,12 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
                     {...fieldProps("comments")}
                   />
                 ) : (
-                  <Field label="Note" multiline rows={2} {...fieldProps("note")} />
+                  <Field
+                    label="Note"
+                    multiline
+                    rows={2}
+                    {...fieldProps("note")}
+                  />
                 )}
               </div>
             </Section>
@@ -944,7 +1009,9 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Subtotal</span>
-                    <span className="font-medium">{formatMoney(totals.subtotal)}</span>
+                    <span className="font-medium">
+                      {formatMoney(totals.subtotal)}
+                    </span>
                   </div>
                   {[
                     isPO
@@ -953,7 +1020,10 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
                     ["tax", "Tax"],
                     ["shipping", "Shipping"],
                   ].map(([name, label]) => (
-                    <div key={name} className="flex justify-between items-center gap-3">
+                    <div
+                      key={name}
+                      className="flex justify-between items-center gap-3"
+                    >
                       <span className="text-gray-600">{label}</span>
                       <input
                         type="text"
@@ -994,10 +1064,10 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
                 onClick={() => handleGenerate()}
                 disabled={generating || activeNoVendor}
                 title={
-                activeNoVendor
-                  ? "Add the Vendor on the sheet first"
-                  : "Generate PDF (Ctrl+S)"
-              }
+                  activeNoVendor
+                    ? "Add the Vendor on the sheet first"
+                    : "Generate PDF (Ctrl+S)"
+                }
                 className="py-1.5 px-5 border border-[#06245f] text-[#06245f] text-sm font-medium hover:bg-indigo-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {activeNoVendor
@@ -1015,35 +1085,37 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
                 }
                 className="py-1.5 px-5 bg-[#06245f] hover:bg-[#041b4a] text-white text-sm font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {generating ? "Generating..." : `Generate all ${tabs.length} PDFs`}
+                {generating
+                  ? "Generating..."
+                  : `Generate all ${tabs.length} PDFs`}
               </button>
             </>
           ) : (
             <>
-            {canMakeJpg && (
+              {canMakeJpg && (
+                <button
+                  type="button"
+                  onClick={() => handleGenerate("jpg")}
+                  disabled={generating}
+                  title="Download this Packing Slip as a JPG image"
+                  className="py-1.5 px-5 border border-[#06245f] text-[#06245f] text-sm font-medium hover:bg-indigo-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {generating ? "Generating..." : "Generate JPG"}
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => handleGenerate("jpg")}
-                disabled={generating}
-                title="Download this Packing Slip as a JPG image"
-                className="py-1.5 px-5 border border-[#06245f] text-[#06245f] text-sm font-medium hover:bg-indigo-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                onClick={() => handleGenerate()}
+                disabled={generating || activeNoVendor}
+                title={
+                  activeNoVendor
+                    ? "Add the Vendor on the sheet first"
+                    : "Generate PDF (Ctrl+S)"
+                }
+                className="py-1.5 px-5 bg-[#06245f] hover:bg-[#041b4a] text-white text-sm font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {generating ? "Generating..." : "Generate JPG"}
+                {generating ? "Generating..." : "Generate PDF"}
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => handleGenerate()}
-              disabled={generating || activeNoVendor}
-              title={
-                activeNoVendor
-                  ? "Add the Vendor on the sheet first"
-                  : "Generate PDF (Ctrl+S)"
-              }
-              className="py-1.5 px-5 bg-[#06245f] hover:bg-[#041b4a] text-white text-sm font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {generating ? "Generating..." : "Generate PDF"}
-            </button>
             </>
           )}
         </div>
