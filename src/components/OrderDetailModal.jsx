@@ -9,6 +9,8 @@ import {
   defaultOrder,
   ENTRY_CHECK_MAX_LENGTH,
   FLAT_VALUE_FIELDS,
+  isFutureDate,
+  NO_FUTURE_DATE_FIELDS,
   normalizeNumberFields,
   normalizeOrderOptions,
   sanitizePriceInput,
@@ -22,6 +24,7 @@ const lockedFields = ["Refund Date"];
 // Fields that must be filled before creating, in the order they are checked
 const REQUIRED_FIELDS = {
   "Order#": "Enter an Order# before creating this order.",
+  "Order Date": "Select an Order Date before creating this order.",
   Condition: "Select a Condition before creating this order.",
 };
 const dateFields = ["Charged Date", "Order Date", "Refund Date"];
@@ -307,7 +310,20 @@ const OrderDetailModal = ({ order = null, onClose, onSave }) => {
                       /* ================= DATE PICKER ================= */
                       <DatePicker
                         selected={parseDate(formData[key])}
+                        maxDate={
+                          NO_FUTURE_DATE_FIELDS.includes(key)
+                            ? new Date()
+                            : undefined
+                        }
                         onChange={(date) => {
+                          // A typed future date is refused, not just greyed out in the calendar
+                          if (
+                            NO_FUTURE_DATE_FIELDS.includes(key) &&
+                            isFutureDate(date)
+                          ) {
+                            toast.error(`${key} can't be a future date.`);
+                            return;
+                          }
                           setFormData((prev) => ({
                             ...prev,
                             [key]: formatDate(date),

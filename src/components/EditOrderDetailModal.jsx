@@ -13,6 +13,8 @@ import {
   formatToday,
   getIsAdmin,
   getIsFinance,
+  isFutureDate,
+  NO_FUTURE_DATE_FIELDS,
   normalizeNumberFields,
   normalizeOrderOptions,
   sanitizePriceInput,
@@ -58,12 +60,19 @@ const isCancelledStatus = (status) =>
   );
 
 // Fields that block saving, as { field: message }; add new checks here.
-// conditionEditable: false when this user can't change Condition (Finance, or
-// checked and locked on the sheet), so it can't block their save
-const validateForm = (data, { conditionEditable = true } = {}) => {
+// conditionEditable / orderDateEditable: false when this user can't change
+// that field (Finance, or checked and locked on the sheet), so it can't block
+// their save
+const validateForm = (
+  data,
+  { conditionEditable = true, orderDateEditable = true } = {},
+) => {
   const errors = {};
   if (!String(data["Order#"] ?? "").trim()) {
     errors["Order#"] = "Enter an Order# before saving this order.";
+  }
+  if (orderDateEditable && !String(data["Order Date"] ?? "").trim()) {
+    errors["Order Date"] = "Select an Order Date before saving this order.";
   }
   if (conditionEditable && !String(data.Condition ?? "").trim()) {
     errors.Condition = "Select a Condition before saving this order.";
@@ -109,9 +118,16 @@ const EditOrderDetailModal = ({
   );
   const isFinance = getIsFinance();
   const isAdmin = getIsAdmin();
-  const isCheckedLocked = (key) => !isAdmin && checkedFields.includes(key);
+  // Charged Vendor follows the vendor cost fields: locked once any of them is
+  const VENDOR_COST_FIELDS = ["Cost", "Vendor Shipping", "Vendor Tax"];
+  const isCheckedLocked = (key) =>
+    !isAdmin &&
+    (checkedFields.includes(key) ||
+      (key === "Charged Vendor" &&
+        VENDOR_COST_FIELDS.some((field) => checkedFields.includes(field))));
   const validationOptions = {
     conditionEditable: !isFinance && !isCheckedLocked("Condition"),
+    orderDateEditable: !isFinance && !isCheckedLocked("Order Date"),
   };
   const normalizedOptions = normalizeOrderOptions(orderOptions);
   const debounceRef = useRef(null);
@@ -312,6 +328,10 @@ const EditOrderDetailModal = ({
     if (firstError) {
       setFieldErrors(errors);
       toast.error(errors[firstError]);
+      // A pencil-locked field (e.g. Order Date) opens so it can be filled in
+      if (unlockableFields.includes(firstError)) {
+        setUnlockedFields((prev) => new Set(prev).add(firstError));
+      }
       focusField(firstError);
       return;
     }
@@ -473,6 +493,7 @@ const EditOrderDetailModal = ({
               })();
               const dateFields = ["Charged Date", "Order Date", "Refund Date"];
               const isDateField = dateFields.includes(key);
+              const noFutureDate = NO_FUTURE_DATE_FIELDS.includes(key);
 
               const isDropdown = Boolean(normalizedOptions[key]); // ← fully dynamic
               const options = normalizedOptions[key] || [];
@@ -594,7 +615,9 @@ const EditOrderDetailModal = ({
                       {((key === "Entry Reason" &&
                         isCancelledStatus(formData["Order Status"])) ||
                         (key === "Condition" &&
-                          validationOptions.conditionEditable)) && (
+                          validationOptions.conditionEditable) ||
+                        (key === "Order Date" &&
+                          validationOptions.orderDateEditable)) && (
                         <span className="text-red-200"> *</span>
                       )}
                     </label>
@@ -708,7 +731,13 @@ const EditOrderDetailModal = ({
                       /* DATE PICKER */
                       <DatePicker
                         selected={parseDate(formData[key])}
+                        maxDate={noFutureDate ? new Date() : undefined}
                         onChange={(date) => {
+                          // A typed future date is refused, not just greyed out in the calendar
+                          if (noFutureDate && isFutureDate(date)) {
+                            toast.error(`${key} can't be a future date.`);
+                            return;
+                          }
                           setFormData((prev) => {
                             const updated = {
                               ...prev,

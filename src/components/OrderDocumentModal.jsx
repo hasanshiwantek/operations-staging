@@ -438,6 +438,7 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
         ...new Set(f.items.map((item) => item.orderNo).filter(Boolean)),
       ],
       vendor: isPO ? tab?.vendor : null,
+      extension: format,
     });
     try {
       await saveDocumentRecord(type, payload);

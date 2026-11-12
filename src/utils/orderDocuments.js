@@ -1299,7 +1299,7 @@ const toMoney = (value) => round2(num(value));
 export const buildDocumentPayload = (
   type,
   form,
-  { orderNo, orderNos, vendor = null },
+  { orderNo, orderNos, vendor = null, extension = "pdf" },
 ) => {
   const totals = getTotals(form);
   const warrantyBlock = {
@@ -1397,6 +1397,8 @@ export const buildDocumentPayload = (
     document_type: DOCUMENT_API[type].documentType,
     document_number: text(form.docNumber),
     file_name: documentFileName(type, form),
+    // Which button made it ("pdf" | "jpg"); Document History opens it the same way
+    documentExtension: extension === "jpg" ? "jpg" : "pdf",
     order_no: text(orderNo),
     base_order_no: baseOrderNumber(orderNo),
     order_nos: orderNos,
@@ -1407,6 +1409,21 @@ export const buildDocumentPayload = (
     // The company as printed, so later store edits don't change this document
     data: { ...data, company: form.company },
   };
+};
+
+// "jpg" | "pdf" from the first saved record / history row that says (the
+// backend may send it back snake_cased); null when none does
+export const documentExtensionOf = (...sources) => {
+  for (const source of sources) {
+    const value = String(
+      source?.documentExtension ?? source?.document_extension ?? "",
+    )
+      .trim()
+      .toLowerCase();
+    if (value === "jpg" || value === "jpeg") return "jpg";
+    if (value === "pdf") return "pdf";
+  }
+  return null;
 };
 
 // A saved record back into the form shape the PDF generators draw, so View PDF
