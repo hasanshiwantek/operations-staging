@@ -3,7 +3,10 @@ import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { createEcho } from "../utils/echo";
-import { markNotificationRead } from "../utils/notificationsApi";
+import {
+  markNotificationRead,
+  refreshNotifications,
+} from "../utils/notificationsApi";
 
 const TOAST_LEVELS = ["info", "success", "warning", "error"];
 
@@ -62,11 +65,13 @@ const useNotifications = () => {
 
     echo
       .private(channelName)
-      .notification((notification) =>
+      .notification((notification) => {
+        // Update the bell's count right away, without opening it
+        refreshNotifications();
         showNotificationToast(notification, (focusOrderNo) =>
           navigateRef.current("/dashboard", { state: { focusOrderNo } }),
-        ),
-      )
+        );
+      })
       .error((error) => {
         console.error(`Could not subscribe to ${channelName}`, error);
       });

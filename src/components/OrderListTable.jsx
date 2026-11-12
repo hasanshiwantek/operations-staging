@@ -52,6 +52,7 @@ import ExportProgressModal, {
 import OrderDetailModal from "./OrderDetailModal";
 import OrderDocumentModal from "./OrderDocumentModal";
 import { useModalShortcuts } from "../hooks/useEscapeKey";
+import { refreshNotifications } from "../utils/notificationsApi";
 
 registerAllModules();
 
@@ -2168,6 +2169,8 @@ function OrderListTable({
                   dispatch(fetchOrdersAdmin(storeId?.id));
                   setSelectedOrder(null);
                   setIsRMAMode(false);
+                  // Creating an RMA notifies users: update the bell's count now
+                  refreshNotifications({ alsoAfterMs: 3000 });
                 })
                 .catch(reportFailure("Create"));
             } else {
@@ -2189,6 +2192,10 @@ function OrderListTable({
                   pendingSelectIdsRef.current = [updatedOrder["Order#"]];
                   dispatch(fetchOrdersAdmin(storeId?.id));
                   setSelectedOrder(null);
+                  // RMA changes notify users too: update the bell's count now
+                  if (order_type == "rma") {
+                    refreshNotifications({ alsoAfterMs: 3000 });
+                  }
                 })
                 .catch(reportFailure("Update"));
             }
