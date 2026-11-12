@@ -71,6 +71,10 @@ const validateForm = (
   if (!String(data["Order#"] ?? "").trim()) {
     errors["Order#"] = "Enter an Order# before saving this order.";
   }
+  // Every user who can open the form can set Charged Date (Finance included)
+  if (!String(data["Charged Date"] ?? "").trim()) {
+    errors["Charged Date"] = "Select a Charged Date before saving this order.";
+  }
   if (orderDateEditable && !String(data["Order Date"] ?? "").trim()) {
     errors["Order Date"] = "Select an Order Date before saving this order.";
   }
@@ -617,7 +621,8 @@ const EditOrderDetailModal = ({
                         (key === "Condition" &&
                           validationOptions.conditionEditable) ||
                         (key === "Order Date" &&
-                          validationOptions.orderDateEditable)) && (
+                          validationOptions.orderDateEditable) ||
+                        key === "Charged Date") && (
                         <span className="text-red-200"> *</span>
                       )}
                     </label>
