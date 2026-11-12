@@ -13,6 +13,19 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(version),
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // The PDF.js worker ships as .mjs, which the production nginx serves as
+        // application/octet-stream; browsers refuse to run a module worker
+        // with that type, so Generate JPG failed. Emit it as .js instead.
+        assetFileNames: (asset) =>
+          /\.mjs$/i.test(asset.names?.[0] ?? asset.name ?? "")
+            ? "assets/[name]-[hash].js"
+            : "assets/[name]-[hash][extname]",
+      },
+    },
+  },
   server: {
     port: 5173,
     // proxy: {

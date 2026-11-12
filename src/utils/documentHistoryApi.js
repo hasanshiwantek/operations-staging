@@ -3,6 +3,7 @@ import axiosInstance from "../Axios/axiosInstance";
 import {
   companyFromStore,
   DOCUMENT_API,
+  documentExtensionOf,
   typeFromDocumentType,
 } from "./orderDocuments";
 
@@ -79,6 +80,8 @@ const normalizeRow = (row) => {
     record,
     documentNumber: record?.document_number || history.document_number || null,
     fileName: record?.file_name || history.file_name || null,
+    // "jpg" | "pdf"; null when the list row doesn't say (View reads the record)
+    extension: documentExtensionOf(history, record),
     orderNo: record?.order_no || history.order_no || orderNos[0] || null,
     orderNos: orderNos.map(String),
     vendor: history.vendor ?? record?.vendor ?? null,
@@ -105,8 +108,21 @@ export const fetchDocumentHistory = async (filters = {}) => {
   );
   const response = await axiosInstance.get("/document-histories", { params });
   const body = response.data;
-  // Paging details sit in meta, or directly on a Laravel paginator
-  const meta = body?.meta || body?.data?.meta || body?.data || {};
+  // Paging details { current_page, per_page, total, last_page } come under
+  // pagination or meta, or directly on a Laravel paginator; take the first
+  // of those that has last_page
+  const meta =
+    [
+      body?.pagination,
+      body?.meta,
+      body?.data?.pagination,
+      body?.data?.meta,
+      body?.data,
+      body,
+    ].find(
+      (candidate) =>
+        candidate && typeof candidate === "object" && "last_page" in candidate,
+    ) || {};
   return {
     rows: normalizeHistory(body),
     lastPage: Number(meta.last_page) || null,

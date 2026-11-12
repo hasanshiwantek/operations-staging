@@ -11,6 +11,15 @@ export const formatToday = () => {
   const year = date.getFullYear();
   return `${month}/${day}/${year}`;
 };
+// Date fields that can't be set later than today (add and edit order forms)
+export const NO_FUTURE_DATE_FIELDS = ["Order Date", "Charged Date"];
+// True when a picked/typed date falls after today
+export const isFutureDate = (date) => {
+  if (!date) return false;
+  const endOfToday = new Date();
+  endOfToday.setHours(23, 59, 59, 999);
+  return date > endOfToday;
+};
 // Charged Date and Order Date are the same; if only one is present, copy it to the other
 export const syncOrderDates = (order) => {
   if (!order || typeof order !== "object") return order;

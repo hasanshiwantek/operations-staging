@@ -6,6 +6,7 @@ import {
   Download,
   ExternalLink,
   FileText,
+  Image as ImageIcon,
   RefreshCw,
   Search,
   X,
@@ -14,6 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Navigate, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
+import NumberedPagination from "../components/NumberedPagination";
 import useEscapeKey from "../hooks/useEscapeKey";
 import { getRoles } from "../store/authSlice";
 import { fetchUsers } from "../store/usersSlice";
@@ -24,6 +26,7 @@ import {
 } from "../utils/documentHistoryApi";
 import {
   DOC_TYPES,
+  documentExtensionOf,
   formatMoney,
   formFromRecord,
   GENERATORS,
@@ -116,11 +119,21 @@ const PdfViewer = ({ viewer, onClose }) => {
             </button>
           </div>
         </div>
-        <iframe
-          title={viewer.fileName}
-          src={viewer.url}
-          className="flex-1 w-full bg-gray-100"
-        />
+        {viewer.isImage ? (
+          <div className="flex-1 overflow-auto bg-gray-100 p-3">
+            <img
+              src={viewer.url}
+              alt={viewer.fileName}
+              className="mx-auto max-w-full h-auto shadow bg-white"
+            />
+          </div>
+        ) : (
+          <iframe
+            title={viewer.fileName}
+            src={viewer.url}
+            className="flex-1 w-full bg-gray-100"
+          />
+        )}
       </div>
     </div>
   );
@@ -338,10 +351,22 @@ const DocumentHistory = () => {
       const { blob, fileName } = await GENERATORS[row.type](form, {
         output: "blob",
       });
+      // Shown the way it was generated: Generate JPG → image, else PDF
+      const isImage =
+        (row.extension || documentExtensionOf(record)) === "jpg";
+      let file = blob;
+      let name = record.file_name || row.fileName || fileName;
+      if (isImage) {
+        // Only loaded when a JPG is opened
+        const { pdfToJpgBlob } = await import("../utils/pdfToImage");
+        file = await pdfToJpgBlob(blob);
+        name = name.replace(/\.pdf$/i, "") + ".jpg";
+      }
       const when = formatWhen(row.createdAt);
       setViewer({
-        url: URL.createObjectURL(blob),
-        fileName: record.file_name || row.fileName || fileName,
+        url: URL.createObjectURL(file),
+        fileName: name,
+        isImage,
         savedOn: `${when.day} at ${when.time}`,
       });
     } catch (err) {
@@ -559,10 +584,16 @@ const DocumentHistory = () => {
                         disabled={opening === row.referenceId}
                         className="flex items-center gap-1.5 py-1 px-3 border border-[#06245f] text-[#06245f] text-xs font-semibold hover:bg-indigo-50 disabled:opacity-60 whitespace-nowrap"
                       >
-                        <FileText size={14} />
+                        {row.extension === "jpg" ? (
+                          <ImageIcon size={14} />
+                        ) : (
+                          <FileText size={14} />
+                        )}
                         {opening === row.referenceId
                           ? "Opening..."
-                          : "View PDF"}
+                          : row.extension === "jpg"
+                            ? "View JPG"
+                            : "View PDF"}
                       </button>
                     </td>
                   </tr>
@@ -574,31 +605,34 @@ const DocumentHistory = () => {
       </div>
 
       {!failed && (rows.length > 0 || page > 1) && (
-        <div className="flex items-center justify-between gap-3 mt-4">
-          <p className="text-sm text-gray-500">
-            Page {page}
-            {lastPage && ` of ${lastPage}`}
-            {total != null && ` (${total} documents)`}
-          </p>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setPage(page - 1)}
-              disabled={page === 1 || loading}
-              className="px-3 py-2 border rounded-md text-sm bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Previous
-            </button>
-            <button
-              type="button"
-              onClick={() => setPage(page + 1)}
-              disabled={!hasNextPage || loading}
-              className="px-3 py-2 border rounded-md text-sm bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Next
-            </button>
-          </div>
-        </div>
+        <NumberedPagination
+          currentPage={page}
+          // Without a page count from the API, offer one page past this one
+          // while this page is full
+          totalPages={lastPage || (hasNextPage ? page + 1 : page)}
+          onPageChange={setPage}
+          disabled={loading}
+          summary={
+            total != null ? (
+              <>
+                Showing{" "}
+                <span className="font-medium">
+                  {(page - 1) * PAGE_SIZE + 1}
+                </span>{" "}
+                to{" "}
+                <span className="font-medium">
+                  {Math.min(page * PAGE_SIZE, total)}
+                </span>{" "}
+                of <span className="font-medium">{total}</span> documents
+              </>
+            ) : (
+              <>
+                Page {page}
+                {lastPage && ` of ${lastPage}`}
+              </>
+            )
+          }
+        />
       )}
 
       {viewer && <PdfViewer viewer={viewer} onClose={() => setViewer(null)} />}

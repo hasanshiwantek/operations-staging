@@ -4,6 +4,7 @@ import { toast } from "react-toastify";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { userActivityLogs } from "../store/usersSlice";
+import NumberedPagination from "./NumberedPagination";
 
 const UserLogs = () => {
   const dispatch = useDispatch();
@@ -53,17 +54,6 @@ const UserLogs = () => {
   const handlePerPageChange = (e) => {
     setPerPage(Number(e.target.value));
     setCurrentPage(1);
-  };
-
-  // Generate page numbers
-  const getPageNumbers = () => {
-    const pages = [];
-
-    for (let i = 1; i <= lastPage; i++) {
-      pages.push(i);
-    }
-
-    return pages;
   };
 
   return (
@@ -168,54 +158,19 @@ const UserLogs = () => {
 
       {/* Pagination */}
       {!fetchLoading && userLogsData.length > 0 && (
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4 mt-4">
-          {/* Showing */}
-          <div className="text-sm text-gray-600">
-            Showing <span className="font-medium">{from}</span> to{" "}
-            <span className="font-medium">{to}</span> of{" "}
-            <span className="font-medium">{total}</span> logs
-          </div>
-
-          {/* Pagination Buttons */}
-          <div className="flex items-center gap-1">
-            {/* Previous */}
-            <button
-              type="button"
-              onClick={() => handlePageChange(currentApiPage - 1)}
-              disabled={currentApiPage === 1 || fetchLoading}
-              className="px-3 py-2 border rounded-md text-sm bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Previous
-            </button>
-
-            {/* Pages */}
-            {getPageNumbers().map((page) => (
-              <button
-                key={page}
-                type="button"
-                onClick={() => handlePageChange(page)}
-                disabled={fetchLoading}
-                className={`px-3 py-2 border rounded-md text-sm ${
-                  currentApiPage === page
-                    ? "bg-indigo-600 text-white border-indigo-600"
-                    : "bg-white text-gray-700 hover:bg-gray-50"
-                }`}
-              >
-                {page}
-              </button>
-            ))}
-
-            {/* Next */}
-            <button
-              type="button"
-              onClick={() => handlePageChange(currentApiPage + 1)}
-              disabled={currentApiPage === lastPage || fetchLoading}
-              className="px-3 py-2 border rounded-md text-sm bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Next
-            </button>
-          </div>
-        </div>
+        <NumberedPagination
+          currentPage={currentApiPage}
+          totalPages={lastPage}
+          onPageChange={handlePageChange}
+          disabled={fetchLoading}
+          summary={
+            <>
+              Showing <span className="font-medium">{from}</span> to{" "}
+              <span className="font-medium">{to}</span> of{" "}
+              <span className="font-medium">{total}</span> logs
+            </>
+          }
+        />
       )}
     </div>
   );
