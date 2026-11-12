@@ -50,6 +50,7 @@ const showNotificationToast = (notification, onOpenOrder) => {
 const useNotifications = () => {
   const token = useSelector((state) => state.auth.token);
   const userId = useSelector((state) => state.auth.user?.id);
+  const storeId = useSelector((state) => state.auth.storeId);
   // navigate changes on every route change; that must not reopen the socket
   const navigate = useNavigate();
   const navigateRef = useRef(navigate);
@@ -61,7 +62,7 @@ const useNotifications = () => {
     const echo = createEcho(token);
     if (!echo) return undefined;
 
-    const channelName = `App.Models.User.${userId}`;
+    const channelName = `store.${storeId}.user.${userId}`;
 
     echo
       .private(channelName)

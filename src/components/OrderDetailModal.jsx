@@ -24,6 +24,7 @@ const lockedFields = ["Refund Date"];
 // Fields that must be filled before creating, in the order they are checked
 const REQUIRED_FIELDS = {
   "Order#": "Enter an Order# before creating this order.",
+  "Charged Date": "Select a Charged Date before creating this order.",
   "Order Date": "Select an Order Date before creating this order.",
   Condition: "Select a Condition before creating this order.",
 };
