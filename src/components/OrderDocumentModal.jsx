@@ -267,6 +267,8 @@ const VendorPreview = ({ form }) => {
 function OrderDocumentModal({ type, order, orders, onClose }) {
   const config = DOC_TYPES[type];
   const isPO = type === "po";
+  // Packing Slips can also be downloaded as a JPG
+  const canMakeJpg = type === "packing";
   // Same option lists as the add / edit order form (loaded with the sheet)
   const { orderOptions, optionsLoading } = useSelector((state) => state.users);
   const sheetOptions = useMemo(
@@ -389,7 +391,8 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
   // Saves the document to the backend's history first and downloads it only
   // once that worked, so no document leaves the portal without a record.
   // Throws { stage: "company" | "save" | "pdf" } so the caller can say what failed.
-  const generateForm = async (key) => {
+  // format "jpg": the same PDF, drawn as an image and downloaded as a JPG
+  const generateForm = async (key, format = "pdf") => {
     const withStage = (err, stage) =>
       Object.assign(err instanceof Error ? err : new Error(String(err)), { stage });
 
@@ -418,7 +421,21 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
       throw withStage(err, "save");
     }
     try {
-      await GENERATORS[type](f);
+      if (format === "jpg") {
+        const { blob, fileName } = await GENERATORS[type](f, {
+          output: "blob",
+        });
+        // Only loaded when a JPG is asked for
+        const { pdfToJpgBlob, downloadBlob } = await import(
+          "../utils/pdfToImage"
+        );
+        downloadBlob(
+          await pdfToJpgBlob(blob),
+          fileName.replace(/.pdf$/i, ".jpg"),
+        );
+      } else {
+        await GENERATORS[type](f);
+      }
     } catch (err) {
       throw withStage(err, "pdf");
     }
@@ -426,7 +443,7 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
 
   // Explains a failed save or PDF; the backend's own message is already shown
   // as a toast by the API client when it sent one
-  const reportFailure = (err, label) => {
+  const reportFailure = (err, label, format = "pdf") => {
     console.error(`${label} failed:`, err);
     if (err?.stage === "company") {
       if (err.detailsMissing) {
@@ -444,13 +461,19 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
       }
     } else {
       toast.error(
-        `${label} was saved to the document history but the PDF could not be created. Open it from Document History.`,
+        `${label} was saved to the document history but the ${
+          format === "jpg" ? "JPG" : "PDF"
+        } could not be created. ${
+          format === "jpg"
+            ? "Try Generate JPG again, or open it from Document History."
+            : "Open it from Document History."
+        }`,
       );
     }
   };
 
-  // The active tab's PDF
-  const handleGenerate = async () => {
+  // The active tab's PDF (or, for a Packing Slip, JPG)
+  const handleGenerate = async (format = "pdf") => {
     if (activeNoVendor) {
       toast.error("Add the Vendor on the sheet first, then create this Purchase Order.");
       return;
@@ -465,9 +488,9 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
         : `The ${config.title}`;
     setGenerating(true);
     try {
-      await generateForm(activeKey);
+      await generateForm(activeKey, format);
     } catch (err) {
-      reportFailure(err, label);
+      reportFailure(err, label, format);
     } finally {
       setGenerating(false);
     }
@@ -968,7 +991,7 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
             <>
               <button
                 type="button"
-                onClick={handleGenerate}
+                onClick={() => handleGenerate()}
                 disabled={generating || activeNoVendor}
                 title={
                 activeNoVendor
@@ -996,9 +1019,21 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
               </button>
             </>
           ) : (
+            <>
+            {canMakeJpg && (
+              <button
+                type="button"
+                onClick={() => handleGenerate("jpg")}
+                disabled={generating}
+                title="Download this Packing Slip as a JPG image"
+                className="py-1.5 px-5 border border-[#06245f] text-[#06245f] text-sm font-medium hover:bg-indigo-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {generating ? "Generating..." : "Generate JPG"}
+              </button>
+            )}
             <button
               type="button"
-              onClick={handleGenerate}
+              onClick={() => handleGenerate()}
               disabled={generating || activeNoVendor}
               title={
                 activeNoVendor
@@ -1009,6 +1044,7 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
             >
               {generating ? "Generating..." : "Generate PDF"}
             </button>
+            </>
           )}
         </div>
       </div>

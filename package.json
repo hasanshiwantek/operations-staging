@@ -19,6 +19,7 @@
     "jspdf-autotable": "^5.0.8",
     "laravel-echo": "^2.6.3",
     "lucide-react": "^0.552.0",
+    "pdfjs-dist": "^4.10.38",
     "pusher-js": "^8.6.0",
     "react": "^18.2.0",
     "react-datepicker": "^8.8.0",
