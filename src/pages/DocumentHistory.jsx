@@ -6,6 +6,7 @@ import {
   Download,
   ExternalLink,
   FileText,
+  Image as ImageIcon,
   RefreshCw,
   Search,
   X,
@@ -583,7 +584,11 @@ const DocumentHistory = () => {
                         disabled={opening === row.referenceId}
                         className="flex items-center gap-1.5 py-1 px-3 border border-[#06245f] text-[#06245f] text-xs font-semibold hover:bg-indigo-50 disabled:opacity-60 whitespace-nowrap"
                       >
-                        <FileText size={14} />
+                        {row.extension === "jpg" ? (
+                          <ImageIcon size={14} />
+                        ) : (
+                          <FileText size={14} />
+                        )}
                         {opening === row.referenceId
                           ? "Opening..."
                           : row.extension === "jpg"
