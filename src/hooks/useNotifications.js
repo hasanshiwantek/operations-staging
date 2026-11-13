@@ -57,7 +57,8 @@ const useNotifications = () => {
   navigateRef.current = navigate;
 
   useEffect(() => {
-    if (!token || !userId) return undefined;
+    // storeId is set after login (store selection), so wait for it
+    if (!token || !userId || !storeId) return undefined;
 
     const echo = createEcho(token);
     if (!echo) return undefined;
@@ -81,7 +82,7 @@ const useNotifications = () => {
       echo.leave(channelName);
       echo.disconnect();
     };
-  }, [token, userId]);
+  }, [token, userId, storeId]);
 };
 
 export default useNotifications;
