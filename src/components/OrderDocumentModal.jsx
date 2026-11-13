@@ -28,6 +28,9 @@ import {
   parseVendorDetails,
   REQUIRED_FIELDS,
   unitPriceFor,
+  withIncludedItems,
+  sanitizeMoney,
+  lineAmount,
 } from "../utils/orderDocuments";
 import SearchableSelect from "./SearchableSelect";
 
@@ -364,14 +367,39 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
       ...prev,
       items: prev.items.map((item) => {
         if (item.key !== key) return item;
+        if (name === "unitPrice") {
+          // Money: digits and one dot, at most 2 decimals. A typed unit price
+          // sets the line amount (Qty × Unit price) from then on
+          const unitPrice = sanitizeMoney(value);
+          return {
+            ...item,
+            unitPrice,
+            priceEdited: true,
+            amount: lineAmount(item.qty, unitPrice),
+          };
+        }
         if (name !== "qty") return { ...item, [name]: value };
-        // Whole numbers only; the line amount stays the order's own total,
-        // so the unit price follows the quantity
+        // Whole numbers only
         const qty = String(value)
           .replace(/\D/g, "")
           .replace(/^0+(?=\d)/, "");
-        return { ...item, qty, unitPrice: unitPriceFor(item.amount, qty) };
+        // Unit price typed by the user: the amount follows the quantity.
+        // Otherwise the line amount stays the order's own total, so the unit
+        // price follows the quantity
+        return item.priceEdited
+          ? { ...item, qty, amount: lineAmount(qty, item.unitPrice) }
+          : { ...item, qty, unitPrice: unitPriceFor(item.amount, qty) };
       }),
+    }));
+
+  // Item checkboxes: unticked items are left out of the document
+  const includedCount = form
+    ? form.items.filter((item) => !item.excluded).length
+    : 0;
+  const setAllIncluded = (checked) =>
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.map((item) => ({ ...item, excluded: !checked })),
     }));
 
   // Unticking "Apply same warranty to all items" starts every item with the
@@ -395,7 +423,7 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
         : "";
     toast.error(
       tabMissing.noItems
-        ? `Add at least one item${tabName}.`
+        ? `${forms[key]?.items?.length ? "Tick" : "Add"} at least one item${tabName}.`
         : `Fill the ${tabMissing.count} highlighted field${tabMissing.count > 1 ? "s" : ""} first${tabName}.`,
     );
     // Wait for the tab to render, then bring the first missing field into view
@@ -430,7 +458,8 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
       });
     }
 
-    const f = { ...forms[key], company };
+    // Unticked items stay out of the saved record and the PDF / JPG
+    const f = { ...withIncludedItems(forms[key]), company };
     const tab = tabs.find((t) => t.key === key);
     const payload = buildDocumentPayload(type, f, {
       orderNo: order?.["Order#"],
@@ -840,17 +869,39 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
                 </div>
               </Section>
               <Section title="Ship To">
-                <Field
-                  label="Ship to"
-                  multiline
-                  rows={5}
-                  {...fieldProps("shipTo")}
-                />
+                {type === "packing" ? (
+                  <div className="grid grid-cols-1 gap-3">
+                    <Field
+                      label="Name"
+                      placeholder="e.g. Deborah Bolden-Bradley"
+                      {...fieldProps("shipToName")}
+                    />
+                    <Field
+                      label="Address (one line per row)"
+                      multiline
+                      rows={4}
+                      {...fieldProps("shipTo")}
+                    />
+                  </div>
+                ) : (
+                  <Field
+                    label="Ship to"
+                    multiline
+                    rows={5}
+                    {...fieldProps("shipTo")}
+                  />
+                )}
               </Section>
             </div>
           )}
 
-          <Section title={`Items (${form.items.length})`}>
+          <Section
+            title={
+              includedCount === form.items.length
+                ? `Items (${form.items.length})`
+                : `Items (${includedCount} of ${form.items.length})`
+            }
+          >
             {form.items.length === 0 ? (
               <p className="text-sm text-red-600">No items on this order.</p>
             ) : (
@@ -858,6 +909,22 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
                 <table className="w-full text-sm min-w-[720px]">
                   <thead>
                     <tr className="text-left text-xs text-gray-500 border-b">
+                      <th className="py-1.5 pr-2 w-[28px]">
+                        <input
+                          type="checkbox"
+                          title="Include all items"
+                          aria-label="Include all items"
+                          checked={includedCount === form.items.length}
+                          ref={(el) => {
+                            if (el)
+                              el.indeterminate =
+                                includedCount > 0 &&
+                                includedCount < form.items.length;
+                          }}
+                          onChange={(e) => setAllIncluded(e.target.checked)}
+                          className="w-4 h-4 cursor-pointer accent-indigo-600"
+                        />
+                      </th>
                       <th className="py-1.5 pr-2 w-[90px]">Order#</th>
                       <th className="py-1.5 pr-2 w-[140px]">SKU</th>
                       <th className="py-1.5 pr-2">Description</th>
@@ -884,8 +951,24 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
                     {form.items.map((item) => (
                       <tr
                         key={item.key}
-                        className="border-b last:border-0 align-top"
+                        className={`border-b last:border-0 align-top ${item.excluded ? "opacity-50" : ""}`}
                       >
+                        <td className="py-2 pr-2 pt-3">
+                          <input
+                            type="checkbox"
+                            title={
+                              item.excluded
+                                ? "Left out of the document"
+                                : "Included in the document"
+                            }
+                            aria-label={`Include ${text(item.sku) || "item"}`}
+                            checked={!item.excluded}
+                            onChange={(e) =>
+                              setItem(item.key, "excluded", !e.target.checked)
+                            }
+                            className="w-4 h-4 cursor-pointer accent-indigo-600"
+                          />
+                        </td>
                         <td className="py-2 pr-2 text-xs text-gray-500 pt-3.5">
                           {item.orderNo || "Manual"}
                         </td>
@@ -959,8 +1042,11 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
                         </td>
                         {showPrice && (
                           <>
-                            <td className="py-2 pr-2 pt-3 text-gray-800">
-                              {formatMoney(item.unitPrice)}
+                            <td className="py-2 pr-2">
+                              {itemCell(item, "unitPrice", {
+                                placeholder: "0.00",
+                                inputMode: "decimal",
+                              })}
                             </td>
                             <td className="py-2 pr-2 pt-3 font-medium">
                               {formatMoney(itemAmount(item))}
@@ -975,8 +1061,8 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
             )}
             {showPrice && (
               <p className="text-[11px] text-gray-400 mt-2">
-                Unit price is the order's {isPO ? "Cost" : "Price"} divided by
-                Qty.
+                Unit price starts as the order's {isPO ? "Cost" : "Price"}{" "}
+                divided by Qty and can be changed; Amount is Qty × Unit price.
               </p>
             )}
           </Section>
