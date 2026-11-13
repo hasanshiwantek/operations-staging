@@ -262,6 +262,17 @@ const toTableRow = (order) => {
   return row;
 };
 
+// Columns that get a thicker right-side divider in the grid
+const RIGHT_BORDER_COLUMNS = new Set([
+  "Order#",
+  "Sales Agent",
+  "Reasons (IF any)",
+  "Custom Duties",
+  "Gross Profit-4%",
+  "Tax",
+  "Vendor Tax",
+]);
+
 const hotColumns = columnsOfSheet.map((column) => {
   if (DATE_COLUMNS.includes(column.data)) {
     return {
@@ -1261,10 +1272,16 @@ function OrderListTable({
   };
 
   const handleAfterGetColHeader = useCallback((col, TH, headerLevel) => {
-    if (headerLevel !== 0) return;
-
     // col index starts from 0 for the first data column (Sno)
     const column = columnsOfSheet[col];
+
+    // Right-side divider applies to every header row, not just the top one
+    TH.classList.toggle(
+      "col-border-right",
+      !!column && RIGHT_BORDER_COLUMNS.has(column.data),
+    );
+
+    if (headerLevel !== 0) return;
     if (!column) return;
 
     // Clean previous classes
@@ -1568,6 +1585,11 @@ function OrderListTable({
 
       const column = columnsOfSheet[col]?.data;
       if (!column) return cellProperties;
+
+      if (RIGHT_BORDER_COLUMNS.has(column)) {
+        cellProperties.className =
+          `${cellProperties.className} col-border-right`.trim();
+      }
 
       const isOn = (key) =>
         getFieldHighlight(order[key]) || getFieldChecked(order[key]);
@@ -2011,6 +2033,18 @@ function OrderListTable({
       // action isn't available for this order
       if (ran || e.ctrlKey || e.metaKey) e.preventDefault();
       if (ran) e.stopImmediatePropagation();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, []);
+
+  // F11 toggles the sheet's full screen view (instead of the browser's own)
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== "F11" || e.repeat) return;
+      if (!isActiveRef.current || anyModalOpenRef.current) return;
+      e.preventDefault();
+      setIsFullScreen((prev) => !prev);
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
@@ -2495,6 +2529,7 @@ function OrderListTable({
               <button
                 type="button"
                 onClick={() => setIsFullScreen(false)}
+                title="Exit full screen (Esc / F11)"
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -2747,6 +2782,7 @@ function OrderListTable({
             <button
               type="button"
               onClick={() => setIsFullScreen(true)}
+              title="Full screen (F11)"
               style={{
                 position: "absolute",
                 left: "50%",

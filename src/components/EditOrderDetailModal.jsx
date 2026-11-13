@@ -124,11 +124,14 @@ const EditOrderDetailModal = ({
   const isAdmin = getIsAdmin();
   // Charged Vendor follows the vendor cost fields: locked once any of them is
   const VENDOR_COST_FIELDS = ["Cost", "Vendor Shipping", "Vendor Tax"];
+  // Price, Shipping and Tax follow CC/Paypal 4%: locked once it is
+  const PRICE_FIELDS = ["Price", "Shipping", "Tax"];
   const isCheckedLocked = (key) =>
     !isAdmin &&
     (checkedFields.includes(key) ||
       (key === "Charged Vendor" &&
-        VENDOR_COST_FIELDS.some((field) => checkedFields.includes(field))));
+        VENDOR_COST_FIELDS.some((field) => checkedFields.includes(field))) ||
+      (PRICE_FIELDS.includes(key) && checkedFields.includes("CC/Paypal 4%")));
   const validationOptions = {
     conditionEditable: !isFinance && !isCheckedLocked("Condition"),
     orderDateEditable: !isFinance && !isCheckedLocked("Order Date"),

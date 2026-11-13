@@ -163,6 +163,30 @@ export const unitPriceFor = (amount, qty) => {
   return total && count > 0 ? String(round2(total / count)) : "";
 };
 
+// Typed money → digits and a single dot with at most 2 decimals ("12.345" →
+// "12.34", "1.2.3" → "1.23", ".5" → "0.5")
+export const sanitizeMoney = (value) => {
+  const cleaned = String(value ?? "").replace(/[^\d.]/g, "");
+  const dot = cleaned.indexOf(".");
+  if (dot === -1) return cleaned.replace(/^0+(?=\d)/, "");
+  const whole = cleaned.slice(0, dot).replace(/^0+(?=\d)/, "") || "0";
+  const decimals = cleaned.slice(dot + 1).replace(/\./g, "").slice(0, 2);
+  return `${whole}.${decimals}`;
+};
+
+// Line amount from a quantity and a unit price, "" when either is missing
+export const lineAmount = (qty, unitPrice) =>
+  text(qty) && text(unitPrice)
+    ? String(round2(num(qty) * num(unitPrice)))
+    : "";
+
+// The form with only the items left ticked in the Items table; unticked
+// items are left out of the totals, the checks and the document
+export const withIncludedItems = (form) => ({
+  ...form,
+  items: (form?.items || []).filter((item) => !item.excluded),
+});
+
 // One line item per order (each sheet row is one part)
 export const orderToItem = (order, { useCost = false } = {}) => {
   // Quantities are whole numbers on the documents; separators are ignored,
@@ -196,7 +220,8 @@ export const itemAmount = (item) =>
     ? round2(num(item.amount))
     : round2(num(item.qty) * num(item.unitPrice));
 
-export const getTotals = (form) => {
+export const getTotals = (allItemsForm) => {
+  const form = withIncludedItems(allItemsForm);
   const subtotal = round2(
     (form.items || []).reduce((acc, item) => acc + itemAmount(item), 0),
   );
@@ -245,12 +270,14 @@ export const buildCustomerForm = (type, family, clicked) => {
     // Bill To: first line typed by the user, then the address one part per line
     billToName: "",
     billTo: splitAddress(pick("Bill to address")),
-    // Ship To: first line is the Customer Company ("On Label" on Packing
-    // Slips), then the address one part per line
-    shipTo: partyBlock(
-      type === "packing" ? "On Label" : company,
-      splitAddress(pick("Ship to address")),
-    ),
+    // Ship To on Packing Slips: an optional name (the Customer Company) and
+    // the address one part per line, like Bill To. Elsewhere one block: the
+    // Customer Company, then the address
+    ...(type === "packing"
+      ? { shipToName: company, shipTo: splitAddress(pick("Ship to address")) }
+      : {
+          shipTo: partyBlock(company, splitAddress(pick("Ship to address"))),
+        }),
     items: family.map((order) => orderToItem(order)),
     warranty: type === "proforma" ? DEFAULT_WARRANTY : "",
     warrantyForAll: true,
@@ -265,7 +292,6 @@ export const buildPurchaseOrderForm = (selected, clicked) => {
   const main = selected[0] || clicked || {};
   const pick = (field) => text(main?.[field]) || firstValue(selected, field);
   const vendor = pick("Vendor");
-  const company = pick("Customer Company") || pick("Customer");
 
   return {
     // PO number defaults to the Order# of the tab's first order (editable)
@@ -277,7 +303,9 @@ export const buildPurchaseOrderForm = (selected, clicked) => {
     vendorAddress: "",
     vendorPhone: "",
     vendorEmail: "",
-    shipTo: partyBlock(company, splitAddress(pick("Ship to address"))),
+    // Ship To: first line is "On Label" (blind ship), then the address one
+    // part per line
+    shipTo: partyBlock("On Label", splitAddress(pick("Ship to address"))),
     requisitioner: pick("Procured By"),
     shippedVia: pick("Carrier"),
     shippingMethod: "",
@@ -314,9 +342,44 @@ const readContactLine = (line) => {
   return phones.every(isPhone) ? { phones, emails } : null;
 };
 
-// Pasted vendor block → form fields. The first line is the name, lines that
-// are only a phone and / or email are contact details (either may be absent),
-// and every other line belongs to the address, however many there are.
+// Labels a pasted line may start with ("Vendor name: …", "Phone: …"), by the
+// field they fill. Matched after lower-casing, dropping punctuation and a
+// leading "vendor".
+const VENDOR_LABELS = {
+  name: ["", "name", "contact", "contact name", "contact person", "attn", "attention"],
+  address: [
+    "address", "addr", "address 1", "address 2", "address line 1",
+    "address line 2", "street", "city", "state", "zip", "zip code",
+    "postal code", "postcode", "country", "location",
+  ],
+  phone: [
+    "phone", "phone no", "phone number", "office", "office phone", "tel",
+    "telephone", "mobile", "cell", "fax", "ph", "contact no",
+    "contact number",
+  ],
+  email: ["email", "e mail", "mail", "email address", "e mail address"],
+};
+
+// { field, value } when the line starts with a known label, else null
+const readLabeledLine = (line) => {
+  const match = line.match(/^([^:]{1,30}):\s*(.*)$/);
+  if (!match) return null;
+  const label = match[1]
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/^vendor\b\s*/, "");
+  const field = Object.keys(VENDOR_LABELS).find((key) =>
+    VENDOR_LABELS[key].includes(label),
+  );
+  return field ? { field, value: match[2].trim() } : null;
+};
+
+// Pasted vendor block → form fields. Lines with a label ("Address: …") go to
+// that field. Of the rest, the first line is the name (unless a labelled one
+// gave it), lines that are only a phone and / or email are contact details
+// (either may be absent), and every other line belongs to the address,
+// however many there are.
 export const parseVendorDetails = (raw) => {
   const cleaned = String(raw ?? "")
     .trim()
@@ -332,10 +395,26 @@ export const parseVendorDetails = (raw) => {
       .map((l) => l.trim())
       .filter(Boolean);
   }
-  const [name = "", ...rest] = lines;
+  const names = [];
   const address = [];
   const phones = [];
   const emails = [];
+  const unlabeled = [];
+  lines.forEach((line) => {
+    const labeled = readLabeledLine(line);
+    if (!labeled) {
+      unlabeled.push(line);
+      return;
+    }
+    const { field, value } = labeled;
+    if (!value) return;
+    if (field === "name") names.push(value);
+    else if (field === "address") address.push(value);
+    else if (field === "phone") phones.push(value);
+    else emails.push(...(value.match(EMAIL_PATTERN) || [value]));
+  });
+  const rest = names.length ? unlabeled : unlabeled.slice(1);
+  const name = names.length ? names.join(" ") : unlabeled[0] || "";
   rest.forEach((line) => {
     const contact = readContactLine(line);
     if (contact) {
@@ -381,9 +460,9 @@ export const REQUIRED_FIELDS = {
     "shippedVia",
   ],
 };
-// SKU, Qty and Unit price come straight from the order and are not editable,
-// so only the description, the quantity (above 0) and the condition on
-// Purchase Orders are required
+// SKU comes straight from the order and Unit price starts from it, so only
+// the description, the quantity (above 0) and the condition on Purchase
+// Orders are required
 const REQUIRED_ITEM_FIELDS = {
   proforma: ["description", "qty"],
   packing: ["description", "qty"],
@@ -394,7 +473,8 @@ export const isItemFieldRequired = (type, field) =>
   REQUIRED_ITEM_FIELDS[type].includes(field);
 
 // { fieldName: true } and { itemKey: { field: true } } for everything missing
-export const findMissing = (type, form) => {
+export const findMissing = (type, allItemsForm) => {
+  const form = withIncludedItems(allItemsForm);
   const fields = {};
   REQUIRED_FIELDS[type].forEach((field) => {
     if (!text(form[field])) fields[field] = true;
@@ -682,6 +762,13 @@ const ensureSpace = (doc, y, needed) => {
   return y;
 };
 
+// Border weight shared by the info strip and the items table under it
+const TABLE_LINE = 1.3;
+
+// Space between the last Bill To / Ship To (or Vendor) line and the table
+// under it: always the same, so a longer address pushes the table down
+const PARTY_TABLE_GAP = 18;
+
 // Navy header row over bordered value cells (Requisitioner / Shipped Via ...)
 const drawInfoStrip = (
   doc,
@@ -698,7 +785,7 @@ const drawInfoStrip = (
     styles: {
       halign: "center",
       lineColor: NAVY,
-      lineWidth: 1.3,
+      lineWidth: TABLE_LINE,
       textColor: BLACK,
       cellPadding: { top: 2.5, bottom: 2, left: 3, right: 3 },
     },
@@ -739,6 +826,8 @@ const drawItemsTable = (
 ) => {
   const tableW = widths.reduce((a, b) => a + b, 0);
   const lastRow = body.length - 1;
+  // Same weight as the info strip above, so the outer edges line up
+  const lineW = TABLE_LINE;
   autoTable(doc, {
     startY: y,
     margin: { left: x, right: 0, top: PAGE_TOP, bottom: PAGE_BOTTOM },
@@ -752,7 +841,7 @@ const drawItemsTable = (
       fontSize: size,
       textColor: BLACK,
       lineColor: NAVY,
-      lineWidth: { left: 1.6, right: 1.6, top: 0, bottom: 0 },
+      lineWidth: { left: lineW, right: lineW, top: 0, bottom: 0 },
       cellPadding: { top: rowPad, bottom: rowPad, left: 4, right: 4 },
     },
     headStyles: {
@@ -761,7 +850,10 @@ const drawItemsTable = (
       fontStyle: "normal",
       fontSize: headSize,
       valign: "middle",
-      lineWidth: 0,
+      // Side lines in the header's own colour: borders are centred on the
+      // cell edge, so without them the body's lines stick out past the header
+      lineColor: headFill,
+      lineWidth: { left: lineW, right: lineW, top: 0, bottom: 0 },
       cellPadding: { top: 3, bottom: 3, left: 4, right: 4 },
     },
     columnStyles: {
@@ -805,8 +897,14 @@ const drawItemsTable = (
     // Close the box at the bottom of every page the table is on
     didDrawPage: (data) => {
       doc.setDrawColor(...NAVY);
-      doc.setLineWidth(1.6);
-      doc.line(x, data.cursor.y, x + tableW, data.cursor.y);
+      doc.setLineWidth(lineW);
+      // Runs out to the outer edge of the side lines so the corners are closed
+      doc.line(
+        x - lineW / 2,
+        data.cursor.y,
+        x + tableW + lineW / 2,
+        data.cursor.y,
+      );
     },
   });
   return doc.lastAutoTable.finalY;
@@ -826,8 +924,8 @@ const drawTotalsGrid = (
     body: rows,
     theme: "plain",
     styles: {
-      lineColor: totalFill ? LABEL_GREY : NAVY,
-      lineWidth: 0.8,
+      lineColor: NAVY,
+      lineWidth: 1,
       cellPadding: { top: 2, bottom: 1.6, left: 2, right: 2 },
       textColor: BLACK,
     },
@@ -965,7 +1063,7 @@ export const generatePurchaseOrder = async (form, options = {}) => {
     ],
     {
       x: L,
-      y: Math.max(312, Math.max(vendorEnd, shipEnd) + 22),
+      y: Math.max(vendorEnd, shipEnd) + PARTY_TABLE_GAP,
       widths: [103, 283, 120],
       headSize: 8.4,
       valueSize: 7.8,
@@ -1066,15 +1164,16 @@ export const generatePackingSlip = async (form, options = {}) => {
     partyBlock(form.billToName, form.billTo),
     { ...party, x: 53, w: 300 },
   );
-  const shipEnd = drawParty(doc, "Ship To:", form.shipTo, {
-    ...party,
-    x: 382,
-    w: 176,
-  });
+  const shipEnd = drawParty(
+    doc,
+    "Ship To:",
+    partyBlock(form.shipToName, form.shipTo),
+    { ...party, x: 382, w: 176 },
+  );
 
   let y = drawItemsTable(doc, {
     x: L,
-    y: Math.max(380, Math.max(billEnd, shipEnd) + 28),
+    y: Math.max(billEnd, shipEnd) + PARTY_TABLE_GAP,
     widths: [126, 263, 117],
     head: ["SKU", "Description", "Qty"],
     body: form.items.map((item) => [
@@ -1156,7 +1255,7 @@ export const generateProformaInvoice = async (form, options = {}) => {
     ],
     {
       x: L,
-      y: Math.max(300, Math.max(billEnd, shipEnd) + 16),
+      y: Math.max(billEnd, shipEnd) + PARTY_TABLE_GAP,
       widths: [115, 283, 134],
       headSize: 9.2,
       valueSize: 8.6,
@@ -1360,7 +1459,12 @@ export const buildDocumentPayload = (
         first_line: text(form.billToName),
         address_lines: lines(form.billTo),
       },
-      ship_to: { lines: lines(form.shipTo) },
+      // "lines" is the block as printed, kept for older readers
+      ship_to: {
+        first_line: text(form.shipToName),
+        address_lines: lines(form.shipTo),
+        lines: lines(partyBlock(form.shipToName, form.shipTo)),
+      },
       items,
       total_qty: items.reduce((acc, item) => acc + item.qty, 0),
       note: text(form.note),
@@ -1478,6 +1582,14 @@ export const formFromRecord = (type, record) => {
       poNumber: text(d.customer_po),
       shippingMethod: text(d.shipping_method),
       note: text(d.note),
+      // Records saved before Ship To had its own name field keep the whole
+      // block in "lines"
+      ...(Array.isArray(d.ship_to?.address_lines)
+        ? {
+            shipToName: text(d.ship_to?.first_line),
+            shipTo: d.ship_to.address_lines.map(text).join("\n"),
+          }
+        : { shipToName: "" }),
     };
   }
   return {
