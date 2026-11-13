@@ -1187,12 +1187,13 @@ export const generatePackingSlip = async (form, options = {}) => {
     rowPad: 7.8,
   });
 
-  y = ensureSpace(doc, y + 11, 30);
+  // A little room above the note and between the note and the contact line
+  y = ensureSpace(doc, y + 17, 36);
   if (text(form.note)) {
     font(doc, 7.6, "normal", [90, 90, 90]);
     doc.text(`Note: ${text(form.note)}`, 53, y);
   }
-  drawFooterLine(doc, form.company, y + 14, 8.6);
+  drawFooterLine(doc, form.company, y + 19, 8.6);
 
   drawPageNumbers(doc);
   return finish(doc, documentFileName("packing", form), options);
@@ -1296,13 +1297,14 @@ export const generateProformaInvoice = async (form, options = {}) => {
 
   if (text(form.note)) {
     font(doc, 7, "normal", [90, 90, 90]);
-    doc.text(`Note: ${text(form.note)}`, 20, y + 8);
+    // A little room between the table and the note
+    doc.text(`Note: ${text(form.note)}`, 20, y + 14);
   }
 
   // Bank details (left) and totals (right)
   const bankRows = form.company.bank || [];
   // The totals grid needs about six rows' height even with no bank details
-  y = ensureSpace(doc, y + 14, 18 + Math.max(bankRows.length, 6) * 14.4);
+  y = ensureSpace(doc, y + 20, 18 + Math.max(bankRows.length, 6) * 14.4);
   const top = y;
   let bankY = top;
   if (bankRows.length > 0) {
@@ -1345,7 +1347,8 @@ export const generateProformaInvoice = async (form, options = {}) => {
     },
   );
 
-  drawFooterLine(doc, form.company, Math.max(bankY - 1, totalsEnd + 12), 7);
+  // A little room above the contact line
+  drawFooterLine(doc, form.company, Math.max(bankY + 4, totalsEnd + 17), 7);
   drawPageNumbers(doc);
   return finish(doc, documentFileName("proforma", form), options);
 };
