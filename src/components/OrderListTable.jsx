@@ -13,6 +13,7 @@ import React, {
 } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import * as XLSX from "xlsx";
+import { useModalShortcuts } from "../hooks/useEscapeKey";
 import {
   fetchOrderEditRange,
   getEditRangeStartDate,
@@ -42,6 +43,7 @@ import {
   getIsAdmin,
   setCheckboxChangeHandler,
 } from "../utils/constant";
+import { refreshNotifications } from "../utils/notificationsApi";
 import EditOrderDetailModal from "./EditOrderDetailModal";
 import ExportOrdersPdf from "./ExportOrdersPdf";
 import ExportProgressModal, {
@@ -51,8 +53,6 @@ import ExportProgressModal, {
 } from "./ExportProgressModal";
 import OrderDetailModal from "./OrderDetailModal";
 import OrderDocumentModal from "./OrderDocumentModal";
-import { useModalShortcuts } from "../hooks/useEscapeKey";
-import { refreshNotifications } from "../utils/notificationsApi";
 
 registerAllModules();
 
@@ -84,7 +84,8 @@ const outsideClickDeselects = (target) =>
 // Replaces autoColumnSize, which measured cells in the DOM across every row on
 // each data load. Here only the few longest values per column (by character
 // count) are measured, on a canvas with the grid's font.
-const CELL_FONT = '14px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'; // ht-theme-main
+const CELL_FONT =
+  '14px Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'; // ht-theme-main
 const HEADER_FONT = `700 ${CELL_FONT}`;
 const CELL_PADDING_PX = 18; // td padding + border + a little slack
 const HEADER_EXTRA_PX = 38; // th padding + dropdown menu button
@@ -147,9 +148,7 @@ const estimateColumnWidths = (orders) =>
     }
 
     const longestText = candidates.reduce((widest, [, raw]) => {
-      const text = isNumber
-        ? formatNumberCell(raw, decimals)
-        : String(raw);
+      const text = isNumber ? formatNumberCell(raw, decimals) : String(raw);
       return Math.max(widest, measureText(text, CELL_FONT));
     }, 0);
 
@@ -420,8 +419,12 @@ const resolveCellColor = (order, column) => {
 // Incomplete orders (by status or order type) get no row actions at all:
 // no Edit, part order (PO), RMA or documents
 const isIncompleteOrder = (order) =>
-  String(order?.["Order Status"] || "").trim().toLowerCase() === "incomplete" ||
-  String(order?.order_type || "").trim().toLowerCase() === "incomplete";
+  String(order?.["Order Status"] || "")
+    .trim()
+    .toLowerCase() === "incomplete" ||
+  String(order?.order_type || "")
+    .trim()
+    .toLowerCase() === "incomplete";
 
 // Proforma Invoice / Packing Slip / Purchase Order are not offered for
 // cancelled orders, RMAs or incomplete orders
@@ -516,6 +519,8 @@ function OrderListTable({
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isRMAMode, setIsRMAMode] = useState(false);
   const [isCreatePartMode, setIsCreatePartMode] = useState(false);
+  // Order# of the order a new part order / RMA is being created from
+  const [parentOrderId, setParentOrderId] = useState(null);
   const [isAddMode, setIsAddMode] = useState(false);
   // Proforma Invoice / Packing Slip / Purchase Order form: { type, order } or null
   const [documentRequest, setDocumentRequest] = useState(null);
@@ -1793,7 +1798,11 @@ function OrderListTable({
   const colWidths = useMemo(() => {
     const next = estimateColumnWidths(Orders || []);
     const prev = colWidthsRef.current;
-    if (prev && prev.length === next.length && prev.every((w, i) => w === next[i]))
+    if (
+      prev &&
+      prev.length === next.length &&
+      prev.every((w, i) => w === next[i])
+    )
       return prev;
     colWidthsRef.current = next;
     return next;
@@ -1812,8 +1821,7 @@ function OrderListTable({
       // Find (Ctrl+F) highlights — toggled so recycled cells don't keep them
       const { matches, current } = findHighlightRef.current;
       const hot = hotRef.current?.hotInstance;
-      const key =
-        matches.size && hot ? `${hot.toPhysicalRow(row)}:${col}` : "";
+      const key = matches.size && hot ? `${hot.toPhysicalRow(row)}:${col}` : "";
       td.classList.toggle("ht-find-match", Boolean(key) && matches.has(key));
       td.classList.toggle("ht-find-current", Boolean(key) && key === current);
 
@@ -1886,8 +1894,7 @@ function OrderListTable({
   const orderTypeOf = (order) => String(order?.order_type || "").toLowerCase();
   const orderStatusOf = (order) =>
     String(order?.["Order Status"] || "").toLowerCase();
-  const canCreateDocument = (type) =>
-    hasPermission(DOCUMENT_PERMISSIONS[type]);
+  const canCreateDocument = (type) => hasPermission(DOCUMENT_PERMISSIONS[type]);
   const isRowActionOffered = (action, order) => {
     if (!order) return false;
     switch (action) {
@@ -1931,6 +1938,7 @@ function OrderListTable({
       if (result.success && result.generated_id) {
         setIsCreatePartMode(mode === "part");
         setIsRMAMode(mode === "rma");
+        setParentOrderId(String(originalOrder["Order#"]));
         setSelectedOrder({
           ...originalOrder,
           "Order#": result.generated_id, // only Order# changes
@@ -1972,7 +1980,9 @@ function OrderListTable({
       name: menuLabel(label, ROW_ACTION_SHORTCUT_LABELS[action]),
       disabled: function () {
         const order = orderAtSelection(this);
-        return !order || contextMenuRef.current.isRowActionLocked(action, order);
+        return (
+          !order || contextMenuRef.current.isRowActionLocked(action, order)
+        );
       },
       hidden: function () {
         return !contextMenuRef.current.isRowActionOffered(
@@ -2174,6 +2184,7 @@ function OrderListTable({
                     ...updatedOrder,
                     order_type: "po",
                     "Order Status": null,
+                    parentId: parentOrderId,
                   },
                   role_id: storeId?.id,
                 }),
@@ -2193,6 +2204,7 @@ function OrderListTable({
                     ...updatedOrder,
                     order_type: "rma",
                     "Order Status": null,
+                    parentId: parentOrderId,
                   },
                   role_id: storeId?.id,
                 }),
