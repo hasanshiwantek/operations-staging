@@ -1,0 +1,67 @@
+name: Deploy to production
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: production-frontend
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-2
+  AWS_ROLE_ARN: arn:aws:iam::651706754088:role/crm-github-deploy-frontend
+  BUCKET: crm-prod-651706754088
+  INSTANCE_ID: i-050aba7cb0952d33f
+  DOCUMENT: crm-deploy-frontend
+  VITE_API_BASE_URL: https://portal-backend.wexldigital.com/api
+  VITE_PUSHER_APP_KEY: 5848cf5279940c1a13ea
+  VITE_PUSHER_APP_CLUSTER: us3
+  VITE_PUSHER_AUTH_ENDPOINT: https://portal-backend.wexldigital.com/api/broadcasting/auth
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build
+        run: npm run build
+
+      - name: Package release
+        run: tar -czf "$RUNNER_TEMP/release.tar.gz" -C dist .
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Upload release
+        run: aws s3 cp "$RUNNER_TEMP/release.tar.gz" "s3://$BUCKET/releases/frontend/$GITHUB_SHA.tar.gz" --only-show-errors
+
+      - name: Deploy on server
+        run: |
+          id=$(aws ssm send-command --instance-ids "$INSTANCE_ID" --document-name "$DOCUMENT" \
+            --parameters "key=releases/frontend/$GITHUB_SHA.tar.gz" --query Command.CommandId --output text)
+          status=Pending
+          for i in $(seq 1 120); do
+            status=$(aws ssm get-command-invocation --command-id "$id" --instance-id "$INSTANCE_ID" --query Status --output text 2>/dev/null || echo Pending)
+            case "$status" in Pending|InProgress|Delayed) sleep 5 ;; *) break ;; esac
+          done
+          aws ssm get-command-invocation --command-id "$id" --instance-id "$INSTANCE_ID" --query StandardOutputContent --output text
+          aws ssm get-command-invocation --command-id "$id" --instance-id "$INSTANCE_ID" --query StandardErrorContent --output text >&2
+          echo "status: $status"
+          test "$status" = Success
