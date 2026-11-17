@@ -188,7 +188,10 @@ export const withIncludedItems = (form) => ({
 });
 
 // One line item per order (each sheet row is one part)
-export const orderToItem = (order, { useCost = false } = {}) => {
+export const orderToItem = (
+  order,
+  { useCost = false, skuField = "Part#" } = {},
+) => {
   // Quantities are whole numbers on the documents; separators are ignored,
   // so a sheet Qty of "1, 2" reads as 12. A Qty of 0 is left empty for the
   // user to fill in (Qty is required and must be above 0)
@@ -197,8 +200,9 @@ export const orderToItem = (order, { useCost = false } = {}) => {
   return {
     key: text(order?.["Order#"]) || `line-${Math.random()}`,
     orderNo: text(order?.["Order#"]),
-    // The order's Part# on every document, Purchase Orders included
-    sku: text(order?.["Part#"]),
+    // The order's Part# on customer documents; Purchase Orders pass
+    // "Vendor Part#" (the vendor's own part number)
+    sku: text(order?.[skuField]),
     description: "",
     condition: text(order?.Condition),
     // Used when "Apply same warranty to all items" is off
@@ -303,13 +307,15 @@ export const buildPurchaseOrderForm = (selected, clicked) => {
     vendorAddress: "",
     vendorPhone: "",
     vendorEmail: "",
-    // Ship To: first line is "On Label" (blind ship), then the address one
-    // part per line
-    shipTo: partyBlock("On Label", splitAddress(pick("Ship to address"))),
+    // Ship To: just "On Label" (blind ship); the order's address is not
+    // copied in, the user adds any further lines themselves
+    shipTo: "On Label",
     requisitioner: pick("Procured By"),
     shippedVia: pick("Carrier"),
     shippingMethod: "",
-    items: selected.map((order) => orderToItem(order, { useCost: true })),
+    items: selected.map((order) =>
+      orderToItem(order, { useCost: true, skuField: "Vendor Part#" }),
+    ),
     warranty: DEFAULT_WARRANTY,
     warrantyForAll: true,
     comments: "Blind Ship",
@@ -432,12 +438,12 @@ export const parseVendorDetails = (raw) => {
   };
 };
 
-// Fields that must be filled before the PDF can be generated
+// Fields that must be filled before the PDF can be generated. Payment terms
+// is optional on the Proforma (some are created without one)
 export const REQUIRED_FIELDS = {
   proforma: [
     "docNumber",
     "date",
-    "paymentTerms",
     "billToName",
     "billTo",
     "shipTo",
@@ -461,12 +467,13 @@ export const REQUIRED_FIELDS = {
   ],
 };
 // SKU comes straight from the order and Unit price starts from it, so only
-// the description, the quantity (above 0) and the condition on Purchase
-// Orders are required
+// the description and the quantity (above 0) are required. Purchase Orders
+// also need the condition and the SKU (the Vendor Part#, which can be empty
+// on the order and is then typed in)
 const REQUIRED_ITEM_FIELDS = {
   proforma: ["description", "qty"],
   packing: ["description", "qty"],
-  po: ["description", "qty", "condition"],
+  po: ["sku", "description", "qty", "condition"],
 };
 
 export const isItemFieldRequired = (type, field) =>
@@ -765,6 +772,9 @@ const ensureSpace = (doc, y, needed) => {
 // Border weight shared by the info strip and the items table under it
 const TABLE_LINE = 1.3;
 
+// Extra space between an item's description and its bold warranty line
+const WARRANTY_GAP = 4;
+
 // Space between the last Bill To / Ship To (or Vendor) line and the table
 // under it: always the same, so a longer address pushes the table down
 const PARTY_TABLE_GAP = 18;
@@ -865,9 +875,12 @@ const drawItemsTable = (
       const pad = { ...data.cell.styles.cellPadding };
       if (data.row.index === 0) pad.top = rowPad + 8;
       if (data.row.index === lastRow) pad.bottom = rowPad + 8;
-      data.cell.styles.cellPadding = pad;
       const bold = boldLines[`${data.row.index}:${data.column.index}`];
       if (bold === "all") data.cell.styles.fontStyle = "bold";
+      // A warranty line under a description: make the cell taller by the gap
+      // drawn above it (didDrawCell)
+      if (typeof bold === "number" && bold > 0) pad.bottom += WARRANTY_GAP;
+      data.cell.styles.cellPadding = pad;
     },
     // Lines listed in boldLines ("row:col" → index of the first bold line) are
     // drawn bold on top of the normal text
@@ -886,7 +899,10 @@ const drawItemsTable = (
         (cell.styles.fontSize * doc.getLineHeightFactor()) /
         doc.internal.scaleFactor;
       const startY =
-        cell.y + cell.padding("top") + (cell.text.length + 0.78) * lineH;
+        cell.y +
+        cell.padding("top") +
+        (cell.text.length + 0.78) * lineH +
+        (cell.text.length > 0 ? WARRANTY_GAP : 0);
       font(doc, cell.styles.fontSize, "bold");
       tail.forEach((line, i) =>
         doc.text(line, cell.x + cell.width / 2, startY + i * lineH, {
@@ -1083,7 +1099,7 @@ export const generatePurchaseOrder = async (form, options = {}) => {
     x: L,
     y: y + 12,
     widths: [103, 206, 43, 36, 60, 58],
-    head: ["SKU", "Description", "Cond", "Qty", "Unit Price", "Amount"],
+    head: ["Part #", "Description", "Cond", "Qty", "Unit Price", "Amount"],
     body,
     headSize: 8.4,
     size: 7.8,
@@ -1202,13 +1218,17 @@ export const generatePackingSlip = async (form, options = {}) => {
 export const generateProformaInvoice = async (form, options = {}) => {
   const doc = await newDoc();
   const logo = await loadLogo(form.company.logoUrl);
-  const L = 20;
+  // Content is 532pt wide (the items table / info strip); centre it on the
+  // page and place everything from that left edge
+  const CONTENT_W = 532;
+  const L = (doc.internal.pageSize.getWidth() - CONTENT_W) / 2;
+  const R = L + 398; // left edge of the right-hand column (meta box, totals)
 
   drawCompany(doc, logo, form.company, {
-    x: 38,
+    x: L + 18,
     y: 72,
     w: 164,
-    textX: 20,
+    textX: L,
     lines: [159, 176, 192],
     maxW: 390,
     size: 7.8,
@@ -1217,10 +1237,10 @@ export const generateProformaInvoice = async (form, options = {}) => {
   drawTitle(
     doc,
     `Proforma Invoice # ${text(form.docNumber)}`,
-    549,
+    L + 529,
     82,
     "right",
-    214,
+    L + 194,
   );
   drawMetaBox(
     doc,
@@ -1231,7 +1251,7 @@ export const generateProformaInvoice = async (form, options = {}) => {
       ["Payment:", form.paymentTerms],
       ["Shipping:", form.shippingMethod],
     ],
-    { x: 418, y: 115, w: 134, rowH: 16.4, labelSize: 9.2, valueSize: 8.6 },
+    { x: R, y: 115, w: 134, rowH: 16.4, labelSize: 9.2, valueSize: 8.6 },
   );
 
   const party = { y: 221, headSize: 9.2, size: 8.6, lineH: 12.6 };
@@ -1239,11 +1259,11 @@ export const generateProformaInvoice = async (form, options = {}) => {
     doc,
     "Bill To:",
     partyBlock(form.billToName, form.billTo),
-    { ...party, x: 20, w: 380 },
+    { ...party, x: L, w: 380 },
   );
   const shipEnd = drawParty(doc, "Ship To:", form.shipTo, {
     ...party,
-    x: 420,
+    x: R + 2,
     w: 132,
   });
 
@@ -1298,7 +1318,7 @@ export const generateProformaInvoice = async (form, options = {}) => {
   if (text(form.note)) {
     font(doc, 7, "normal", [90, 90, 90]);
     // A little room between the table and the note
-    doc.text(`Note: ${text(form.note)}`, 20, y + 14);
+    doc.text(`Note: ${text(form.note)}`, L, y + 14);
   }
 
   // Bank details (left) and totals (right)
@@ -1338,7 +1358,7 @@ export const generateProformaInvoice = async (form, options = {}) => {
       ["Total", money(totals.total)],
     ],
     {
-      x: 418,
+      x: R,
       y: top,
       widths: [69, 65],
       labelSize: 7.8,

@@ -609,13 +609,23 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
 
   const itemCell = (item, name, opts = {}) => {
     const isMissing = Boolean(missing.items[item.key]?.[name]);
-    const state = isMissing ? (showErrors ? "error" : "missing") : "ok";
+    // A locked field still shows red while it is required and empty
+    const state = isMissing
+      ? showErrors
+        ? "error"
+        : "missing"
+      : opts.locked
+        ? "disabled"
+        : "ok";
     const Tag = opts.multiline ? "textarea" : "input";
     return (
       <Tag
         rows={opts.multiline ? 2 : undefined}
         type={opts.multiline ? undefined : "text"}
         inputMode={opts.inputMode}
+        disabled={opts.locked || undefined}
+        readOnly={opts.locked || undefined}
+        title={opts.title}
         value={item[name] ?? ""}
         placeholder={
           opts.placeholder ||
@@ -623,7 +633,7 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
         }
         data-missing={isMissing ? "true" : undefined}
         onChange={(e) => setItem(item.key, name, e.target.value)}
-        className={`${inputClass(state)} ${opts.multiline ? "resize-y min-h-[38px]" : ""}`}
+        className={`${inputClass(state)} ${opts.multiline ? "resize-y min-h-[38px]" : ""} ${opts.locked ? "cursor-not-allowed" : ""}`}
       />
     );
   };
@@ -926,7 +936,15 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
                         />
                       </th>
                       <th className="py-1.5 pr-2 w-[90px]">Order#</th>
-                      <th className="py-1.5 pr-2 w-[140px]">SKU</th>
+                      <th className="py-1.5 pr-2 w-[140px]">
+                        {isPO ? (
+                          <>
+                            Part # <span className="text-red-500">*</span>
+                          </>
+                        ) : (
+                          "SKU"
+                        )}
+                      </th>
                       <th className="py-1.5 pr-2">Description</th>
                       {hasWarranty && (
                         <th className="py-1.5 pr-2 w-[170px]">Warranty</th>
@@ -972,9 +990,22 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
                         <td className="py-2 pr-2 text-xs text-gray-500 pt-3.5">
                           {item.orderNo || "Manual"}
                         </td>
-                        <td className="py-2 pr-2 pt-3 text-gray-800">
-                          {text(item.sku) || "-"}
-                        </td>
+                        {isPO ? (
+                          // PO Part # is the order's Vendor Part#: required, but
+                          // read-only here; it is filled in the Edit Order form
+                          <td className="py-2 pr-2">
+                            {itemCell(item, "sku", {
+                              locked: true,
+                              placeholder: "Add in Edit Order",
+                              title:
+                                "Vendor Part# from the order. Fill it in the Edit Order form.",
+                            })}
+                          </td>
+                        ) : (
+                          <td className="py-2 pr-2 pt-3 text-gray-800">
+                            {text(item.sku) || "-"}
+                          </td>
+                        )}
                         <td className="py-2 pr-2">
                           {itemCell(item, "description", {
                             multiline: true,

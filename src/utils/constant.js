@@ -309,6 +309,15 @@ const makeCheckboxRenderer = (fieldName) => {
     const isOperationField =
       getIsOperation() && OPERATION_CHECKBOX_FIELDS.includes(fieldName);
     const hasAmount = toNumber(val) > 0;
+    // Finance / Operation users get no checkboxes on incomplete orders
+    // (by status or order type); admins keep theirs
+    const physicalRow = instance.toPhysicalRow(row);
+    const isIncomplete = ["Order Status", "order_type"].some(
+      (key) =>
+        String(instance.getSourceDataAtCell(physicalRow, key) || "")
+          .trim()
+          .toLowerCase() === "incomplete",
+    );
     td.innerHTML = "";
 
     const wrap = document.createElement("div");
@@ -328,7 +337,7 @@ const makeCheckboxRenderer = (fieldName) => {
       hasAmount &&
       (isAdmin
         ? highlighted
-        : isFinanceField || isOperationField
+        : (isFinanceField || isOperationField) && !isIncomplete
           ? !highlighted
           : false);
 
