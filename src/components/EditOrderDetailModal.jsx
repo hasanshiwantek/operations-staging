@@ -51,7 +51,6 @@ const unlockableFields = [
   "Paid Via",
   "Customer",
 ];
-const FINANCE_EDITABLE = ["Charged Date", "Paid Via"];
 const isCancelledStatus = (status) =>
   ["cancelled", "canceled"].includes(
     String(status || "")
@@ -486,9 +485,9 @@ const EditOrderDetailModal = ({
                   return true;
                 }
 
-                // Finance: ONLY Charged Date + Paid Via
+                // Finance: ONLY Charged Date (Paid Via belongs to Operation)
                 if (isFinance) {
-                  return key !== "Charged Date" && key !== "Paid Via";
+                  return key !== "Charged Date";
                 }
 
                 // Normal user: Refund Date only on RMA
