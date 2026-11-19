@@ -1,10 +1,11 @@
-import React, { useRef, useState } from "react";
 import { MoreVertical } from "lucide-react";
-import addUserIcon from "../assets/adduser-icon.svg";
+import { useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
+import addUserIcon from "../assets/adduser-icon.svg";
 import { deleteUser } from "../store/usersSlice";
-import { CreateUserModal } from "./CreateUserModal";
 import { useConfirm } from "./ConfirmDialog";
+import { CreateUserModal } from "./CreateUserModal";
 
 // Room the Edit / Delete menu needs below its icon
 const MENU_SPACE_NEEDED = 90;
@@ -20,6 +21,7 @@ const UsersSection = ({
 }) => {
   const { user } = useSelector((state) => state?.auth);
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const [confirm, confirmDialog] = useConfirm();
   const roleId = user?.role_id;
 
@@ -45,7 +47,8 @@ const UsersSection = ({
   const handleDeleteUser = async (id) => {
     const confirmDelete = await confirm({
       title: "Delete user?",
-      message: "Are you sure you want to delete this user? This can't be undone.",
+      message:
+        "Are you sure you want to delete this user? This can't be undone.",
       confirmLabel: "Delete",
     });
     if (!confirmDelete) return;
@@ -70,7 +73,10 @@ const UsersSection = ({
         <div className="absolute bottom-6 right-6 w-28 h-28 bg-indigo-100 opacity-70 blur-3xl rounded-full pointer-events-none z-0" />
         <div className="flex justify-between items-center">
           <h2 className="font-semibold text-gray-800 text-lg">Users</h2>
-          <button className="text-sm bg-indigo-50 text-indigo-600 px-4 py-1.5 rounded-full hover:bg-indigo-100 transition">
+          <button
+            className="text-sm bg-indigo-50 text-indigo-600 px-4 py-1.5 rounded-full hover:bg-indigo-100 transition"
+            onClick={() => navigate("/user-logs")}
+          >
             View activity log
           </button>
         </div>
@@ -97,15 +103,15 @@ const UsersSection = ({
               Loading users...
             </p>
           ) : error ? (
-            <p className="text-sm text-red-500 text-center py-4">
-              {error}
-            </p>
+            <p className="text-sm text-red-500 text-center py-4">{error}</p>
           ) : users.length > 0 ? (
             users.map((user, i) => {
-              const userName = typeof user === 'object' ? user.name : user;
-              const userEmail = typeof user === 'object' ? user.email : '';
-              const userInitial = userName ? userName.charAt(0).toUpperCase() : '?';
-              const userId = typeof user === 'object' ? user.id : i;
+              const userName = typeof user === "object" ? user.name : user;
+              const userEmail = typeof user === "object" ? user.email : "";
+              const userInitial = userName
+                ? userName.charAt(0).toUpperCase()
+                : "?";
+              const userId = typeof user === "object" ? user.id : i;
 
               return (
                 <div
@@ -123,7 +129,9 @@ const UsersSection = ({
                     </div>
 
                     <div>
-                      <p className="text-gray-700 font-medium text-sm">{userName}</p>
+                      <p className="text-gray-700 font-medium text-sm">
+                        {userName}
+                      </p>
                       {userEmail && (
                         <p className="text-xs text-gray-500">{userEmail}</p>
                       )}
@@ -131,12 +139,13 @@ const UsersSection = ({
                   </div>
 
                   <div className="relative">
-                    {[1, 2].includes(roleId) && <MoreVertical
-                      size={16}
-                      className="text-gray-400 cursor-pointer"
-                      onClick={(e) => toggleMenu(e, userId)}
-                    />}
-
+                    {[1, 2].includes(roleId) && (
+                      <MoreVertical
+                        size={16}
+                        className="text-gray-400 cursor-pointer"
+                        onClick={(e) => toggleMenu(e, userId)}
+                      />
+                    )}
 
                     {openMenuId === userId && (
                       <div
@@ -170,7 +179,6 @@ const UsersSection = ({
           )}
         </div>
 
-
         {[1, 2].includes(roleId) && (
           <button
             onClick={() => setShowCreateModal(true)}
@@ -182,9 +190,7 @@ const UsersSection = ({
       </div>
 
       {/* Modals */}
-      {showCreateModal && (
-        <CreateUserModal onClose={handleCloseModal} />
-      )}
+      {showCreateModal && <CreateUserModal onClose={handleCloseModal} />}
       {editingUser && (
         <CreateUserModal onClose={handleCloseModal} editUser={editingUser} />
       )}
