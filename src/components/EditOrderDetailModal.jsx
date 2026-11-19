@@ -64,7 +64,11 @@ const isCancelledStatus = (status) =>
 // their save
 const validateForm = (
   data,
-  { conditionEditable = true, orderDateEditable = true } = {},
+  {
+    conditionEditable = true,
+    orderDateEditable = true,
+    isCreatingRma = false,
+  } = {},
 ) => {
   const errors = {};
   if (!String(data["Order#"] ?? "").trim()) {
@@ -80,12 +84,13 @@ const validateForm = (
   if (conditionEditable && !String(data.Condition ?? "").trim()) {
     errors.Condition = "Select a Condition before saving this order.";
   }
-  if (
-    isCancelledStatus(data["Order Status"]) &&
-    !String(data["Entry Reason"] || "").trim()
-  ) {
-    errors["Entry Reason"] =
-      "Enter an Entry Reason before cancelling this order.";
+  if (!String(data["Entry Reason"] || "").trim()) {
+    if (isCreatingRma) {
+      errors["Entry Reason"] = "Enter an Entry Reason before creating this RMA.";
+    } else if (isCancelledStatus(data["Order Status"])) {
+      errors["Entry Reason"] =
+        "Enter an Entry Reason before cancelling this order.";
+    }
   }
   return errors;
 };
@@ -134,6 +139,7 @@ const EditOrderDetailModal = ({
   const validationOptions = {
     conditionEditable: !isFinance && !isCheckedLocked("Condition"),
     orderDateEditable: !isFinance && !isCheckedLocked("Order Date"),
+    isCreatingRma: Boolean(isRMAMode),
   };
   const normalizedOptions = normalizeOrderOptions(orderOptions);
   const debounceRef = useRef(null);
@@ -619,7 +625,8 @@ const EditOrderDetailModal = ({
                     >
                       {key.replace(/([A-Z])/g, " $1").trim()}
                       {((key === "Entry Reason" &&
-                        isCancelledStatus(formData["Order Status"])) ||
+                        (validationOptions.isCreatingRma ||
+                          isCancelledStatus(formData["Order Status"]))) ||
                         (key === "Condition" &&
                           validationOptions.conditionEditable) ||
                         (key === "Order Date" &&
