@@ -1187,7 +1187,7 @@ export const generatePackingSlip = async (form, options = {}) => {
     doc,
     "Bill To:",
     partyBlock(form.billToName, form.billTo),
-    { ...party, x: 53, w: 300 },
+    { ...party, x: 53, w: 176 }, // same width as Ship To
   );
   const shipEnd = drawParty(
     doc,
@@ -1268,7 +1268,7 @@ export const generateProformaInvoice = async (form, options = {}) => {
     doc,
     "Bill To:",
     partyBlock(form.billToName, form.billTo),
-    { ...party, x: L, w: 380 },
+    { ...party, x: L, w: 132 }, // same width as Ship To
   );
   const shipEnd = drawParty(doc, "Ship To:", form.shipTo, {
     ...party,
