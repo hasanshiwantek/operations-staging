@@ -14,6 +14,7 @@ import React, {
 import { useDispatch, useSelector } from "react-redux";
 import * as XLSX from "xlsx";
 import { useModalShortcuts } from "../hooks/useEscapeKey";
+import useSyncProgress from "../hooks/useSyncProgress";
 import {
   fetchOrderEditRange,
   getEditRangeStartDate,
@@ -52,7 +53,9 @@ import ExportProgressModal, {
   yieldToBrowser,
 } from "./ExportProgressModal";
 import OrderDetailModal from "./OrderDetailModal";
+import NewProformaButton from "./NewProformaButton";
 import OrderDocumentModal from "./OrderDocumentModal";
+import SyncProgressModal from "./SyncProgressModal";
 
 registerAllModules();
 
@@ -512,6 +515,28 @@ function OrderListTable({
   const [excelExport, setExcelExport] = useState(null);
   // Bumped on every start/cancel; a run whose id is stale stops at its next pause
   const excelRunIdRef = useRef(0);
+  // BigCommerce sync: progress polling + cancel while a sync runs
+  const syncStoreName = storeId?.name?.toLowerCase();
+  const {
+    progress: syncProgress,
+    result: syncResult,
+    cancelling: syncCancelling,
+    begin: beginSyncProgress,
+    end: endSyncProgress,
+    cancel: cancelSync,
+    clearResult: clearSyncResult,
+  } = useSyncProgress(syncStoreName, () =>
+    // A sync started elsewhere (another tab or user) finished: load the new orders
+    dispatch(fetchOrdersAdmin(storeId?.id)),
+  );
+  const syncBusy = Boolean(syncLoading || syncProgress);
+  // Hidden ("Run in background") while the sync keeps going; the button reopens it
+  const [syncModalOpen, setSyncModalOpen] = useState(false);
+  const showSyncModal = syncModalOpen && Boolean(syncProgress || syncResult);
+  const closeSyncModal = () => {
+    setSyncModalOpen(false);
+    clearSyncResult();
+  };
   const cancelExcelExport = () => {
     excelRunIdRef.current += 1;
     setExcelExport(null);
@@ -1443,16 +1468,25 @@ function OrderListTable({
     }
   };
   const handleSyncOrders = async () => {
-    await dispatch(
-      postSyncOrder({
-        storeId: storeId?.id,
-        storeName: storeId?.name?.toLowerCase(),
-      }),
-    )
-      .unwrap()
-      .then(() => {
-        dispatch(fetchOrdersAdmin(storeId?.id));
-      });
+    setSyncModalOpen(true);
+    // Already running: the click just reopens the progress modal
+    if (syncBusy) return;
+    beginSyncProgress();
+    let syncError;
+    try {
+      await dispatch(
+        postSyncOrder({
+          storeId: storeId?.id,
+          storeName: syncStoreName,
+        }),
+      ).unwrap();
+    } catch (err) {
+      // Already toasted; orders saved before a failure or cancel still load below
+      syncError = err || "Sync failed";
+    } finally {
+      endSyncProgress(syncError);
+      dispatch(fetchOrdersAdmin(storeId?.id));
+    }
   };
 
   // Add this handler
@@ -2020,7 +2054,7 @@ function OrderListTable({
   // so they win over the grid's own keys (F2 = edit cell) and the browser's
   // (Ctrl+E / Ctrl+I)
   const anyModalOpen = Boolean(
-    selectedOrder || documentRequest || isAddMode || excelExport,
+    selectedOrder || documentRequest || isAddMode || excelExport || showSyncModal,
   );
   const anyModalOpenRef = useRef(anyModalOpen);
   anyModalOpenRef.current = anyModalOpen;
@@ -2394,6 +2428,11 @@ function OrderListTable({
             {hasPermission("view_sheet.sync_orders") && (
               <button
                 onClick={handleSyncOrders}
+                title={
+                  syncBusy
+                    ? "Sync in progress — click to view"
+                    : "Sync orders from BigCommerce"
+                }
                 style={{
                   padding: "8px 16px",
                   background: "gray",
@@ -2403,8 +2442,23 @@ function OrderListTable({
                   cursor: "pointer",
                 }}
               >
-                {syncLoading ? "Sync..." : "Sync Orders"}
+                {syncProgress
+                  ? `Syncing... ${syncProgress.synced ?? 0} orders`
+                  : syncLoading
+                    ? "Sync..."
+                    : "Sync Orders"}
               </button>
+            )}
+            {showSyncModal && (
+              <SyncProgressModal
+                storeName={syncStoreName}
+                progress={syncProgress}
+                result={syncResult}
+                cancelling={syncCancelling}
+                onCancel={cancelSync}
+                onHide={() => setSyncModalOpen(false)}
+                onClose={closeSyncModal}
+              />
             )}
 
             {hasPermission("view_sheet.download_excel") && (
@@ -2451,6 +2505,9 @@ function OrderListTable({
             {hasPermission("view_sheet.export_pdf") && (
               <ExportOrdersPdf getOrders={getGridOrders} />
             )}
+            {/* A Proforma Invoice typed in by hand; shown only with the
+                Proforma Invoice permission */}
+            <NewProformaButton variant="toolbar" />
             {hasPermission("view_sheet.add_order") && (
               <button
                 onClick={() => setIsAddMode(true)}

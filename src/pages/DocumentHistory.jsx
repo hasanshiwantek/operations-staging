@@ -7,6 +7,7 @@ import {
   ExternalLink,
   FileText,
   Image as ImageIcon,
+  Pencil,
   RefreshCw,
   Search,
   X,
@@ -16,9 +17,10 @@ import { useDispatch, useSelector } from "react-redux";
 import { Navigate, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import NumberedPagination from "../components/NumberedPagination";
+import OrderDocumentModal from "../components/OrderDocumentModal";
 import useEscapeKey from "../hooks/useEscapeKey";
 import { getRoles } from "../store/authSlice";
-import { fetchUsers } from "../store/usersSlice";
+import { fetchOrderOptions, fetchUsers } from "../store/usersSlice";
 import { DOCUMENT_PERMISSIONS } from "../utils/constant";
 import {
   fetchDocumentHistory,
@@ -224,9 +226,13 @@ const DocumentHistory = () => {
   );
   // Super Admin / Admin → full access
   const isAdminRole = user?.role_id === 1 || user?.role_id === 2;
-  const canSeeHistory =
-    isAdminRole ||
-    userPermissions?.some((p) => p.slug === DOCUMENT_PERMISSIONS.history);
+  const hasPermission = (slug) =>
+    isAdminRole || Boolean(userPermissions?.some((p) => p.slug === slug));
+  const canSeeHistory = hasPermission(DOCUMENT_PERMISSIONS.history);
+  // Editing a saved document generates a new one, so it takes the same
+  // permission as creating that document type from the sheet
+  const canEditDocument = (type) => hasPermission(DOCUMENT_PERMISSIONS[type]);
+  const { orderOptions } = useSelector((state) => state.users);
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -243,6 +249,9 @@ const DocumentHistory = () => {
   const [total, setTotal] = useState(null);
   const [opening, setOpening] = useState(null);
   const [viewer, setViewer] = useState(null);
+  // { type, record, row, savedOn }: the generator open on a saved record
+  const [editing, setEditing] = useState(null);
+  const [loadingEdit, setLoadingEdit] = useState(null);
   const latestRequest = useRef(0);
 
   const load = useCallback(async () => {
@@ -352,8 +361,7 @@ const DocumentHistory = () => {
         output: "blob",
       });
       // Shown the way it was generated: Generate JPG → image, else PDF
-      const isImage =
-        (row.extension || documentExtensionOf(record)) === "jpg";
+      const isImage = (row.extension || documentExtensionOf(record)) === "jpg";
       let file = blob;
       let name = record.file_name || row.fileName || fileName;
       if (isImage) {
@@ -383,6 +391,41 @@ const DocumentHistory = () => {
       }
     } finally {
       setOpening(null);
+    }
+  };
+
+  // Opens the generator pre-filled with the saved record; generating there
+  // saves a new document and leaves this one as it is
+  const editDocument = async (row) => {
+    setLoadingEdit(row.referenceId);
+    try {
+      const record = await fetchDocumentRecord(row);
+      // The form's dropdowns use the order sheet's option lists, which are
+      // only loaded with the sheet
+      const hasOptions = Object.values(orderOptions || {}).some(
+        (list) => Array.isArray(list) && list.length,
+      );
+      if (!hasOptions) dispatch(fetchOrderOptions());
+      const when = formatWhen(row.createdAt);
+      setEditing({
+        type: row.type,
+        record,
+        row,
+        savedOn: `${when.day} at ${when.time}`,
+      });
+    } catch (err) {
+      console.error("Edit document failed:", err);
+      if (err?.code === "TYPE_MISMATCH") {
+        toast.error(
+          `The server sent a different document for this ${DOC_TYPES[row.type].title}, so it was not opened. Please report this to the backend team.`,
+        );
+      } else if (!err?.response?.data?.message) {
+        toast.error(
+          "This document could not be loaded for editing. Try again in a moment.",
+        );
+      }
+    } finally {
+      setLoadingEdit(null);
     }
   };
 
@@ -578,23 +621,39 @@ const DocumentHistory = () => {
                       {userName(row)}
                     </td>
                     <td className="p-3 border">
-                      <button
-                        type="button"
-                        onClick={() => viewPdf(row)}
-                        disabled={opening === row.referenceId}
-                        className="flex items-center gap-1.5 py-1 px-3 border border-[#06245f] text-[#06245f] text-xs font-semibold hover:bg-indigo-50 disabled:opacity-60 whitespace-nowrap"
-                      >
-                        {row.extension === "jpg" ? (
-                          <ImageIcon size={14} />
-                        ) : (
-                          <FileText size={14} />
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => viewPdf(row)}
+                          disabled={opening === row.referenceId}
+                          className="flex items-center gap-1.5 py-1 px-3 border border-[#06245f] text-[#06245f] text-xs font-semibold hover:bg-indigo-50 disabled:opacity-60 whitespace-nowrap"
+                        >
+                          {row.extension === "jpg" ? (
+                            <ImageIcon size={14} />
+                          ) : (
+                            <FileText size={14} />
+                          )}
+                          {opening === row.referenceId
+                            ? "Opening..."
+                            : row.extension === "jpg"
+                              ? "View JPG"
+                              : "View PDF"}
+                        </button>
+                        {canEditDocument(row.type) && (
+                          <button
+                            type="button"
+                            onClick={() => editDocument(row)}
+                            disabled={loadingEdit === row.referenceId}
+                            title={`Edit a copy of this ${DOC_TYPES[row.type].title} and generate it again. This one is kept as it is.`}
+                            className="flex items-center gap-1.5 py-1 px-3 border border-[#06245f] text-[#06245f] text-xs font-semibold hover:bg-indigo-50 disabled:opacity-60 whitespace-nowrap"
+                          >
+                            <Pencil size={14} />
+                            {loadingEdit === row.referenceId
+                              ? "Loading..."
+                              : "Edit"}
+                          </button>
                         )}
-                        {opening === row.referenceId
-                          ? "Opening..."
-                          : row.extension === "jpg"
-                            ? "View JPG"
-                            : "View PDF"}
-                      </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -636,6 +695,17 @@ const DocumentHistory = () => {
       )}
 
       {viewer && <PdfViewer viewer={viewer} onClose={() => setViewer(null)} />}
+      {editing && (
+        <OrderDocumentModal
+          // A fresh form for each record opened
+          key={editing.row.referenceId}
+          type={editing.type}
+          fromRecord={editing}
+          // The new document is listed first under "Newest first"
+          onGenerated={load}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </div>
   );
 };

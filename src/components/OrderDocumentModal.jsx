@@ -1,6 +1,6 @@
 // Form for the Proforma Invoice / Packing Slip / Purchase Order PDFs:
 // pre-filled from the order and its part orders, the user adds what is missing
-import { X } from "lucide-react";
+import { Plus, Trash2, X } from "lucide-react";
 import React, { useMemo, useRef, useState } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -16,9 +16,11 @@ import {
   buildCustomerForm,
   buildDocumentPayload,
   buildPurchaseOrderForm,
+  DEFAULT_WARRANTY,
   DOC_TYPES,
   findMissing,
   formatMoney,
+  formFromRecord,
   GENERATORS,
   getOrderFamily,
   getTotals,
@@ -282,12 +284,80 @@ const VendorPreview = ({ form }) => {
   );
 };
 
+// A saved history record as a form to edit: what formFromRecord rebuilds for
+// View PDF, plus what only the form needs (the shared warranty switch, the
+// pasted vendor details box). The company is left out: the store's current
+// details are read again when the new document is generated
+const editFormFromRecord = (type, record) => {
+  const { company: _savedCompany, ...form } = formFromRecord(type, record);
+  const d = record?.data || {};
+  const sharedWarranty = text(d.warranty?.value);
+  const warrantyForAll =
+    type !== "packing" &&
+    Boolean(d.warranty?.apply_to_all) &&
+    form.items.every((item) => text(item.warranty) === sharedWarranty);
+  return {
+    ...form,
+    warrantyForAll,
+    // Saved prices stay as issued: a changed Qty moves the amount, not the
+    // unit price
+    items: form.items.map((item) => ({ ...item, priceEdited: true })),
+    ...(type === "po"
+      ? {
+          vendorDetails: [
+            form.vendorContact,
+            form.vendorAddress,
+            form.vendorPhone,
+            form.vendorEmail,
+          ]
+            .map(text)
+            .filter(Boolean)
+            .join("\n"),
+        }
+      : {}),
+  };
+};
+
+// A blank item row typed in by hand (no order behind it); its typed unit
+// price sets the amount
+let manualItemCount = 0;
+const blankItem = () => ({
+  key: `manual-${Date.now()}-${++manualItemCount}`,
+  orderNo: "",
+  sku: "",
+  description: "",
+  condition: "",
+  warranty: DEFAULT_WARRANTY,
+  qty: "",
+  unitPrice: "",
+  amount: "",
+  priceEdited: true,
+  // Typed in by hand: Order# and SKU are inputs, whatever they hold
+  manual: true,
+});
+
 // ---------------------------------------------------------------------------
 // Modal
 // ---------------------------------------------------------------------------
-function OrderDocumentModal({ type, order, orders, onClose }) {
+// fromRecord ({ record, row } from Document History): edit a copy of a saved
+// document and generate it again as a new record; the saved one is kept.
+// manual: a document not tied to any order, every detail and item typed in.
+// onGenerated runs after each document is saved.
+function OrderDocumentModal({
+  type,
+  order,
+  orders,
+  onClose,
+  fromRecord = null,
+  manual = false,
+  onGenerated,
+}) {
   const config = DOC_TYPES[type];
   const isPO = type === "po";
+  const isEdit = Boolean(fromRecord);
+  const isManual = manual && !isEdit;
+  // Item rows can be added and removed when nothing ties them to the sheet
+  const canEditRows = isManual || isEdit;
   // Packing Slips can also be downloaded as a JPG
   const canMakeJpg = type === "packing";
   // Same option lists as the add / edit order form (loaded with the sheet)
@@ -296,23 +366,46 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
     () => normalizeOrderOptions(orderOptions),
     [orderOptions],
   );
-  const family = useMemo(() => getOrderFamily(orders, order), [orders, order]);
-
-  // PO: one tab (and one PDF) per vendor; other documents have a single form
-  const tabs = useMemo(
-    () =>
-      isPO
-        ? groupByVendor(family)
-        : [{ key: "main", vendor: "", orders: family }],
-    [isPO, family],
+  const family = useMemo(
+    () => (isEdit || isManual ? [] : getOrderFamily(orders, order)),
+    [isEdit, isManual, orders, order],
   );
+  // The order the document belongs to (saved with it as order_no)
+  const savedOrderNo = isEdit
+    ? text(fromRecord.record?.order_no) || text(fromRecord.row?.orderNo)
+    : text(order?.["Order#"]);
+
+  // PO: one tab (and one PDF) per vendor; other documents have a single form.
+  // Editing a saved document: one form, that document's own
+  const tabs = useMemo(() => {
+    if (isEdit) {
+      return [
+        {
+          key: "main",
+          vendor:
+            text(fromRecord.row?.vendor) ||
+            text(fromRecord.record?.vendor) ||
+            text(fromRecord.record?.data?.vendor?.company),
+          orders: [],
+        },
+      ];
+    }
+    return isPO
+      ? groupByVendor(family)
+      : [{ key: "main", vendor: "", orders: family }];
+  }, [isEdit, fromRecord, isPO, family]);
   const [forms, setForms] = useState(() =>
     Object.fromEntries(
       tabs.map((tab) => [
         tab.key,
-        isPO
-          ? buildPurchaseOrderForm(tab.orders, tab.orders[0])
-          : buildCustomerForm(type, family, order),
+        isEdit
+          ? editFormFromRecord(type, fromRecord.record)
+          : isManual
+            ? // Today's date, the usual defaults and one empty item row
+              { ...buildCustomerForm(type, [], {}), items: [blankItem()] }
+            : isPO
+              ? buildPurchaseOrderForm(tab.orders, tab.orders[0])
+              : buildCustomerForm(type, family, order),
       ]),
     ),
   );
@@ -329,6 +422,16 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
       ...prev,
       [activeKey]:
         typeof update === "function" ? update(prev[activeKey]) : update,
+    }));
+  // A manual document has no order: its Invoice # stands in as the order no.
+  const mainOrderNo = isManual ? text(form?.docNumber) : savedOrderNo;
+
+  const addItem = () =>
+    setForm((prev) => ({ ...prev, items: [...prev.items, blankItem()] }));
+  const removeItem = (key) =>
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.filter((item) => item.key !== key),
     }));
 
   const [showErrors, setShowErrors] = useState(false);
@@ -462,7 +565,7 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
     const f = { ...withIncludedItems(forms[key]), company };
     const tab = tabs.find((t) => t.key === key);
     const payload = buildDocumentPayload(type, f, {
-      orderNo: order?.["Order#"],
+      orderNo: mainOrderNo,
       orderNos: [
         ...new Set(f.items.map((item) => item.orderNo).filter(Boolean)),
       ],
@@ -474,6 +577,8 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
     } catch (err) {
       throw withStage(err, "save");
     }
+    // Saved: the history can show it even if the PDF below fails
+    onGenerated?.();
     try {
       if (format === "jpg") {
         const { blob, fileName } = await GENERATORS[type](f, {
@@ -546,6 +651,9 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
     setGenerating(true);
     try {
       await generateForm(activeKey, format);
+      // A regenerated copy or a manual document is done once saved and
+      // downloaded
+      if (isEdit || isManual) onClose();
     } catch (err) {
       reportFailure(err, label, format);
     } finally {
@@ -660,17 +768,37 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
               {config.title} -{" "}
               <span className="text-indigo-600">
                 {/* PO: the open vendor tab's PO # (as typed), else the order */}
-                #{(isPO && text(form?.docNumber)) || text(order?.["Order#"])}
+                {isManual
+                  ? text(form?.docNumber)
+                    ? `#${text(form.docNumber)}`
+                    : "New"
+                  : `#${((isPO || isEdit) && text(form?.docNumber)) || mainOrderNo}`}
               </span>
+              {isManual && (
+                <span className="ml-2 align-middle text-[11px] font-semibold px-2 py-0.5 rounded-full border bg-indigo-50 text-indigo-700 border-indigo-200">
+                  Manual
+                </span>
+              )}
+              {isEdit && (
+                <span className="ml-2 align-middle text-[11px] font-semibold px-2 py-0.5 rounded-full border bg-amber-50 text-amber-800 border-amber-200">
+                  Editing a copy
+                </span>
+              )}
             </h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              {isPO
-                ? tabs.length > 1
-                  ? `${tabs.length} vendors, one Purchase Order each. Check the pre-filled details in every tab and add what is missing.`
-                  : "Check the pre-filled details and add what is missing."
-                : `Covers the order and its ${Math.max(family.length - 1, 0)} part order${
-                    family.length - 1 === 1 ? "" : "s"
-                  }. Check the pre-filled details and add what is missing.`}
+              {isEdit
+                ? `Pre-filled from the saved ${config.title}${
+                    fromRecord.savedOn ? ` of ${fromRecord.savedOn}` : ""
+                  }. Generating saves a new document to the history; the saved one is kept as it is.`
+                : isManual
+                  ? `Not linked to an order on the sheet. Fill in the details and items; generating saves it to the document history.`
+                  : isPO
+                    ? tabs.length > 1
+                      ? `${tabs.length} vendors, one Purchase Order each. Check the pre-filled details in every tab and add what is missing.`
+                      : "Check the pre-filled details and add what is missing."
+                    : `Covers the order and its ${Math.max(family.length - 1, 0)} part order${
+                        family.length - 1 === 1 ? "" : "s"
+                      }. Check the pre-filled details and add what is missing.`}
             </p>
           </div>
           <button
@@ -683,7 +811,7 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
         </div>
 
         {/* PO: one tab per vendor */}
-        {isPO && (
+        {isPO && !isEdit && (
           <div
             role="tablist"
             className="px-5 border-b bg-white flex gap-1 overflow-x-auto overflow-y-hidden shrink-0"
@@ -751,7 +879,9 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
                   isPO ? "PO #" : type === "packing" ? "Order #" : "Invoice #"
                 }
                 {...fieldProps("docNumber")}
-                className={!isPO ? "hidden" : undefined}
+                // Customer documents take the order's number, so it is only
+                // typed in when there is no order
+                className={!isPO && !isManual ? "hidden" : undefined}
               />
 
               <DateField label="Date" {...fieldProps("date")} />
@@ -911,9 +1041,25 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
                 ? `Items (${form.items.length})`
                 : `Items (${includedCount} of ${form.items.length})`
             }
+            aside={
+              canEditRows && (
+                <button
+                  type="button"
+                  onClick={addItem}
+                  className="flex items-center gap-1.5 py-1 px-3 border border-[#06245f] text-[#06245f] text-xs font-semibold hover:bg-indigo-50 whitespace-nowrap"
+                >
+                  <Plus size={14} />
+                  Add item
+                </button>
+              )
+            }
           >
             {form.items.length === 0 ? (
-              <p className="text-sm text-red-600">No items on this order.</p>
+              <p className="text-sm text-red-600">
+                {canEditRows
+                  ? "No items yet. Use Add item to add one."
+                  : "No items on this order."}
+              </p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm min-w-[720px]">
@@ -935,7 +1081,11 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
                           className="w-4 h-4 cursor-pointer accent-indigo-600"
                         />
                       </th>
-                      <th className="py-1.5 pr-2 w-[90px]">Order#</th>
+                      <th
+                        className={`py-1.5 pr-2 ${canEditRows ? "w-[130px]" : "w-[90px]"}`}
+                      >
+                        Order#
+                      </th>
                       <th className="py-1.5 pr-2 w-[140px]">
                         {isPO ? (
                           <>
@@ -963,10 +1113,15 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
                           <th className="py-1.5 pr-2 w-[100px]">Amount</th>
                         </>
                       )}
+                      {canEditRows && (
+                        <th className="py-1.5 w-[40px]">
+                          <span className="sr-only">Remove</span>
+                        </th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
-                    {form.items.map((item) => (
+                    {form.items.map((item, index) => (
                       <tr
                         key={item.key}
                         className={`border-b last:border-0 align-top ${item.excluded ? "opacity-50" : ""}`}
@@ -987,19 +1142,33 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
                             className="w-4 h-4 cursor-pointer accent-indigo-600"
                           />
                         </td>
-                        <td className="py-2 pr-2 text-xs text-gray-500 pt-3.5">
-                          {item.orderNo || "Manual"}
+                        <td
+                          className={`py-2 pr-2 text-xs text-gray-500 ${item.manual ? "" : "pt-3.5"}`}
+                        >
+                          {item.manual ? (
+                            itemCell(item, "orderNo", {
+                              placeholder: "Order#",
+                            })
+                          ) : (
+                            <span>{item.orderNo || "Manual"}</span>
+                          )}
                         </td>
                         {isPO ? (
                           // PO Part # is the order's Vendor Part#: required, but
-                          // read-only here; it is filled in the Edit Order form
+                          // read-only here; it is filled in the Edit Order form.
+                          // A saved copy being edited can fix it here
                           <td className="py-2 pr-2">
                             {itemCell(item, "sku", {
-                              locked: true,
+                              locked: !isEdit,
                               placeholder: "Add in Edit Order",
                               title:
                                 "Vendor Part# from the order. Fill it in the Edit Order form.",
                             })}
+                          </td>
+                        ) : item.manual || !item.orderNo ? (
+                          // A typed-in item has no Part# from the sheet
+                          <td className="py-2 pr-2">
+                            {itemCell(item, "sku", { placeholder: "SKU" })}
                           </td>
                         ) : (
                           <td className="py-2 pr-2 pt-3 text-gray-800">
@@ -1084,6 +1253,23 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
                             </td>
                           </>
                         )}
+                        {canEditRows && (
+                          <td className="py-2 pt-2 text-right">
+                            {/* The first item is required, so it cannot be
+                                removed; the empty cell keeps the columns lined up */}
+                            {index > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => removeItem(item.key)}
+                                title="Remove this item"
+                                aria-label={`Remove ${text(item.sku) || "item"}`}
+                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -1092,8 +1278,11 @@ function OrderDocumentModal({ type, order, orders, onClose }) {
             )}
             {showPrice && (
               <p className="text-[11px] text-gray-400 mt-2">
-                Unit price starts as the order's {isPO ? "Cost" : "Price"}{" "}
-                divided by Qty and can be changed; Amount is Qty × Unit price.
+                {isManual
+                  ? "Type each item's unit price; Amount is Qty × Unit price."
+                  : isEdit
+                    ? "Unit prices are as saved and can be changed; Amount is Qty × Unit price."
+                    : `Unit price starts as the order's ${isPO ? "Cost" : "Price"} divided by Qty and can be changed; Amount is Qty × Unit price.`}
               </p>
             )}
           </Section>
