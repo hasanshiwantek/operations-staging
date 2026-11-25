@@ -262,6 +262,8 @@ export const buildCustomerForm = (type, family, clicked) => {
   const main = family[0] || clicked || {};
   const pick = (field) => text(main?.[field]) || firstValue(family, field);
   const company = pick("Customer Company") || pick("Customer");
+  // The sheet's Customer column (the customer's name, next to Reasons (IF any))
+  const customerName = pick("Customer");
 
   return {
     docNumber: pick("Order#"),
@@ -271,16 +273,23 @@ export const buildCustomerForm = (type, family, clicked) => {
     paymentTerms: pick("Payment Status"),
     shippingMethod: pick("Carrier"),
     salesRep: pick("Sales Agent"),
-    // Bill To: first line typed by the user, then the address one part per line
-    billToName: "",
+    // Bill To: a name line (the order's Customer, editable), then the address
+    // one part per line
+    billToName: customerName,
     billTo: splitAddress(pick("Bill to address")),
-    // Ship To on Packing Slips: an optional name (the Customer Company) and
-    // the address one part per line, like Bill To. Elsewhere one block: the
-    // Customer Company, then the address
+    // Ship To on Packing Slips: a name (the order's Customer, editable) and
+    // the address one part per line, like Bill To. On the Proforma one block:
+    // the Customer (or the Customer Company when there is none), then the address
     ...(type === "packing"
-      ? { shipToName: company, shipTo: splitAddress(pick("Ship to address")) }
+      ? {
+          shipToName: customerName,
+          shipTo: splitAddress(pick("Ship to address")),
+        }
       : {
-          shipTo: partyBlock(company, splitAddress(pick("Ship to address"))),
+          shipTo: partyBlock(
+            customerName || company,
+            splitAddress(pick("Ship to address")),
+          ),
         }),
     items: family.map((order) => orderToItem(order)),
     warranty: type === "proforma" ? DEFAULT_WARRANTY : "",
@@ -1178,7 +1187,7 @@ export const generatePackingSlip = async (form, options = {}) => {
     doc,
     "Bill To:",
     partyBlock(form.billToName, form.billTo),
-    { ...party, x: 53, w: 300 },
+    { ...party, x: 53, w: 176 }, // same width as Ship To
   );
   const shipEnd = drawParty(
     doc,
@@ -1259,7 +1268,7 @@ export const generateProformaInvoice = async (form, options = {}) => {
     doc,
     "Bill To:",
     partyBlock(form.billToName, form.billTo),
-    { ...party, x: L, w: 380 },
+    { ...party, x: L, w: 132 }, // same width as Ship To
   );
   const shipEnd = drawParty(doc, "Ship To:", form.shipTo, {
     ...party,

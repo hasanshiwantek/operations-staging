@@ -78,6 +78,10 @@ body {
 .ols-gain { color: #16a34a; font-weight: 600; }
 .ols-loss { color: #dc2626; font-weight: 600; background-color: #fef2f2; } */
 
+.handsontable td.htDimmed {
+  color: black !important;
+}
+
 .order-sheet-bottom-scrollbar {
   position: fixed;
   left: 0;
